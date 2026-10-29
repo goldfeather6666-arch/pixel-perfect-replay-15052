@@ -29,7 +29,7 @@ describe("external agent tools", () => {
     const registry = await loadMcpTools(sb, "owner-1");
     expect(eq).toHaveBeenCalledWith("user_id", "owner-1");
     expect(eq).toHaveBeenCalledWith("enabled", true);
-    const options = { toolCallId: "test-call", messages: [] };
+    const options = { toolCallId: "test-call", messages: [], context: {} };
     const found = await registry.tools.tool_search.execute({ query: "docs", limit: 8 }, options);
     if (!("matches" in found)) throw new Error("Expected search result");
     expect(found.matches.map((t) => t.name)).toEqual(["mcp_abc.read"]);
