@@ -22,9 +22,10 @@ export type Credential = {
   created_at: string;
 };
 
-export type ToolLog = { id: string; name: string; input: unknown; ok?: boolean; summary?: string };
-export type ChatMessage = { role: "user" | "assistant"; content: string; tools?: ToolLog[] };
-export type PendingChange = { path: string; action: "write" | "delete"; content?: string; original?: string | null };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ToolLog = { id: string; name: string; input: any; ok?: boolean | undefined; summary?: string | undefined };
+export type ChatMessage = { role: "user" | "assistant"; content: string; tools?: ToolLog[] | undefined };
+export type PendingChange = { path: string; action: "write" | "delete"; content?: string | undefined; original?: string | null | undefined };
 
 export type AgentEvent =
   | { t: "text"; d: string }

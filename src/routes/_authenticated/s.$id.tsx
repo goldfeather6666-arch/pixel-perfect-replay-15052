@@ -52,7 +52,7 @@ function Workspace() {
     setRunning(true);
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
-      setMessages((ms) => [...ms.slice(0, -1), fn(ms[ms.length - 1])]);
+      setMessages((ms) => [...ms.slice(0, -1), fn(ms[ms.length - 1]!)]);
     const ac = new AbortController();
     abortRef.current = ac;
     try {
@@ -302,12 +302,12 @@ function simpleDiff(a: string, b: string) {
   const x = a.split("\n"), y = b.split("\n");
   if (x.length * y.length > 4_000_000) return [...x.map((l) => "-" + l), ...y.map((l) => "+" + l)].join("\n");
   const dp = Array.from({ length: x.length + 1 }, () => new Uint32Array(y.length + 1));
-  for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) dp[i][j] = x[i] === y[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) dp[i]![j] = x[i] === y[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
   const out: string[] = [];
   let i = 0, j = 0;
   while (i < x.length && j < y.length) {
     if (x[i] === y[j]) { out.push(" " + x[i]); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push("-" + x[i++]);
+    else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) out.push("-" + x[i++]);
     else out.push("+" + y[j++]);
   }
   while (i < x.length) out.push("-" + x[i++]);

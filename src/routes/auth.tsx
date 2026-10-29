@@ -45,6 +45,7 @@ function AuthPage() {
     setBusy(false);
     if (error) return toast.error(error.message);
     if (mode === "up" && !data.session) setSent(true);
+    return undefined;
   }
 
   async function google() {

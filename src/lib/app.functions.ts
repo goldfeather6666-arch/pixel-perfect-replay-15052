@@ -131,7 +131,7 @@ export const getSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).single();
     if (error) throw new Error(error.message);
-    return row as SessionRow;
+    return row as unknown as SessionRow;
   });
 
 export const createSession = createServerFn({ method: "POST" })
@@ -165,7 +165,10 @@ export const updateSession = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), model: z.string().optional(), mode: z.enum(["supervised", "autonomous"]).optional() }),
   )
   .handler(async ({ data, context }) => {
-    const { id, ...patch } = data;
+    const patch: { model?: string; mode?: string } = {};
+    if (data.model) patch.model = data.model;
+    if (data.mode) patch.mode = data.mode;
+    const { id } = data;
     const { error } = await context.supabase.from("agent_sessions").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -184,7 +187,7 @@ export const deleteSession = createServerFn({ method: "POST" })
 async function session(context: Ctx, id: string) {
   const { data, error } = await context.supabase.from("agent_sessions").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
-  return data as SessionRow;
+  return data as unknown as SessionRow;
 }
 
 export const getTree = createServerFn({ method: "POST" })
