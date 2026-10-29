@@ -45,7 +45,7 @@ export function McpConnections() {
         <h2 id="mcp-title" className="flex items-center gap-2 font-semibold"><Plug className="size-4" /> External tools (MCP)</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => { setName("DeepWiki"); setUrl("https://mcp.deepwiki.com/mcp"); setToken(""); setTrusted(false); }}>DeepWiki</Button>
       </div>
-      <p className="text-sm text-muted-foreground">Public or bearer-token servers only. OAuth sign-in is not available yet. Only tools marked read-only are included.</p>
+      <p className="text-sm text-muted-foreground">Public or bearer-token servers only. OAuth sign-in is not available yet. Read-only tools only, including DeepWiki's three documentation tools.</p>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
         <div className="space-y-1.5"><Label htmlFor="mcp-name">Connection name</Label><Input id="mcp-name" required maxLength={80} placeholder="e.g. Project docs" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="space-y-1.5"><Label htmlFor="mcp-url">Server URL</Label><Input id="mcp-url" type="url" required maxLength={2048} placeholder="https://server.example/mcp" value={url} onChange={(e) => setUrl(e.target.value)} /></div>

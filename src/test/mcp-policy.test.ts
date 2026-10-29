@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectionInput, isPublicIpv4, publicMcpUrl, readOnlyTool } from "@/lib/mcp-policy";
+import { allowedMcpTool, connectionInput, isPublicIpv4, publicMcpUrl, readOnlyTool } from "@/lib/mcp-policy";
 
 describe("MCP endpoint restrictions", () => {
   it("allows the official public HTTPS DeepWiki endpoint", () => {
@@ -18,5 +18,10 @@ describe("MCP endpoint restrictions", () => {
     expect(readOnlyTool({ annotations: { readOnlyHint: false } })).toBe(false);
     expect(readOnlyTool({ annotations: { readOnlyHint: true, destructiveHint: true } })).toBe(false);
     expect(readOnlyTool({ annotations: { readOnlyHint: true } })).toBe(true);
+  });
+  it("allows only documented DeepWiki read tools on the exact official endpoint", () => {
+    expect(allowedMcpTool("https://mcp.deepwiki.com/mcp", { name: "read_wiki_contents" })).toBe(true);
+    expect(allowedMcpTool("https://mcp.deepwiki.com/mcp", { name: "generate_wiki" })).toBe(false);
+    expect(allowedMcpTool("https://other.example/mcp", { name: "read_wiki_contents" })).toBe(false);
   });
 });

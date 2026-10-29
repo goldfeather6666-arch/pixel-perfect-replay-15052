@@ -15,7 +15,7 @@ export const connectMcp = createServerFn({ method: "POST" }).middleware([require
   let client;
   try {
     client = await openMcp(data.url, data.token || undefined);
-    const { definitions } = await inspectMcp(client);
+    const { definitions } = await inspectMcp(client, data.url);
     if (!definitions.length) return { ok: false, message: "This server has no explicitly read-only tools. It was not saved." };
     const encrypted = data.token ? await encryptSecret(data.token) : { ciphertext: null, iv: null };
     const { error } = await context.supabase.from("mcp_connections").insert({ user_id: context.userId, name: data.name, url: data.url, ...encrypted, tool_names: definitions.map((t) => t.name) });
@@ -39,7 +39,7 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
     let client;
     try {
       client = await openMcp(row.url, row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined);
-      const { definitions } = await inspectMcp(client);
+      const { definitions } = await inspectMcp(client, row.url);
       if (!definitions.length) throw new Error("No read-only tools");
       const { error: saveError } = await table.update({ state: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", data.id).eq("user_id", context.userId);
       if (saveError) throw saveError;

@@ -1,7 +1,7 @@
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import { tool } from "ai";
 import { z } from "zod";
-import { publicMcpUrl, isPublicIpv4, readOnlyTool } from "./mcp-policy";
+import { publicMcpUrl, isPublicIpv4, allowedMcpTool } from "./mcp-policy";
 import { decryptSecret } from "./crypto.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -32,9 +32,9 @@ export async function openMcp(url: string, token?: string) {
   } });
 }
 
-export async function inspectMcp(client: MCPClient) {
+export async function inspectMcp(client: MCPClient, url: string) {
   const definitions = await client.listTools();
-  const filtered = { ...definitions, tools: definitions.tools.filter(readOnlyTool) };
+  const filtered = { ...definitions, tools: definitions.tools.filter((t) => allowedMcpTool(url, t)) };
   const sdkTools = client.toolsFromDefinitions(filtered);
   return { definitions: filtered.tools, sdkTools };
 }
@@ -52,7 +52,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string)
       const token = row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined;
       client = await openMcp(row.url, token);
       clients.push(client);
-      const { definitions, sdkTools } = await inspectMcp(client);
+      const { definitions, sdkTools } = await inspectMcp(client, row.url);
       for (const def of definitions) {
         const sdkTool = sdkTools[def.name];
         if (!sdkTool) continue;

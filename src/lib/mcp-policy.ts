@@ -32,3 +32,10 @@ export function isPublicIpv4(ip: string) {
 export function readOnlyTool(t: { annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined }) {
   return t.annotations?.readOnlyHint === true && t.annotations.destructiveHint !== true;
 }
+
+export function allowedMcpTool(url: string, t: { name: string; annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined }) {
+  // Official public DeepWiki docs endpoints omit annotations; allow only its documented reads.
+  if (url === "https://mcp.deepwiki.com/mcp" && t.annotations?.destructiveHint !== true &&
+    ["read_wiki_structure", "read_wiki_contents", "ask_wiki_question"].includes(t.name)) return true;
+  return readOnlyTool(t);
+}
