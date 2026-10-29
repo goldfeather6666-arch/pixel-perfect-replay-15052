@@ -29,6 +29,6 @@ export function isPublicIpv4(ip: string) {
     a !== undefined && a < 224 && !(a === 198 && (b === 18 || b === 19));
 }
 
-export function readOnlyTool(t: { annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }) {
+export function readOnlyTool(t: { annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined }) {
   return t.annotations?.readOnlyHint === true && t.annotations.destructiveHint !== true;
 }

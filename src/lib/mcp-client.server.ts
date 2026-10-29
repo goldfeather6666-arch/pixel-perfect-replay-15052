@@ -5,6 +5,7 @@ import { publicMcpUrl, isPublicIpv4, readOnlyTool } from "./mcp-policy";
 import { decryptSecret } from "./crypto.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import Ajv from "ajv";
 
 export async function openMcp(url: string, token?: string) {
   const safeUrl = publicMcpUrl(url);
@@ -26,7 +27,7 @@ export async function openMcp(url: string, token?: string) {
     return response;
   };
   return createMCPClient({ transport: {
-    type: "http", url: safeUrl, headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    type: "http", url: safeUrl, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     redirect: "error", fetch: guardedFetch,
   } });
 }
@@ -55,17 +56,11 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string)
       for (const def of definitions) {
         const sdkTool = sdkTools[def.name];
         if (!sdkTool) continue;
+        const validate = new Ajv({ strict: false }).compile(def.inputSchema);
         entries.push({ name: `mcp_${row.id.replaceAll("-", "")}.${def.name}`, server: row.name,
           description: (def.description ?? "").slice(0, 1500), input_schema: def.inputSchema,
           execute: async (args) => {
-            const schema = await sdkTool.inputSchema;
-            // AI SDK's converted schemas validate before any remote execution.
-            const { asSchema } = await import("ai");
-            const normalized = asSchema(schema);
-            if (normalized.validate) {
-              const result = await normalized.validate(args);
-              if (!result.success) return { error: "Invalid arguments for external tool" };
-            }
+            if (!validate(args)) return { error: "Invalid arguments for external tool" };
             return sdkTool.execute(args);
           },
         });
