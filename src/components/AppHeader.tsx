@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, Settings } from "lucide-react";
+import { BookOpen, LogOut, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,9 @@ export function AppHeader({ children }: { children?: ReactNode }) {
         <span className="text-primary">▲</span> forge
       </Link>
       <div className="min-w-0 flex-1">{children}</div>
+      <Button asChild variant="ghost" size="icon" aria-label="Skills">
+        <Link to="/skills"><BookOpen /></Link>
+      </Button>
       <Button asChild variant="ghost" size="icon" aria-label="Settings">
         <Link to="/settings"><Settings /></Link>
       </Button>
