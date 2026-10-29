@@ -4,13 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { Check, ChevronRight, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, updateSession } from "@/lib/app.functions";
+import { deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
@@ -207,6 +207,20 @@ function FilesView({ id }: { id: string }) {
   const [path, setPath] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const file = useQuery({ queryKey: ["file", id, path], queryFn: () => fetchFile({ data: { id, path: path! } }), enabled: !!path });
+  const save = useServerFn(saveFile);
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [path]);
+  const saveM = useMutation({
+    mutationFn: () => save({ data: { id, path: path!, content: draft ?? "", message: `edit ${path}` } }),
+    onSuccess: () => {
+      toast.success("Committed to task branch");
+      setDraft(null);
+      qc.invalidateQueries({ queryKey: ["file", id, path] });
+      qc.invalidateQueries({ queryKey: ["diff", id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const files = tree.data?.filter((f) => f.toLowerCase().includes(filter.toLowerCase())) ?? [];
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -228,11 +242,36 @@ function FilesView({ id }: { id: string }) {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b px-3 py-2 font-mono text-xs">
             <button className="md:hidden" onClick={() => setPath(null)}>← </button>
-            <span className="truncate">{path}</span>
+            <span className="flex-1 truncate">{path}</span>
+            {draft === null ? (
+              <Button size="sm" variant="ghost" disabled={typeof file.data !== "string"} onClick={() => setDraft(file.data ?? "")}><Pencil /> Edit</Button>
+            ) : (
+              <>
+                <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>Cancel</Button>
+                <Button size="sm" disabled={saveM.isPending || draft === file.data} onClick={() => saveM.mutate()}><Save /> Commit</Button>
+              </>
+            )}
           </div>
-          <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs leading-relaxed">
-            {file.isLoading ? "Loading…" : file.data ?? "(file not found)"}
-          </pre>
+          {draft !== null ? (
+            <textarea
+              spellCheck={false}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  const t = e.currentTarget, a = t.selectionStart;
+                  setDraft(draft.slice(0, a) + "  " + draft.slice(t.selectionEnd));
+                  requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = a + 2; });
+                }
+              }}
+              className="min-h-0 flex-1 resize-none bg-background p-3 font-mono text-xs leading-relaxed outline-none"
+            />
+          ) : (
+            <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs leading-relaxed">
+              {file.isLoading ? "Loading…" : file.data ?? "(file not found)"}
+            </pre>
+          )}
         </div>
       )}
     </div>
@@ -247,6 +286,12 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
   const resolveM = useMutation({
     mutationFn: (approve: boolean) => resolve({ data: { id, approve } }),
     onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded staged changes"); onResolved(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const restore = useServerFn(restoreCheckpoint);
+  const restoreM = useMutation({
+    mutationFn: (sha: string) => restore({ data: { id, sha } }),
+    onSuccess: () => { toast.success("Branch restored"); onResolved(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const prM = useMutation({
@@ -273,6 +318,33 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
           <Button size="sm" variant="outline" disabled={!diff.data?.ahead_by || prM.isPending} onClick={() => prM.mutate()}><GitPullRequest /> Open pull request</Button>
         </div>
         {diff.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {diff.data && diff.data.commits.length > 0 && (
+          <div className="mb-4 rounded-md border bg-card">
+            <p className="flex items-center gap-2 border-b px-3 py-2 text-xs font-semibold text-muted-foreground"><History className="h-3 w-3" /> Checkpoints</p>
+            <ul className="divide-y text-xs">
+              {[...diff.data.commits].reverse().map((c, i) => (
+                <li key={c.sha} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="font-mono text-muted-foreground">{c.sha.slice(0, 7)}</span>
+                  <span className="flex-1 truncate">{c.message.split("\n")[0]}</span>
+                  {i > 0 && (
+                    <Button size="sm" variant="ghost" disabled={restoreM.isPending}
+                      onClick={() => confirm("Rewind the task branch to this point? Later commits are removed from the branch.") && restoreM.mutate(c.sha)}>
+                      Restore
+                    </Button>
+                  )}
+                </li>
+              ))}
+              <li className="flex items-center gap-2 px-3 py-1.5">
+                <span className="font-mono text-muted-foreground">{diff.data.base_sha.slice(0, 7)}</span>
+                <span className="flex-1 truncate text-muted-foreground">Start (base branch)</span>
+                <Button size="sm" variant="ghost" disabled={restoreM.isPending}
+                  onClick={() => confirm("Undo all of this task's commits?") && restoreM.mutate(diff.data!.base_sha)}>
+                  Undo all
+                </Button>
+              </li>
+            </ul>
+          </div>
+        )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
           {diff.data?.files.map((f) => (

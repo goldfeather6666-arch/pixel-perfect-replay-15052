@@ -72,9 +72,16 @@ export class GitHub {
     const c = await this.req<any>(`repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
     return {
       ahead_by: c.ahead_by as number,
+      base_sha: c.merge_base_commit.sha as string,
       commits: (c.commits as any[]).map((x) => ({ sha: x.sha as string, message: x.commit.message as string })),
       files: ((c.files ?? []) as any[]).map((f) => ({ filename: f.filename as string, status: f.status as string, patch: (f.patch ?? "") as string })),
     };
+  }
+  async resetBranch(repo: string, branch: string, sha: string) {
+    await this.req(`repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ sha, force: true }),
+    });
   }
   async openPr(repo: string, base: string, head: string, title: string, body: string) {
     const p = await this.req<any>(`repos/${repo}/pulls`, { method: "POST", body: JSON.stringify({ title, body, head, base }) });

@@ -144,6 +144,15 @@ export const Route = createFileRoute("/api/agent")({
           }),
         };
 
+        // Project instructions from the repo + the user's enabled skills.
+        const { data: skills } = await sb.from("skills").select("name, instructions").eq("enabled", true);
+        let projectDoc = "";
+        for (const f of ["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"]) {
+          const doc = await gh.getFile(repo, branch, f).catch(() => null);
+          if (doc) { projectDoc = `\n\n<project_instructions file="${f}">\n${doc.content.slice(0, 12000)}\n</project_instructions>`; break; }
+        }
+        const skillText = (skills ?? []).map((k) => `\n\n<skill name="${k.name}">\n${k.instructions}\n</skill>`).join("");
+
         const history = (s.messages as ChatMessage[]) ?? [];
         const messages = [
           ...history.slice(-20).map((m) => ({ role: m.role, content: m.content || "(tool work only)" })),
@@ -159,7 +168,7 @@ export const Route = createFileRoute("/api/agent")({
             try {
               const result = streamText({
                 model: createModel(cred.provider, apiKey, cred.base_url, s.model),
-                system: `${SYSTEM}\nRepository: ${repo} (branch ${branch}). Mode: ${supervised ? "supervised — writes are staged for approval" : "autonomous — writes commit directly to the work branch"}.`,
+                system: `${SYSTEM}\nRepository: ${repo} (branch ${branch}). Mode: ${supervised ? "supervised — writes are staged for approval" : "autonomous — writes commit directly to the work branch"}.${projectDoc}${skillText}`,
                 messages,
                 tools,
                 stopWhen: stepCountIs(30),

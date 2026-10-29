@@ -242,3 +242,60 @@ export const openPullRequest = createServerFn({ method: "POST" })
     const s = await session(context, data.id);
     return (await github(context)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
   });
+
+// ---------- Checkpoints & editing ----------
+export const restoreCheckpoint = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), sha: z.string().regex(/^[0-9a-f]{40}$/) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const gh = await github(context);
+    const c = await gh.compare(s.repo, s.base_branch, s.work_branch);
+    // Only allow rewinding to the branch's base or one of its own agent commits.
+    if (data.sha !== c.base_sha && !c.commits.some((x) => x.sha === data.sha)) throw new Error("Not a checkpoint of this task");
+    await gh.resetBranch(s.repo, s.work_branch, data.sha);
+    return { ok: true };
+  });
+
+export const saveFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), path: z.string().min(1), content: z.string(), message: z.string().max(200) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const sha = await (await github(context)).putFile(s.repo, s.work_branch, data.path, data.content, data.message || `edit ${data.path}`);
+    return sha;
+  });
+
+// ---------- Skills ----------
+export type Skill = { id: string; name: string; instructions: string; enabled: boolean };
+
+export const listSkills = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from("skills").select("id, name, instructions, enabled").order("created_at");
+    if (error) throw new Error(error.message);
+    return data as Skill[];
+  });
+
+export const upsertSkill = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ id: z.string().uuid().nullable(), name: z.string().min(1).max(80), instructions: z.string().min(1).max(8000), enabled: z.boolean() }),
+  )
+  .handler(async ({ data, context }) => {
+    const row = { name: data.name, instructions: data.instructions, enabled: data.enabled };
+    const { error } = data.id
+      ? await context.supabase.from("skills").update(row).eq("id", data.id)
+      : await context.supabase.from("skills").insert({ ...row, user_id: context.userId });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteSkill = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("skills").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

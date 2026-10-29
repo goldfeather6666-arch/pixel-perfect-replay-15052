@@ -1,29 +1,43 @@
-# Welcome to your Lovable project
+# Forge — open-source, bring-your-own-key AI coding agent
 
-This project was built with [Lovable](https://lovable.dev).
+Forge is a browser-based coding agent. Each user brings their own AI provider key, connects GitHub, and delegates tasks to an agent that reads, searches and edits real repository files on its own branch.
 
-## Build with Lovable
+## Features
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+- **BYOK providers:** OpenAI, Anthropic, Google Gemini, OpenRouter, any OpenAI-compatible endpoint (incl. Ollama). Keys are validated with the provider, AES-GCM encrypted at rest, and only ever decrypted on the server.
+- **GitHub:** personal access token (`repo` scope). Each task gets a fresh `agent/<id>` branch; the base branch is never modified.
+- **Agent tools:** `list_files`, `read_file`, `search_files`, `write_file`, `delete_file`, with streaming progress.
+- **Modes:** *Supervised* stages every edit for approval with a diff; *Autonomous* commits as it works.
+- **Checkpoints:** every agent commit is a checkpoint; rewind the task branch to any of them or undo everything.
+- **Editor:** view and edit files in the browser, committing to the task branch.
+- **Skills & project instructions:** reusable instructions per user, plus `AGENTS.md` / `CLAUDE.md` from the repo.
+- **Pull requests:** open a PR from the task branch in one click.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+Not yet available: sandboxed terminal / test execution and MCP servers (see `roadmap.md`).
 
-## Development
+## Stack
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+TanStack Start (React 19, Vite, TypeScript), Tailwind CSS v4, shadcn/ui, Vercel AI SDK, Supabase (Auth + Postgres with Row Level Security). Runs on Cloudflare Workers or any Node 20+ host.
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+## Self-hosting
 
-## Built with
+1. Install: `bun install` (Node 20 LTS or newer also works).
+2. Create a Supabase project and apply the SQL files in `drizzle/migrations/` in order.
+3. Set environment variables:
+   - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (server)
+   - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (browser)
+   - `KEY_ENCRYPTION_SECRET` — a random string of 64+ characters. Losing it makes saved keys unreadable; rotating it requires users to re-enter keys.
+4. Run `bun run dev`, or `bun run build` and deploy.
 
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
+No platform AI key is required: all inference uses the user's own credentials.
+
+## Security notes
+
+- Keys never reach the browser after saving; only the last 4 characters are shown.
+- All tables use RLS scoped to `auth.uid()`.
+- Repository file contents are treated as data; the system prompt tells the model to ignore instructions found inside them.
+- Checkpoint restore only accepts commits that belong to the task branch.
+
+## License
+
+MIT — see `LICENSE`.
