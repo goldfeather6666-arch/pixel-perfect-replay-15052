@@ -14,7 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_sessions: {
+        Row: {
+          base_branch: string
+          created_at: string
+          credential_id: string | null
+          id: string
+          messages: Json
+          mode: string
+          model: string
+          repo: string
+          title: string
+          updated_at: string
+          user_id: string
+          work_branch: string
+        }
+        Insert: {
+          base_branch: string
+          created_at?: string
+          credential_id?: string | null
+          id?: string
+          messages?: Json
+          mode?: string
+          model?: string
+          repo: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          work_branch: string
+        }
+        Update: {
+          base_branch?: string
+          created_at?: string
+          credential_id?: string | null
+          id?: string
+          messages?: Json
+          mode?: string
+          model?: string
+          repo?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          work_branch?: string
+        }
+        Relationships: []
+      }
+      provider_credentials: {
+        Row: {
+          base_url: string | null
+          ciphertext: string
+          created_at: string
+          id: string
+          iv: string
+          label: string
+          last4: string
+          provider: string
+          user_id: string
+        }
+        Insert: {
+          base_url?: string | null
+          ciphertext: string
+          created_at?: string
+          id?: string
+          iv: string
+          label?: string
+          last4: string
+          provider: string
+          user_id?: string
+        }
+        Update: {
+          base_url?: string | null
+          ciphertext?: string
+          created_at?: string
+          id?: string
+          iv?: string
+          label?: string
+          last4?: string
+          provider?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
