@@ -170,7 +170,7 @@ export const Route = createFileRoute("/api/agent")({
                 model: createModel(cred.provider, apiKey, cred.base_url, s.model),
                 system: `${SYSTEM}\nRepository: ${repo} (branch ${branch}). Mode: ${supervised ? "supervised — writes are staged for approval" : "autonomous — writes commit directly to the work branch"}.${projectDoc}${skillText}`,
                 messages,
-                tools,
+                tools: { ...tools, ...external.tools },
                 stopWhen: stepCountIs(30),
                 abortSignal: request.signal,
               });
