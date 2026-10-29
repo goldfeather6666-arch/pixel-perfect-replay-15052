@@ -29,12 +29,14 @@ describe("external agent tools", () => {
     const registry = await loadMcpTools(sb, "owner-1");
     expect(eq).toHaveBeenCalledWith("user_id", "owner-1");
     expect(eq).toHaveBeenCalledWith("enabled", true);
-    const found = await registry.tools.tool_search.execute({ query: "docs", limit: 8 });
+    const options = { toolCallId: "test-call", messages: [] };
+    const found = await registry.tools.tool_search.execute({ query: "docs", limit: 8 }, options);
+    if (!("matches" in found)) throw new Error("Expected search result");
     expect(found.matches.map((t) => t.name)).toEqual(["mcp_abc.read"]);
-    expect(await registry.tools.tool_invoke.execute({ name: "mcp_abc.delete", arguments: {} })).toEqual({ error: "Unknown or disabled external tool" });
-    expect(await registry.tools.tool_invoke.execute({ name: "mcp_abc.read", arguments: {} })).toEqual({ error: "Invalid arguments for external tool" });
+    expect(await registry.tools.tool_invoke.execute({ name: "mcp_abc.delete", arguments: {} }, options)).toEqual({ error: "Unknown or disabled external tool" });
+    expect(await registry.tools.tool_invoke.execute({ name: "mcp_abc.read", arguments: {} }, options)).toEqual({ error: "Invalid arguments for external tool" });
     expect(fake.execute).not.toHaveBeenCalled();
-    await registry.tools.tool_invoke.execute({ name: "mcp_abc.read", arguments: { repo: "facebook/react" } });
+    await registry.tools.tool_invoke.execute({ name: "mcp_abc.read", arguments: { repo: "facebook/react" } }, options);
     expect(fake.execute).toHaveBeenCalledWith({ repo: "facebook/react" });
     await registry.close();
     expect(fake.close).toHaveBeenCalledOnce();
