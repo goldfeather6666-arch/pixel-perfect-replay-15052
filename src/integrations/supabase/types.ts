@@ -23,6 +23,7 @@ export type Database = {
           messages: Json
           mode: string
           model: string
+          pending: Json
           repo: string
           title: string
           updated_at: string
@@ -37,6 +38,7 @@ export type Database = {
           messages?: Json
           mode?: string
           model?: string
+          pending?: Json
           repo: string
           title?: string
           updated_at?: string
@@ -51,6 +53,7 @@ export type Database = {
           messages?: Json
           mode?: string
           model?: string
+          pending?: Json
           repo?: string
           title?: string
           updated_at?: string
