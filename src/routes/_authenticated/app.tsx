@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { providerName } from "@/lib/providers";
+import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/app")({
-  head: () => ({ meta: [{ title: "Workspace — Forge" }, { name: "description", content: "Your coding agent tasks." }] }),
+  head: () => ({ meta: pageMeta("Workspace — Forge", "Your coding agent tasks.") }),
   component: Dashboard,
 });
 

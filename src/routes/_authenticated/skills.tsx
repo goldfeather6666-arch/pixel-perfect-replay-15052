@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteSkill, listSkills, upsertSkill, type Skill } from "@/lib/app.functions";
+import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/skills")({
-  head: () => ({ meta: [{ title: "Skills — Forge" }, { name: "description", content: "Reusable instructions the agent follows on every task." }] }),
+  head: () => ({ meta: pageMeta("Skills — Forge", "Reusable instructions the agent follows on every task.") }),
   component: SkillsPage,
 });
 
