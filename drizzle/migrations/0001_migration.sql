@@ -1,0 +1,1 @@
+ALTER TABLE public.agent_sessions ADD COLUMN pending jsonb NOT NULL DEFAULT '[]'::jsonb;

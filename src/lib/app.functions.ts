@@ -1,0 +1,244 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
+import type { Credential, ChatMessage, PendingChange } from "./providers";
+
+type Ctx = { supabase: any; userId: string };
+
+async function loadSecret(ctx: Ctx, id: string) {
+  const { data, error } = await ctx.supabase.from("provider_credentials").select("*").eq("id", id).single();
+  if (error || !data) throw new Error("Credential not found");
+  const { decryptSecret } = await import("./crypto.server");
+  return { row: data, key: await decryptSecret(data.ciphertext, data.iv) };
+}
+
+async function github(ctx: Ctx) {
+  const { data } = await ctx.supabase
+    .from("provider_credentials")
+    .select("id")
+    .eq("provider", "github")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (!data?.length) throw new Error("Add a GitHub token in Settings first");
+  const { key } = await loadSecret(ctx, data[0].id);
+  const { GitHub } = await import("./github.server");
+  return new GitHub(key);
+}
+
+// ---------- Credentials ----------
+export const listCredentials = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("provider_credentials")
+      .select("id, provider, label, base_url, last4, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data as Credential[];
+  });
+
+export const saveCredential = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      provider: z.enum(["openai", "anthropic", "google", "openrouter", "compatible", "github"]),
+      label: z.string().max(80),
+      key: z.string().min(1).max(4000),
+      base_url: z.string().url().nullable(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    // Validate with a real provider request before storing.
+    if (data.provider === "github") {
+      const { GitHub } = await import("./github.server");
+      await new GitHub(data.key).user();
+    } else {
+      const { listProviderModels } = await import("./providers.server");
+      await listProviderModels(data.provider, data.key, data.base_url);
+    }
+    const { encryptSecret } = await import("./crypto.server");
+    const enc = await encryptSecret(data.key);
+    const { error } = await context.supabase.from("provider_credentials").insert({
+      provider: data.provider,
+      label: data.label,
+      base_url: data.base_url,
+      ciphertext: enc.ciphertext,
+      iv: enc.iv,
+      last4: data.key.slice(-4),
+      user_id: context.userId,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteCredential = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("provider_credentials").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const listModels = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { row, key } = await loadSecret(context, data.id);
+    const { listProviderModels } = await import("./providers.server");
+    return listProviderModels(row.provider, key, row.base_url);
+  });
+
+// ---------- GitHub ----------
+export const listRepos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => (await github(context)).repos());
+
+export const listBranches = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ repo: z.string() }))
+  .handler(async ({ data, context }) => (await github(context)).branches(data.repo));
+
+// ---------- Sessions ----------
+export type SessionRow = {
+  id: string;
+  title: string;
+  repo: string;
+  base_branch: string;
+  work_branch: string;
+  credential_id: string | null;
+  model: string;
+  mode: "supervised" | "autonomous";
+  messages: ChatMessage[];
+  pending: PendingChange[];
+  updated_at: string;
+};
+
+export const listSessions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("agent_sessions")
+      .select("id, title, repo, work_branch, mode, updated_at")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at">[];
+  });
+
+export const getSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).single();
+    if (error) throw new Error(error.message);
+    return row as unknown as SessionRow;
+  });
+
+export const createSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      repo: z.string(),
+      base_branch: z.string(),
+      credential_id: z.string().uuid(),
+      model: z.string().min(1),
+      mode: z.enum(["supervised", "autonomous"]),
+      title: z.string().max(120),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const gh = await github(context);
+    const work = `agent/${Date.now().toString(36)}`;
+    await gh.createBranch(data.repo, data.base_branch, work);
+    const { data: row, error } = await context.supabase
+      .from("agent_sessions")
+      .insert({ ...data, work_branch: work, user_id: context.userId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return row.id as string;
+  });
+
+export const updateSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ id: z.string().uuid(), model: z.string().optional(), mode: z.enum(["supervised", "autonomous"]).optional() }),
+  )
+  .handler(async ({ data, context }) => {
+    const patch: { model?: string; mode?: string } = {};
+    if (data.model) patch.model = data.model;
+    if (data.mode) patch.mode = data.mode;
+    const { id } = data;
+    const { error } = await context.supabase.from("agent_sessions").update(patch).eq("id", id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("agent_sessions").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- Workspace ----------
+async function session(context: Ctx, id: string) {
+  const { data, error } = await context.supabase.from("agent_sessions").select("*").eq("id", id).single();
+  if (error) throw new Error(error.message);
+  return data as unknown as SessionRow;
+}
+
+export const getTree = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    return (await github(context)).tree(s.repo, s.work_branch);
+  });
+
+export const readFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), path: z.string() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const f = await (await github(context)).getFile(s.repo, s.work_branch, data.path);
+    return f?.content ?? null;
+  });
+
+export const getDiff = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    return (await github(context)).compare(s.repo, s.base_branch, s.work_branch);
+  });
+
+export const resolvePending = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const results: string[] = [];
+    if (data.approve) {
+      const gh = await github(context);
+      for (const c of s.pending) {
+        const msg = data.message || `agent: ${c.action} ${c.path}`;
+        if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, c.content ?? "", msg);
+        else await gh.deleteFile(s.repo, s.work_branch, c.path, msg);
+        results.push(c.path);
+      }
+    }
+    const { error } = await context.supabase.from("agent_sessions").update({ pending: [] }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { committed: results };
+  });
+
+export const openPullRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    return (await github(context)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
+  });

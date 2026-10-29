@@ -1,0 +1,36 @@
+export type ProviderId = "openai" | "anthropic" | "google" | "openrouter" | "compatible" | "github";
+
+export const AI_PROVIDERS: { id: Exclude<ProviderId, "github">; name: string; needsBaseUrl?: boolean; hint: string }[] = [
+  { id: "openai", name: "OpenAI", hint: "sk-..." },
+  { id: "anthropic", name: "Anthropic", hint: "sk-ant-..." },
+  { id: "google", name: "Google Gemini", hint: "AIza..." },
+  { id: "openrouter", name: "OpenRouter", hint: "sk-or-..." },
+  { id: "compatible", name: "OpenAI-compatible / Ollama", needsBaseUrl: true, hint: "Key (any value for Ollama)" },
+];
+
+export function providerName(id: string) {
+  if (id === "github") return "GitHub";
+  return AI_PROVIDERS.find((p) => p.id === id)?.name ?? id;
+}
+
+export type Credential = {
+  id: string;
+  provider: ProviderId;
+  label: string;
+  base_url: string | null;
+  last4: string;
+  created_at: string;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ToolLog = { id: string; name: string; input: any; ok?: boolean | undefined; summary?: string | undefined };
+export type ChatMessage = { role: "user" | "assistant"; content: string; tools?: ToolLog[] | undefined };
+export type PendingChange = { path: string; action: "write" | "delete"; content?: string | undefined; original?: string | null | undefined };
+
+export type AgentEvent =
+  | { t: "text"; d: string }
+  | { t: "tool"; id: string; name: string; input: unknown }
+  | { t: "tool-result"; id: string; ok: boolean; summary: string }
+  | { t: "pending"; pending: PendingChange[] }
+  | { t: "error"; m: string }
+  | { t: "done" };
