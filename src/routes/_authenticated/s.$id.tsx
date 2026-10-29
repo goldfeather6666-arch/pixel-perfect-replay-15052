@@ -12,9 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
+import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
-  head: () => ({ meta: [{ title: "Task — Forge" }, { name: "description", content: "Agent workspace." }] }),
+  head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
   component: Workspace,
 });
 

@@ -14,3 +14,4 @@
 - Model calls use the user's own provider key via src/lib/providers.server.ts, never the Lovable AI Gateway. Why: the product is BYOK.
 - The agent streams from the /api/agent server route as NDJSON events (AgentEvent in src/lib/providers.ts). Why: long tool loops need streaming outside server-fn request/response.
 - Agent writes go only to its own per-task branch; supervised mode stages them in agent_sessions.pending until approved. Why: never touch the user's base branch without consent.
+- External MCP is a runtime client, not this app's MCP server: owner-scoped connections use encrypted optional bearer tokens, public HTTPS transport and read-only tool discovery/invocation; clients close per turn. Why: preserve user isolation, bounded model context and existing write approvals.

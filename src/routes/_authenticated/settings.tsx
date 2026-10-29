@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteCredential, listCredentials, saveCredential } from "@/lib/app.functions";
 import { AI_PROVIDERS, providerName, type ProviderId } from "@/lib/providers";
+import { McpConnections } from "@/components/McpConnections";
+import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Keys & connections — Forge" }, { name: "description", content: "Manage your AI provider keys and GitHub token." }] }),
+  head: () => ({ meta: pageMeta("Keys & connections — Forge", "Manage your AI provider keys, GitHub token and external tool connections.") }),
   component: SettingsPage,
 });
 
@@ -107,6 +109,7 @@ function SettingsPage() {
             ))}
           </ul>
         </section>
+        <McpConnections />
       </main>
     </div>
   );

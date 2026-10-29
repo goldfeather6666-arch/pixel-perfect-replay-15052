@@ -62,6 +62,51 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_connections: {
+        Row: {
+          ciphertext: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          iv: string | null
+          name: string
+          state: string
+          tool_names: Json
+          transport: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          ciphertext?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          iv?: string | null
+          name: string
+          state?: string
+          tool_names?: Json
+          transport?: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          ciphertext?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          iv?: string | null
+          name?: string
+          state?: string
+          tool_names?: Json
+          transport?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       provider_credentials: {
         Row: {
           base_url: string | null
