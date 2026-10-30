@@ -326,6 +326,7 @@ export type Database = {
           id: string
           instructions: string
           name: string
+          source: string | null
           user_id: string
         }
         Insert: {
@@ -334,6 +335,7 @@ export type Database = {
           id?: string
           instructions: string
           name: string
+          source?: string | null
           user_id?: string
         }
         Update: {
@@ -342,6 +344,7 @@ export type Database = {
           id?: string
           instructions?: string
           name?: string
+          source?: string | null
           user_id?: string
         }
         Relationships: []

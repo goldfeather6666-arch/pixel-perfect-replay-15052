@@ -8,7 +8,7 @@ export class GitHub {
       ...init,
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${this.token}`,
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         "User-Agent": "byok-coding-agent",
         "X-GitHub-Api-Version": "2022-11-28",
         ...(init.body ? { "Content-Type": "application/json" } : {}),
@@ -21,6 +21,9 @@ export class GitHub {
 
   user() {
     return this.req<{ login: string }>("user");
+  }
+  repoInfo(repo: string) {
+    return this.req<{ default_branch: string }>(`repos/${repo}`);
   }
   async repos() {
     const r = await this.req<any[]>("user/repos?sort=updated&per_page=100");
