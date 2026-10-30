@@ -1,0 +1,1 @@
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS sandbox_id text;
