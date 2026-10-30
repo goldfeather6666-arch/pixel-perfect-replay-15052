@@ -100,6 +100,7 @@ export const Route = createFileRoute("/api/agent")({
         // Live event channel + shared activity log, wired to the stream once it starts.
         let emit: (e: AgentEvent) => void = () => {};
         const runLogs: ToolLog[] = [];
+        let envSynced = false;
         // One sandbox per task, shared by every tool call in this run (warmed in the background).
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
@@ -248,18 +249,33 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           deploy_status: tool({
-            description: "Get the latest Vercel deployment for this task's branch: state (QUEUED/BUILDING/READY/ERROR), preview URL, and the build log tail when it failed. Vercel deploys automatically after each commit; wait ~30-90s after committing, then check. If ERROR, read the log, fix the cause, commit, and check again (max 3 rounds).",
-            inputSchema: z.object({}),
-            execute: async () => {
-              const { data: fresh } = await sb.from("agent_sessions").select("vercel_project_id").eq("id", sessionId).single();
+            description: "Check this branch's Vercel deployment. Makes sure Supabase keys are synced into Vercel, then WAITS (up to ~3 min) for the build to finish and returns state (READY/ERROR), preview URL and the build log when it failed. Call it after committing. If ERROR: read the log, fix the cause, commit, and call again. Never end the task while the latest deployment is ERROR unless 3 fix rounds failed — then explain the exact error.",
+            inputSchema: z.object({ redeploy: z.boolean().optional().describe("Rebuild the latest deployment without a new commit (e.g. after env changes)") }),
+            execute: async ({ redeploy }) => {
+              const { data: fresh } = await sb.from("agent_sessions").select("vercel_project_id, supabase_ref").eq("id", sessionId).single();
               if (!fresh?.vercel_project_id) return { error: "No Vercel project linked to this task." };
               const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
               if (!vt?.length) return { error: "No Vercel token saved in Settings." };
-              const { Vercel } = await import("@/lib/integrations.server");
-              const v = new Vercel(await decryptSecret(vt[0]!.ciphertext, vt[0]!.iv));
-              const latest = (await v.deployments(fresh.vercel_project_id, branch))[0];
-              if (!latest) return { state: "NONE", note: "No deployment for this branch yet (commit first, or it is still queued)." };
-              return { state: latest.state, url: latest.url, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
+              const { Vercel, syncSupabaseToVercel, waitForDeployment } = await import("@/lib/integrations.server");
+              const vToken = await decryptSecret(vt[0]!.ciphertext, vt[0]!.iv);
+              const v = new Vercel(vToken);
+              let envNote: string | undefined;
+              if (fresh.supabase_ref && !envSynced) {
+                const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
+                if (st?.length) {
+                  try { await syncSupabaseToVercel(await decryptSecret(st[0]!.ciphertext, st[0]!.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); envSynced = true; envNote = "Supabase URL/anon key synced to Vercel env (SUPABASE_*, NEXT_PUBLIC_SUPABASE_*, VITE_SUPABASE_*)."; }
+                  catch (e) { envNote = `Env sync failed: ${(e as Error).message}`; }
+                }
+              }
+              if (redeploy) {
+                const cur = (await v.deployments(fresh.vercel_project_id, branch))[0];
+                if (cur) await v.redeploy(cur).catch(() => null);
+                await new Promise((r) => setTimeout(r, 8000));
+              }
+              const latest = await waitForDeployment(v, fresh.vercel_project_id, branch);
+              if (!latest) return { state: "NONE", envNote, note: "No deployment for this branch yet. Check the Vercel project is connected to this GitHub repo, or commit a change." };
+              if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
+              return { state: latest.state, url: latest.url, envNote, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
             },
           }),
           delegate: tool({
@@ -417,6 +433,11 @@ export const Route = createFileRoute("/api/agent")({
                 } else if (part.type === "error") {
                   throw part.error;
                 }
+              }
+              const stepCap = plan ? 20 : 50;
+              if ((await result.steps).length >= stepCap && !text.trim()) {
+                text = `I used this run's ${stepCap}-step budget before finishing. Progress so far is saved — send "continue" and I'll pick up from here.`;
+                send({ t: "text", d: text });
               }
             } catch (e: any) {
               if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else

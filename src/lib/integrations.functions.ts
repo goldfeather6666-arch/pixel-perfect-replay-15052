@@ -59,16 +59,28 @@ async function wireEnv(ctx: Ctx, ref: string | null, vercelId: string | null) {
   const st = await token(ctx, "supabase");
   const vt = await token(ctx, "vercel");
   if (!st || !vt) return;
-  const { SupabaseMgmt, Vercel } = await import("./integrations.server");
-  const anon = await new SupabaseMgmt(st).anonKey(ref).catch(() => undefined);
-  if (!anon) return;
-  const url = `https://${ref}.supabase.co`;
-  await new Vercel(vt).setEnv(vercelId, {
-    SUPABASE_URL: url, SUPABASE_ANON_KEY: anon,
-    NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon,
-    VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: anon,
-  });
+  const { syncSupabaseToVercel } = await import("./integrations.server");
+  await syncSupabaseToVercel(st, vt, ref, vercelId);
 }
+
+/** Re-syncs Supabase keys into Vercel and rebuilds the branch's latest deployment so they apply. */
+export const syncDeployEnv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), redeploy: z.boolean().default(true) }))
+  .handler(async ({ data, context }) => {
+    const s = await sessionRow(context, data.id);
+    if (!s.supabase_ref || !s.vercel_project_id) throw new Error("Link both Supabase and Vercel first");
+    const { syncSupabaseToVercel, Vercel } = await import("./integrations.server");
+    const vt = await need(context, "vercel");
+    await syncSupabaseToVercel(await need(context, "supabase"), vt, s.supabase_ref, s.vercel_project_id);
+    let redeployed: string | null = null;
+    if (data.redeploy) {
+      const v = new Vercel(vt);
+      const latest = (await v.deployments(s.vercel_project_id, s.work_branch))[0];
+      if (latest) redeployed = (await v.redeploy(latest)).url;
+    }
+    return { synced: true, redeployed };
+  });
 
 export const linkSupabase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
