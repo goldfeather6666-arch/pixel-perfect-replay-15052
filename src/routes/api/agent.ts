@@ -105,6 +105,7 @@ export const Route = createFileRoute("/api/agent")({
         let emit: (e: AgentEvent) => void = () => {};
         const runLogs: ToolLog[] = [];
         let syncedRef: string | null = null;
+        let envRebuildNeeded = false;
         const quality = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, linked: !!s.vercel_project_id, supervised, deploymentState: undefined as string | undefined };
         let revision = 0;
         const invalidateChecks = () => { revision++; quality.changed = true; quality.localPassed = false; quality.deploymentState = undefined; };
@@ -286,6 +287,7 @@ export const Route = createFileRoute("/api/agent")({
               const vToken = await decryptSecret(vercelCred.ciphertext, vercelCred.iv);
               const v = new Vercel(vToken);
               const commitSha = await gh.headSha(repo, branch);
+              const deployedRevision = revision;
               quality.deploymentState = undefined;
               let deploymentId: string | undefined;
               let envNote: string | undefined;
@@ -293,19 +295,20 @@ export const Route = createFileRoute("/api/agent")({
                 const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
                 const databaseCred = st?.[0];
                 if (databaseCred) {
-                  try { await syncSupabaseToVercel(await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); syncedRef = fresh.supabase_ref; envNote = "Public database settings synced. A rebuild is required for these settings to take effect."; redeploy = true; }
+                  try { await syncSupabaseToVercel(await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Public database settings synced. A rebuild is required for these settings to take effect."; }
                   catch { return { error: "Database settings could not sync to Vercel. Reconnect the service or retry; deployment is not verified." }; }
                 } else {
                   return { error: "Database token missing. Connect it before verifying the linked deployment." };
                 }
               }
-              if (redeploy) {
+              if (redeploy || envRebuildNeeded) {
                 const cur = (await v.deployments(fresh.vercel_project_id, branch)).find((d) => d.commitSha === commitSha);
                 if (!cur) return { state: "NONE", commit: commitSha, envNote, note: "No deployment exists for the current commit yet. Retry after GitHub auto-deploy starts." };
                 deploymentId = (await v.redeploy(cur)).id;
+                envRebuildNeeded = false;
               }
               const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) });
-              if (await gh.headSha(repo, branch) !== commitSha) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
+              if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
               if (!latest) return { state: "NONE", envNote, note: "No deployment for this branch yet. Check the Vercel project is connected to this GitHub repo, or commit a change." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
               quality.deploymentState = latest.state;
