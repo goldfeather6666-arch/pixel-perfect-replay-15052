@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { Check, ChevronRight, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +34,10 @@ function Workspace() {
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [running, setRunning] = useState(false);
   const [input, setInput] = useState("");
+  const [planMode, setPlanMode] = useState(false);
+  const [usage, setUsage] = useState({ input: 0, output: 0 });
   const abortRef = useRef<AbortController | null>(null);
+  const lastWasPlan = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -42,17 +45,30 @@ function Workspace() {
     if (session.data && !running) {
       setMessages(session.data.messages ?? []);
       setPending(session.data.pending ?? []);
+      setUsage(((session.data as { usage?: { input: number; output: number } }).usage) ?? { input: 0, output: 0 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages]);
   useEffect(() => { taRef.current?.focus(); }, [running]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(override?: string, forcePlan?: boolean) {
+    let text = (override ?? input).trim();
     if (!text || running) return;
+    let plan = forcePlan ?? planMode;
+    const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
+    if (cmd) {
+      const [, name, rest] = cmd;
+      if (name === "plan") { plan = true; text = rest || "Make a plan for the next step."; }
+      else if (name === "test") text = `Run the project's tests/typecheck/build in the sandbox. Fix any failures and re-run until they pass. ${rest}`.trim();
+      else if (name === "review") text = `Review the changes on this task branch versus the base branch for bugs, security issues and missing tests. Do not edit files; list findings by severity. ${rest}`.trim();
+      else if (name === "explain") text = `Explain how this part of the codebase works, citing files: ${rest || "overall architecture"}`;
+      else if (name === "help") { toast.info("Commands: /plan, /test, /review, /explain"); setInput(""); return; }
+    }
     setInput("");
+    if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
     setRunning(true);
+    lastWasPlan.current = plan;
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
       setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
@@ -63,7 +79,7 @@ function Workspace() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${data.session?.access_token}` },
-        body: JSON.stringify({ sessionId: id, message: text }),
+        body: JSON.stringify({ sessionId: id, message: text, plan }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
@@ -84,6 +100,7 @@ function Workspace() {
           else if (e.t === "tool-result")
             patchLast((m) => ({ ...m, tools: m.tools?.map((t) => (t.id === e.id ? { ...t, ok: e.ok, summary: e.summary } : t)) }));
           else if (e.t === "pending") setPending([...e.pending]);
+          else if (e.t === "usage") setUsage({ input: ((session.data as { usage?: { input: number } } | undefined)?.usage?.input ?? 0) + e.input, output: ((session.data as { usage?: { output: number } } | undefined)?.usage?.output ?? 0) + e.output });
           else if (e.t === "error") toast.error(e.m);
         }
       }
@@ -92,6 +109,7 @@ function Workspace() {
     } finally {
       setRunning(false);
       abortRef.current = null;
+      if (document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
       qc.invalidateQueries({ queryKey: ["session", id] });
       qc.invalidateQueries({ queryKey: ["diff", id] });
       qc.invalidateQueries({ queryKey: ["tree", id] });
@@ -116,6 +134,11 @@ function Workspace() {
             >
               {s.mode}
             </button>
+            {usage.input + usage.output > 0 && (
+              <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
+                <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
+              </span>
+            )}
           </div>
         )}
       </AppHeader>
@@ -135,17 +158,29 @@ function Workspace() {
               {messages.map((m, i) => (
                 <MessageView key={i} m={m} live={running && i === messages.length - 1} />
               ))}
+              {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
+                </div>
+              )}
               <div ref={endRef} />
             </div>
           </div>
           <form className="border-t p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
+            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs">
+              <button type="button" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
+                className={`flex items-center gap-1 rounded border px-2 py-0.5 ${planMode ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                <ListChecks className="h-3 w-3" /> Plan first
+              </button>
+              <span className="text-muted-foreground">Type / for commands: /plan /test /review /explain</span>
+            </div>
             <div className="mx-auto flex max-w-3xl items-end gap-2">
               <Textarea
                 ref={taRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                placeholder="e.g. Add a dark-mode toggle to the header"
+                placeholder={planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
                 className="max-h-48 min-h-11 resize-none"
                 rows={1}
               />
@@ -164,7 +199,7 @@ function Workspace() {
           <TerminalView id={id} />
         </TabsContent>
         <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto">
-          <ChangesView id={id} pending={pending} onResolved={() => { setPending([]); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
+          <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
           <div className="mx-auto max-w-3xl px-3 pb-8">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => { await remove({ data: { id } }); nav({ to: "/app" }); }}>
               <Trash2 /> Delete task (branch stays on GitHub)
@@ -286,14 +321,14 @@ function FilesView({ id }: { id: string }) {
   );
 }
 
-function ChangesView({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: () => void }) {
+function ChangesView({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining?: PendingChange[]) => void }) {
   const fetchDiff = useServerFn(getDiff);
   const resolve = useServerFn(resolvePending);
   const pr = useServerFn(openPullRequest);
   const diff = useQuery({ queryKey: ["diff", id], queryFn: () => fetchDiff({ data: { id } }) });
   const resolveM = useMutation({
-    mutationFn: (approve: boolean) => resolve({ data: { id, approve } }),
-    onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded staged changes"); onResolved(); },
+    mutationFn: (v: { approve: boolean; paths?: string[] }) => resolve({ data: { id, ...v } }),
+    onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
   const restore = useServerFn(restoreCheckpoint);
@@ -315,10 +350,14 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         <section className="rounded-lg border border-primary/50 bg-card">
           <div className="flex flex-wrap items-center gap-2 border-b p-3">
             <h3 className="flex-1 font-semibold">Waiting for your approval</h3>
-            <Button size="sm" variant="outline" onClick={() => resolveM.mutate(false)} disabled={resolveM.isPending}><X /> Discard</Button>
-            <Button size="sm" onClick={() => resolveM.mutate(true)} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
+            <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Discard</Button>
+            <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
           </div>
-          {pending.map((c, i) => <PendingView key={i} c={c} />)}
+          {pending.map((c, i) => (
+            <PendingView key={i} c={c} busy={resolveM.isPending}
+              onAccept={() => resolveM.mutate({ approve: true, paths: [c.path] })}
+              onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />
+          ))}
         </section>
       )}
       <section>
@@ -396,12 +435,20 @@ function simpleDiff(a: string, b: string) {
   return out.join("\n");
 }
 
-function PendingView({ c }: { c: PendingChange }) {
+function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: boolean; onAccept: () => void; onReject: () => void }) {
   const patch = c.action === "delete" ? simpleDiff(c.original ?? "", "") : simpleDiff(c.original ?? "", c.content ?? "");
   return (
     <div className="border-b last:border-0">
-      <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground">{c.action === "delete" ? "delete" : c.original == null ? "create" : "modify"} · {c.path}</div>
+      <div className="flex items-center gap-1 px-3 py-1.5 font-mono text-xs text-muted-foreground">
+        <span className="flex-1 truncate">{c.action === "delete" ? "delete" : c.original == null ? "create" : "modify"} · {c.path}</span>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={onReject} aria-label={`Reject ${c.path}`}><X /></Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={onAccept} aria-label={`Accept ${c.path}`}><Check /></Button>
+      </div>
       <PatchView patch={c.original == null && c.action === "write" ? (c.content ?? "").split("\n").map((l) => "+" + l).join("\n") : patch} />
     </div>
   );
+}
+
+function fmt(n: number) {
+  return n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
 }
