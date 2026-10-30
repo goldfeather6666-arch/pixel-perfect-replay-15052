@@ -43,6 +43,13 @@
       "when": 1793334669774,
       "tag": "0005_mcp_oauth_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793391943212,
+      "tag": "0006_session_sandbox",
+      "breakpoints": true
     }
   ]
 }

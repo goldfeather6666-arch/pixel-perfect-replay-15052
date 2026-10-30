@@ -10,4 +10,4 @@
 - [x] MCP follow-up: OAuth sign-in implementation — encrypted credentials, active-owner/browser-bound callback, PKCE/state, SDK refresh and reconnect; real Notion registration and cancellation verified
 - [ ] OAuth acceptance: successful external account consent, post-consent reads/refresh and hosted HTTPS client metadata — blocked: needs external account consent and hosted verification
 - [ ] MCP follow-up: local stdio — skipped for now by user (mobile only, no computer for a local helper)
-- [ ] Phase 5: Sandbox terminal + running tests via E2B — blocked: waiting for E2B_API_KEY
+- [x] Phase 5: E2B sandbox terminal tab + agent run_command tool (per-task sandbox, 15 min idle)

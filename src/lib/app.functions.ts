@@ -299,3 +299,17 @@ export const deleteSkill = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------- Sandbox terminal ----------
+export const runTerminal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), command: z.string().trim().min(1).max(4000) }))
+  .handler(async ({ data, context }) => {
+    const { data: s, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).eq("user_id", context.userId).single();
+    if (error || !s) throw new Error("Task not found");
+    const { data: gh } = await context.supabase.from("provider_credentials").select("id").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
+    if (!gh?.length) throw new Error("Add a GitHub token in Settings first");
+    const { key } = await loadSecret(context, gh[0]!.id);
+    const { runInSandbox } = await import("./sandbox.server");
+    return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
+  });
