@@ -22,3 +22,4 @@
 - [x] Import skills from any GitHub repo (Settings → Skills: paste a repo/folder link, pick SKILL.md or markdown files)
 - [x] Official Framer MCP preset (HTTP + service sign-in, external actions remain opt-in)
 - [ ] Framer account connection — blocked: user must approve Framer sign-in; authenticated tool access not yet verified
+- [ ] Repair runtime Framer schema compatibility and explicit saved-skill access; verify caller-owned reads
