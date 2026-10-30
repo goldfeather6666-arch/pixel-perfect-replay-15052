@@ -204,7 +204,7 @@ export const Route = createFileRoute("/api/agent")({
               const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
               if (!st?.length) return { error: "No Supabase token saved in Settings." };
               const { applySessionMigrations } = await import("@/lib/migrations.server");
-              return applySessionMigrations(sb, fresh as never, ghToken, await decryptSecret(st[0].ciphertext, st[0].iv));
+              return applySessionMigrations(sb, fresh as never, ghToken, await decryptSecret(st[0]!.ciphertext, st[0]!.iv));
             },
           }),
           deploy_status: tool({
@@ -216,7 +216,7 @@ export const Route = createFileRoute("/api/agent")({
               const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
               if (!vt?.length) return { error: "No Vercel token saved in Settings." };
               const { Vercel } = await import("@/lib/integrations.server");
-              const v = new Vercel(await decryptSecret(vt[0].ciphertext, vt[0].iv));
+              const v = new Vercel(await decryptSecret(vt[0]!.ciphertext, vt[0]!.iv));
               const latest = (await v.deployments(fresh.vercel_project_id, branch))[0];
               if (!latest) return { state: "NONE", note: "No deployment for this branch yet (commit first, or it is still queued)." };
               return { state: latest.state, url: latest.url, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
