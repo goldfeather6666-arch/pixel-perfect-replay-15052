@@ -170,7 +170,7 @@ function Workspace() {
         )}
       </AppHeader>
       <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-3 mt-2 self-start">
+        <TabsList className="mx-3 mt-2 max-w-[calc(100%-1.5rem)] justify-start self-start overflow-x-auto">
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
