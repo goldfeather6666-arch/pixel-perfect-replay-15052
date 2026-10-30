@@ -31,6 +31,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
       await box.kill().catch(() => {});
       throw new Error("Could not clone the repository into the sandbox");
     }
+    session.sandbox_id = box.sandboxId;
     await sb.from("agent_sessions").update({ sandbox_id: box.sandboxId }).eq("id", session.id).eq("user_id", session.user_id);
   } else {
     await box.setTimeout(15 * 60_000).catch(() => {});
