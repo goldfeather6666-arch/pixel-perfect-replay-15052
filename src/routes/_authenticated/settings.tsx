@@ -8,6 +8,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteCredential, listCredentials, saveCredential } from "@/lib/app.functions";
 import { AI_PROVIDERS, providerName, type ProviderId } from "@/lib/providers";
@@ -30,14 +31,39 @@ function SettingsPage() {
   const [label, setLabel] = useState("");
   const [key, setKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [models, setModels] = useState("");
+  const [extra, setExtra] = useState("");
 
   const saveM = useMutation({
-    mutationFn: () =>
-      save({ data: { provider, label: label || providerName(provider), key, base_url: provider === "compatible" ? baseUrl : null } }),
+    mutationFn: async () => {
+      const custom = provider === "compatible";
+      let extra_body: Record<string, unknown> | null = null;
+      if (custom && extra.trim()) {
+        try {
+          const parsed = JSON.parse(extra);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+          extra_body = parsed;
+        } catch {
+          throw new Error('Extra options must be a JSON object, e.g. {"reasoning_effort":"low"}');
+        }
+      }
+      return save({
+        data: {
+          provider,
+          label: label || providerName(provider),
+          key,
+          base_url: custom ? baseUrl : null,
+          custom_models: custom ? models.split(/[,\n]/).map((m) => m.trim()).filter(Boolean) : [],
+          extra_body,
+        },
+      });
+    },
     onSuccess: () => {
       toast.success("Key verified and saved");
       setKey("");
       setLabel("");
+      setModels("");
+      setExtra("");
       qc.invalidateQueries({ queryKey: ["creds"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -68,7 +94,21 @@ function SettingsPage() {
             {provider === "compatible" && (
               <div className="space-y-1.5">
                 <Label>Base URL</Label>
-                <Input required placeholder="https://host/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                <Input required placeholder="https://api.inceptionlabs.ai/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                <p className="text-xs text-muted-foreground">The address before /chat/completions.</p>
+              </div>
+            )}
+            {provider === "compatible" && (
+              <div className="space-y-1.5">
+                <Label>Model names (optional)</Label>
+                <Input placeholder="mercury-3, mercury-coder" value={models} onChange={(e) => setModels(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Comma-separated. Shown in the model picker even if the service doesn't list them.</p>
+              </div>
+            )}
+            {provider === "compatible" && (
+              <div className="space-y-1.5">
+                <Label>Extra request options (optional JSON)</Label>
+                <Textarea rows={2} className="font-mono text-xs" placeholder='{"reasoning_effort": "low"}' value={extra} onChange={(e) => setExtra(e.target.value)} />
               </div>
             )}
             <div className="space-y-1.5">
@@ -92,7 +132,8 @@ function SettingsPage() {
               <li key={c.id} className="flex items-center gap-3 rounded-md border bg-card px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{c.label}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{providerName(c.provider)} · ••••{c.last4}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{providerName(c.provider)} · ••••{c.last4}{c.base_url ? ` · ${c.base_url}` : ""}</p>
+                  {!!c.custom_models?.length && <p className="truncate text-xs text-muted-foreground">Models: {c.custom_models.join(", ")}</p>}
                 </div>
                 <Button
                   variant="ghost"
