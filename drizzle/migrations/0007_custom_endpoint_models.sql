@@ -1,0 +1,1 @@
+ALTER TABLE public.provider_credentials ADD COLUMN IF NOT EXISTS custom_models text[] NOT NULL DEFAULT '{}', ADD COLUMN IF NOT EXISTS extra_body jsonb;

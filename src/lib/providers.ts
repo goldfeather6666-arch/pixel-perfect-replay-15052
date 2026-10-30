@@ -5,7 +5,7 @@ export const AI_PROVIDERS: { id: Exclude<ProviderId, "github">; name: string; ne
   { id: "anthropic", name: "Anthropic", hint: "sk-ant-..." },
   { id: "google", name: "Google Gemini", hint: "AIza..." },
   { id: "openrouter", name: "OpenRouter", hint: "sk-or-..." },
-  { id: "compatible", name: "OpenAI-compatible / Ollama", needsBaseUrl: true, hint: "Key (any value for Ollama)" },
+  { id: "compatible", name: "Custom endpoint (OpenAI-compatible, Ollama, Inception…)", needsBaseUrl: true, hint: "Key (any value for Ollama)" },
 ];
 
 export function providerName(id: string) {
@@ -20,6 +20,8 @@ export type Credential = {
   base_url: string | null;
   last4: string;
   created_at: string;
+  custom_models?: string[] | null;
+  extra_body?: Record<string, string | number | boolean | null> | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

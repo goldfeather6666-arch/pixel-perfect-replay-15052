@@ -50,6 +50,13 @@
       "when": 1793391943212,
       "tag": "0006_session_sandbox",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793392383516,
+      "tag": "0007_custom_endpoint_models",
+      "breakpoints": true
     }
   ]
 }

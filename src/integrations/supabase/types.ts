@@ -234,6 +234,8 @@ export type Database = {
           base_url: string | null
           ciphertext: string
           created_at: string
+          custom_models: string[]
+          extra_body: Json | null
           id: string
           iv: string
           label: string
@@ -245,6 +247,8 @@ export type Database = {
           base_url?: string | null
           ciphertext: string
           created_at?: string
+          custom_models?: string[]
+          extra_body?: Json | null
           id?: string
           iv: string
           label?: string
@@ -256,6 +260,8 @@ export type Database = {
           base_url?: string | null
           ciphertext?: string
           created_at?: string
+          custom_models?: string[]
+          extra_body?: Json | null
           id?: string
           iv?: string
           label?: string
