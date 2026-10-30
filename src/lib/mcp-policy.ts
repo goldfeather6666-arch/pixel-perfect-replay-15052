@@ -16,6 +16,8 @@ export const connectionInput = z.object({
   name: z.string().trim().min(1).max(80),
   url: z.string().max(2048).transform(publicMcpUrl),
   token: z.string().max(4000).refine((s) => !/[\r\n]/.test(s), "Invalid token"),
+  transport: z.enum(["http", "sse"]).default("http"),
+  allowActions: z.boolean().default(false),
   trusted: z.literal(true),
 });
 
@@ -38,4 +40,13 @@ export function allowedMcpTool(url: string, t: { name: string; annotations?: { r
   if (url === "https://mcp.deepwiki.com/mcp" && t.annotations?.destructiveHint !== true &&
     ["read_wiki_structure", "read_wiki_contents", "ask_wiki_question"].includes(t.name)) return true;
   return readOnlyTool(t);
+}
+
+// Compare JSON independently of key order, binding approval to the discovered schema.
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
