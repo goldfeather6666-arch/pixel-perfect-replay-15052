@@ -63,6 +63,10 @@ export const Route = createFileRoute("/api/agent")({
           .limit(1);
         if (!ghRows?.length) return new Response("GitHub token missing — add one in Settings", { status: 400 });
 
+        if (cred.provider === "compatible" && cred.base_url) {
+          const { assertPublicEndpoint } = await import("@/lib/providers.server");
+          try { await assertPublicEndpoint(cred.base_url); } catch (e) { return new Response((e as Error).message, { status: 400 }); }
+        }
         const apiKey = await decryptSecret(cred.ciphertext, cred.iv);
         const ghToken = await decryptSecret(ghRows[0].ciphertext, ghRows[0].iv);
         const { GitHub } = await import("@/lib/github.server");
