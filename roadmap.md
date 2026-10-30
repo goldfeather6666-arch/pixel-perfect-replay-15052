@@ -6,5 +6,6 @@
 - [x] Phase 4: Supervised approvals with diffs, autonomous commits, checkpoints/restore/undo, in-browser editor, pull requests
 - [x] Phase 6 (part): Skills, AGENTS.md/CLAUDE.md project instructions, README self-hosting docs, MIT license
 - [x] Phase 6: HTTPS/public or encrypted bearer-token MCP connections; read-only discovery/invocation, enable/pause, recheck and disconnect
-- [ ] MCP follow-up: OAuth sign-in, SSE/stdio transports and approval flow for external write actions
+- [ ] MCP follow-up: SSE transport and per-action approval for external writes (in progress)
+- [ ] MCP follow-up: OAuth sign-in; local stdio requires a separate local execution bridge
 - [ ] Phase 5: Sandbox terminal + running tests — blocked: needs a sandbox service account key (e.g. E2B or Daytona)
