@@ -1,7 +1,7 @@
 import { compileMcpSchema } from "./mcp-schema";
 import { allowedMcpTool } from "./mcp-policy";
 
-export function diagnoseTool(url: string, allowActions: boolean, enabled: boolean, definition: { name: string; inputSchema: Record<string, unknown>; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }, executable: boolean) {
+export function diagnoseTool(url: string, allowActions: boolean, enabled: boolean, definition: { name: string; inputSchema: Record<string, unknown>; annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined }, executable: boolean) {
   let schemaError: string | null = null;
   try { compileMcpSchema(definition.inputSchema); }
   catch { schemaError = "Input schema cannot be compiled by Forge. The server must supply a supported, self-contained JSON Schema."; }

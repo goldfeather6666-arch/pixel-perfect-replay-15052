@@ -24,4 +24,12 @@ describe("MCP endpoint restrictions", () => {
     expect(allowedMcpTool("https://mcp.deepwiki.com/mcp", { name: "generate_wiki" })).toBe(false);
     expect(allowedMcpTool("https://other.example/mcp", { name: "read_wiki_contents" })).toBe(false);
   });
+  it("allows free Motion documentation search only on its official endpoint", () => {
+    expect(allowedMcpTool("https://mcp.motion.dev", { name: "search-motion-docs" })).toBe(true);
+    expect(allowedMcpTool("https://mcp.motion.dev/", { name: "search-motion-docs" })).toBe(true);
+    expect(allowedMcpTool("https://mcp.motion.dev/plus", { name: "search-motion-docs" })).toBe(false);
+    expect(allowedMcpTool("https://other.example/mcp", { name: "search-motion-docs" })).toBe(false);
+    expect(allowedMcpTool("https://mcp.motion.dev/", { name: "insert-motion-component" })).toBe(false);
+    expect(allowedMcpTool("https://mcp.motion.dev/", { name: "search-motion-docs", annotations: { destructiveHint: true } })).toBe(false);
+  });
 });
