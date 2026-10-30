@@ -24,7 +24,8 @@ describe("caller-owned access checks", () => {
     expect(eq.mock.calls).toEqual([["user_id", "owner-1"], ["user_id", "owner-1"]]);
     expect(result.skills.items.map((s) => s.accessible)).toEqual([true, false]);
     expect(result.connections[0]?.tools[0]?.status).toBe("available");
-    expect(fake.inspect.mock.results[0]?.value.sdkTools.read_docs.execute).not.toHaveBeenCalled();
+    const inspected = await fake.inspect.mock.results[0]?.value;
+    expect(inspected.sdkTools.read_docs.execute).not.toHaveBeenCalled();
     expect(fake.close).toHaveBeenCalledOnce();
   });
   it("does not claim skills are readable after a load error", async () => {
