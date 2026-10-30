@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fake = vi.hoisted(() => ({ close: vi.fn(), execute: vi.fn(), create: vi.fn() }));
 vi.mock("@ai-sdk/mcp", () => ({ createMCPClient: fake.create }));
 vi.mock("@/lib/crypto.server", () => ({ decryptSecret: vi.fn() }));
-import { loadMcpTools } from "@/lib/mcp-client.server";
+import { loadMcpTools, openMcp } from "@/lib/mcp-client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -16,7 +16,7 @@ describe("external agent tools", () => {
         { name: "read", description: "Read docs", inputSchema: { type: "object", properties: { repo: { type: "string" } }, required: ["repo"] }, annotations: { readOnlyHint: true } },
         { name: "delete", inputSchema: {}, annotations: { readOnlyHint: false } },
       ] }),
-      toolsFromDefinitions: () => ({ read: { execute: fake.execute } }),
+      toolsFromDefinitions: () => ({ read: { execute: fake.execute }, delete: { execute: fake.execute } }),
       close: fake.close,
     });
     fake.execute.mockResolvedValue({ content: [{ type: "text", text: "documentation" }] });
@@ -40,5 +40,23 @@ describe("external agent tools", () => {
     expect(fake.execute).toHaveBeenCalledWith({ repo: "facebook/react" });
     await registry.close();
     expect(fake.close).toHaveBeenCalledOnce();
+  });
+
+  it("passes the selected SSE transport to the SDK", async () => {
+    await openMcp("https://docs.example.com/sse", undefined, "sse");
+    expect(fake.create).toHaveBeenCalledWith(expect.objectContaining({ transport: expect.objectContaining({ type: "sse" }) }));
+  });
+
+  it("stages exact external write arguments without executing the remote tool", async () => {
+    const insert = vi.fn().mockReturnValue({ select: () => ({ single: async () => ({ data: { id: "request-1" } }) }) });
+    const connections = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), then: (resolve: (v: unknown) => void) => resolve({ data: [{ id: "abc", name: "Docs", url: "https://docs.example.com/mcp", transport_mode: "sse", allow_actions: true }] }) };
+    const sb = { from: (table: string) => table === "mcp_connections" ? connections : { insert } } as unknown as SupabaseClient<Database>;
+    const registry = await loadMcpTools(sb, "owner-1", "task-1");
+    const args = { target: "issue-4", nested: { value: [1, 2] } };
+    const output = await registry.tools.tool_invoke.execute({ name: "mcp_abc.delete", arguments: args }, { toolCallId: "write", messages: [], context: {} });
+    expect(output).toMatchObject({ staged: true, request_id: "request-1" });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: "owner-1", session_id: "task-1", arguments: args, tool_name: "delete" }));
+    expect(fake.execute).not.toHaveBeenCalled();
+    await registry.close();
   });
 });
