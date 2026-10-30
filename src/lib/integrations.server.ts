@@ -42,7 +42,7 @@ export class SupabaseMgmt {
   }
 }
 
-export type Deployment = { id: string; name?: string; url: string; state: string; branch: string | null; created: number; target: string | null };
+export type Deployment = { id: string; name?: string; url: string; state: string; branch: string | null; commitSha?: string | null; created: number; target: string | null };
 
 export class Vercel {
   constructor(private token: string) {}
@@ -64,11 +64,11 @@ export class Vercel {
     await this.req(`/v10/projects/${projectId}/env?upsert=true`, { method: "POST", body: JSON.stringify(body) });
   }
   async deployments(projectId: string, branch?: string): Promise<Deployment[]> {
-    const r = await this.req<any>(`/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=30`);
+    const r = await this.req<any>(`/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=100${branch ? `&meta-githubCommitRef=${encodeURIComponent(branch)}` : ""}`);
     const all: Deployment[] = (r.deployments as any[]).map((d) => ({
-      id: d.uid, name: d.name as string, url: `https://${d.url}`, state: d.state ?? d.readyState, branch: d.meta?.githubCommitRef ?? null, created: d.created, target: d.target ?? null,
+      id: d.uid, name: d.name as string, url: `https://${d.url}`, state: d.state ?? d.readyState, branch: d.meta?.githubCommitRef ?? null, commitSha: d.meta?.githubCommitSha ?? null, created: d.created, target: d.target ?? null,
     }));
-    return branch ? all.filter((d) => d.branch === branch) : all;
+    return (branch ? all.filter((d) => d.branch === branch) : all).sort((a, b) => b.created - a.created);
   }
   /** Rebuilds an existing deployment so new environment variables take effect. */
   async redeploy(d: Deployment) {
@@ -104,12 +104,14 @@ export async function syncSupabaseToVercel(supabaseToken: string, vercelToken: s
 }
 
 /** Polls the branch's latest deployment until it finishes or the time budget runs out. */
-export async function waitForDeployment(v: Vercel, projectId: string, branch: string, maxMs = 180_000) {
+export async function waitForDeployment(v: Pick<Vercel, "deployments">, projectId: string, branch: string, maxMs = 180_000, expected?: { commitSha: string; deploymentId?: string }) {
   const end = Date.now() + maxMs;
   for (;;) {
-    const latest = (await v.deployments(projectId, branch))[0];
+    const latest = (await v.deployments(projectId, branch))
+      .filter((d) => !expected || (d.commitSha === expected.commitSha && (!expected.deploymentId || d.id === expected.deploymentId)))
+      .sort((a, b) => b.created - a.created)[0];
     if (latest && ["READY", "ERROR", "CANCELED"].includes(latest.state)) return latest;
-    if (Date.now() > end) return latest ?? null;
+    if (Date.now() >= end) return latest ?? null;
     await new Promise((r) => setTimeout(r, 10_000));
   }
 }
