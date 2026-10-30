@@ -47,6 +47,23 @@ describe("external agent tools", () => {
     expect(fake.create).toHaveBeenCalledWith(expect.objectContaining({ transport: expect.objectContaining({ type: "sse" }) }));
   });
 
+  it("keeps compatible Framer tools when a sibling schema is unsupported", async () => {
+    fake.create.mockResolvedValue({
+      listTools: async () => ({ tools: [
+        { name: "list_projects", inputSchema: { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" }, annotations: { readOnlyHint: true } },
+        { name: "broken", inputSchema: { $schema: "https://invalid.example/schema" }, annotations: { readOnlyHint: true } },
+      ] }),
+      toolsFromDefinitions: () => ({ list_projects: { execute: fake.execute }, broken: { execute: fake.execute } }), close: fake.close,
+    });
+    const q = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), then: (resolve: (v: unknown) => void) => resolve({ data: [{ id: "framer", name: "Framer", url: "https://mcp.framer.com/mcp" }], error: null }) };
+    const registry = await loadMcpTools({ from: () => q } as unknown as SupabaseClient<Database>, "owner-1");
+    const result = await registry.tools.tool_search.execute({ query: "", server: "Framer", limit: 8 }, { toolCallId: "browse", messages: [], context: {} });
+    expect(result.matches.map((t) => t.name)).toEqual(["mcp_framer.list_projects"]);
+    expect(result.unavailable).toEqual([]);
+    expect(result.issues).toHaveLength(1);
+    await registry.close();
+  });
+
   it("stages exact external write arguments without executing the remote tool", async () => {
     const insert = vi.fn().mockReturnValue({ select: () => ({ single: async () => ({ data: { id: "request-1" } }) }) });
     const connections = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), then: (resolve: (v: unknown) => void) => resolve({ data: [{ id: "abc", name: "Docs", url: "https://docs.example.com/mcp", transport_mode: "sse", allow_actions: true }] }) };
