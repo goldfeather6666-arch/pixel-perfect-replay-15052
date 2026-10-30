@@ -10,7 +10,7 @@ function clip(s: string) {
 }
 
 /** Opens (or reuses) this task's E2B sandbox, synced to the work branch plus staged changes. */
-export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = []) {
+export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }) {
   const apiKey = process.env["E2B_API_KEY"];
   if (!apiKey) throw new Error("Terminal is not configured");
   const { Sandbox } = await import("e2b");
@@ -45,6 +45,13 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     const full = `${REPO_DIR}/${c.path}`;
     if (c.action === "delete") await box.files.remove(full).catch(() => {});
     else await box.files.write(full, c.content ?? "");
+  }
+  if (preview) {
+    // Start a long-running dev server and expose its port through the sandbox's public HTTPS host.
+    await box.commands.run(`nohup bash -lc ${JSON.stringify(command)} > /tmp/preview.log 2>&1 &`, { cwd: REPO_DIR, timeoutMs: 15_000 }).catch(() => {});
+    await box.commands.run(`for i in $(seq 1 45); do curl -s -o /dev/null localhost:${preview.port} && exit 0; sleep 2; done; exit 1`, { timeoutMs: 100_000 }).catch(() => {});
+    const log = await box.commands.run("tail -c 3000 /tmp/preview.log", { timeoutMs: 10_000 }).catch(() => null);
+    return { url: `https://${box.getHost(preview.port)}`, log: String(log?.stdout ?? ""), note: "Preview stays up while the sandbox is active (15 min idle)." };
   }
   const r = await box.commands.run(command, { cwd: REPO_DIR, timeoutMs: 180_000 }).catch((e: any) => e);
   return {
