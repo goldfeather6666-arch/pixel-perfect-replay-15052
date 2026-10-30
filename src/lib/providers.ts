@@ -34,5 +34,6 @@ export type AgentEvent =
   | { t: "tool"; id: string; name: string; input: unknown }
   | { t: "tool-result"; id: string; ok: boolean; summary: string }
   | { t: "pending"; pending: PendingChange[] }
+  | { t: "usage"; input: number; output: number }
   | { t: "error"; m: string }
   | { t: "done" };
