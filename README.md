@@ -15,7 +15,11 @@ Forge is a browser-based coding agent. Each user brings their own AI provider ke
 
 - **External MCP tools:** connect public or bearer-token Streamable HTTP or SSE endpoints in Settings. Tokens are encrypted; tools are available through deferred discovery/invocation. Read-only calls execute directly. Opt in to action requests to expose other tools: every external action requires separate approval in the task's Changes tab, even in autonomous mode. Approval uses the saved exact arguments, expires after 30 minutes and executes at most once. Results are saved and supplied on the next agent turn. DeepWiki's official endpoint is included as a preset. Trust only servers you control or recognize: tool annotations are not a security guarantee.
 
-Not yet available: sandboxed terminal / test execution, OAuth-only MCP servers, and local stdio transport (requires a local execution bridge). See `roadmap.md`.
+- **External service sign-in:** OAuth with PKCE, encrypted tokens and registration data, automatic SDK refresh and explicit reconnect. Notion's official endpoint is a preset. Callback completion requires the active Forge account and the browser that started sign-in; flows expire after 10 minutes and can complete only once. HTTPS services advertising client metadata documents use the public `/api/public/oauth-client` document; others use dynamic registration. Local HTTP development uses dynamic registration. Servers supporting neither require their own pre-registration and are not supported by this flow.
+
+Not yet available: sandboxed terminal / test execution and local stdio transport (requires a local execution bridge). See `roadmap.md`.
+
+OAuth checks: real Notion client registration, authorization URL/PKCE/state, cancellation and disconnect were verified. Successful Notion account consent, post-consent tool access, refresh and hosted HTTPS client metadata acceptance still require an external account and a published check; they are not claimed as end-to-end verified.
 
 ## Stack
 
