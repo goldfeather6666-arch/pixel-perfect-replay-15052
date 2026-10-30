@@ -24,3 +24,5 @@
 - [x] Framer account connection — saved authorization confirmed; authenticated tool definitions retrieved (project editing not exercised)
 - [x] Repair runtime Framer schema compatibility and explicit saved-skill access; caller-owned reads verified
 - [x] Add Motion MCP presets and owner-scoped saved-skill / per-tool diagnostics; free docs connected, 18 skills and 8 Framer definitions verified without external actions
+- [ ] Deployment reliability: built-in coding skill, repeatable production checks, commit-matched Vercel results and bounded repair follow-ups
+- [ ] Real failing-project deployment verification — requires an authorized task run; do not trigger paid agent runs or external deployments during tests
