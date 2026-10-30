@@ -320,12 +320,13 @@ export const saveFile = createServerFn({ method: "POST" })
   });
 
 // ---------- Skills ----------
-export type Skill = { id: string; name: string; instructions: string; enabled: boolean };
+export type Skill = { id: string; name: string; instructions: string; enabled: boolean; source: string | null };
+export type SkillCandidate = { path: string; name: string; description: string; chars: number; already: boolean };
 
 export const listSkills = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("skills").select("id, name, instructions, enabled").order("created_at");
+    const { data, error } = await context.supabase.from("skills").select("id, name, instructions, enabled, source").order("created_at");
     if (error) throw new Error(error.message);
     return data as Skill[];
   });
@@ -351,6 +352,59 @@ export const deleteSkill = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("skills").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// ---------- Import skills from another repository ----------
+export const previewSkillImport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ source: z.string().trim().min(1).max(400) }))
+  .handler(async ({ data, context }) => {
+    const { parseSkillSource, listSkillCandidates } = await import("./skill-import.server");
+    const gh = await githubAny(context);
+    const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
+    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
+    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    return {
+      repo,
+      branch,
+      candidates: candidates.map((c) => ({
+        path: c.path,
+        name: c.name,
+        description: c.description,
+        chars: c.chars,
+        already: have.has(c.name),
+      })) as SkillCandidate[],
+    };
+  });
+
+export const importSkills = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ source: z.string().trim().min(1).max(400), paths: z.array(z.string().min(1).max(500)).min(1).max(40) }),
+  )
+  .handler(async ({ data, context }) => {
+    const { parseSkillSource, listSkillCandidates } = await import("./skill-import.server");
+    const gh = await githubAny(context);
+    const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
+    const chosen = candidates.filter((c) => data.paths.includes(c.path));
+    if (!chosen.length) throw new Error("Those files are no longer in that repository");
+    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
+    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    const added: string[] = [];
+    const skipped: string[] = [];
+    for (const c of chosen) {
+      if (have.has(c.name)) {
+        skipped.push(c.name);
+        continue;
+      }
+      have.add(c.name);
+      const { error } = await context.supabase
+        .from("skills")
+        .insert({ user_id: context.userId, name: c.name, instructions: c.instructions, enabled: true, source: `${repo}@${branch}:${c.path}` });
+      if (error) throw new Error(error.message);
+      added.push(c.name);
+    }
+    return { added, skipped };
   });
 
 // ---------- Sandbox terminal ----------
