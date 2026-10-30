@@ -13,9 +13,9 @@ Forge is a browser-based coding agent. Each user brings their own AI provider ke
 - **Skills & project instructions:** reusable instructions per user, plus `AGENTS.md` / `CLAUDE.md` from the repo.
 - **Pull requests:** open a PR from the task branch in one click.
 
-- **External MCP tools:** connect public or bearer-token Streamable HTTP endpoints in Settings. Tokens are encrypted; tools marked read-only are available through deferred discovery/invocation. DeepWiki's official endpoint is included as a preset. Trust only servers you control or recognize: tool annotations are not a security guarantee.
+- **External MCP tools:** connect public or bearer-token Streamable HTTP or SSE endpoints in Settings. Tokens are encrypted; tools are available through deferred discovery/invocation. Read-only calls execute directly. Opt in to action requests to expose other tools: every external action requires separate approval in the task's Changes tab, even in autonomous mode. Approval uses the saved exact arguments, expires after 30 minutes and executes at most once. Results are saved and supplied on the next agent turn. DeepWiki's official endpoint is included as a preset. Trust only servers you control or recognize: tool annotations are not a security guarantee.
 
-Not yet available: sandboxed terminal / test execution, OAuth-only MCP servers, local stdio/SSE transports, and external write actions (see `roadmap.md`).
+Not yet available: sandboxed terminal / test execution, OAuth-only MCP servers, and local stdio transport (requires a local execution bridge). See `roadmap.md`.
 
 ## Stack
 
