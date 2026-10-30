@@ -21,7 +21,7 @@ export type Credential = {
   last4: string;
   created_at: string;
   custom_models?: string[] | null;
-  extra_body?: unknown;
+  extra_body?: Record<string, string | number | boolean | null> | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

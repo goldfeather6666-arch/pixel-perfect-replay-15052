@@ -34,7 +34,7 @@ export const listCredentials = createServerFn({ method: "GET" })
       .select("id, provider, label, base_url, last4, created_at, custom_models, extra_body")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data as Credential[];
+    return data as unknown as Credential[];
   });
 
 export const saveCredential = createServerFn({ method: "POST" })
