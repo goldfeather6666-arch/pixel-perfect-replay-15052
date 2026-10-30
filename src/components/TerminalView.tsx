@@ -13,7 +13,7 @@ export function TerminalView({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<Entry[]>([]);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [log]);
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [log]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
