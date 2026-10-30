@@ -434,6 +434,11 @@ export const Route = createFileRoute("/api/agent")({
                   throw part.error;
                 }
               }
+              const stepCap = plan ? 20 : 50;
+              if ((await result.steps).length >= stepCap && !text.trim()) {
+                text = `I used this run's ${stepCap}-step budget before finishing. Progress so far is saved — send "continue" and I'll pick up from here.`;
+                send({ t: "text", d: text });
+              }
             } catch (e: any) {
               if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
               send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
