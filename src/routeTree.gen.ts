@@ -16,6 +16,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
 import { Route as ApiAgentRouteImport } from './routes/api/agent'
+import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +53,11 @@ const ApiAgentRoute = ApiAgentRouteImport.update({
   path: '/api/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpCallbackRoute = McpCallbackRouteImport.update({
+  id: '/mcp/callback',
+  path: '/mcp/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSIdRoute = AuthenticatedSIdRouteImport.update({
   id: '/s/$id',
   path: '/s/$id',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
 }
 export interface FileRoutesByTo {
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
 }
 export interface FileRoutesById {
@@ -85,14 +93,30 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/app' | '/settings' | '/skills' | '/api/agent' | '/s/$id'
+    | '/'
+    | '/auth'
+    | '/app'
+    | '/settings'
+    | '/skills'
+    | '/api/agent'
+    | '/mcp/callback'
+    | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/app' | '/settings' | '/skills' | '/api/agent' | '/s/$id'
+  to:
+    | '/'
+    | '/auth'
+    | '/app'
+    | '/settings'
+    | '/skills'
+    | '/api/agent'
+    | '/mcp/callback'
+    | '/s/$id'
   id:
     | '__root__'
     | '/'
@@ -102,6 +126,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/skills'
     | '/api/agent'
+    | '/mcp/callback'
     | '/_authenticated/s/$id'
   fileRoutesById: FileRoutesById
 }
@@ -110,6 +135,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiAgentRoute: typeof ApiAgentRoute
+  McpCallbackRoute: typeof McpCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -163,6 +189,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp/callback': {
+      id: '/mcp/callback'
+      path: '/mcp/callback'
+      fullPath: '/mcp/callback'
+      preLoaderRoute: typeof McpCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/s/$id': {
       id: '/_authenticated/s/$id'
       path: '/s/$id'
@@ -195,6 +228,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiAgentRoute: ApiAgentRoute,
+  McpCallbackRoute: McpCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 
 const mocks = vi.hoisted(() => ({ open: vi.fn(), inspect: vi.fn(), execute: vi.fn(), close: vi.fn(), update: vi.fn(), claim: true }));
 vi.mock("@/lib/mcp-client.server", () => ({ openMcp: mocks.open, inspectMcp: mocks.inspect }));
+vi.mock("@/lib/mcp-oauth.server", () => ({ openSavedMcp: mocks.open }));
 vi.mock("@/lib/crypto.server", () => ({ decryptSecret: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => ({ update: mocks.update }) } }));
 import { resolveMcpAction } from "@/lib/mcp-approval.server";

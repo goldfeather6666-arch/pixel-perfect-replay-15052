@@ -1,34 +1,19 @@
-import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
+import { createMCPClient, type MCPClient, type OAuthClientProvider } from "@ai-sdk/mcp";
 import { tool } from "ai";
 import { z } from "zod";
-import { publicMcpUrl, isPublicIpv4, allowedMcpTool } from "./mcp-policy";
-import { decryptSecret } from "./crypto.server";
+import { publicMcpUrl, allowedMcpTool } from "./mcp-policy";
+import { guardedMcpFetch, verifyPublicTarget } from "./mcp-network.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import Ajv from "ajv";
 
-export async function openMcp(url: string, token?: string, transport: "http" | "sse" = "http") {
+export async function openMcp(url: string, token?: string, transport: "http" | "sse" = "http", authProvider?: OAuthClientProvider) {
   const safeUrl = publicMcpUrl(url);
-  const host = new URL(safeUrl).hostname;
-  // Validate public DNS before connecting. Reject redirects on every request.
-  const dns = await globalThis.fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`, {
-    headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(10000),
-  });
-  const record = await dns.json() as { Answer?: { type: number; data: string }[] };
-  const addresses = record.Answer?.filter((a) => a.type === 1) ?? [];
-  if (!addresses.length || addresses.some((a) => !isPublicIpv4(a.data))) throw new Error("Server must resolve to public internet addresses.");
-  const guardedFetch: typeof fetch = async (input, init) => {
-    const target = new URL(input instanceof Request ? input.url : String(input));
-    if (target.origin !== new URL(safeUrl).origin) throw new Error("Cross-origin MCP request blocked");
-    const response = await globalThis.fetch(input, {
-      ...init, redirect: "manual", signal: AbortSignal.any([...(init?.signal ? [init.signal] : []), AbortSignal.timeout(20000)]),
-    });
-    if (response.status >= 300 && response.status < 400) throw new Error("MCP redirects are not allowed");
-    return response;
-  };
+  await verifyPublicTarget(safeUrl);
   return createMCPClient({ transport: {
     type: transport, url: safeUrl, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
-    redirect: "error", fetch: guardedFetch,
+    ...(authProvider ? { authProvider } : {}),
+    redirect: "error", fetch: guardedMcpFetch(safeUrl, !!authProvider),
   } });
 }
 
@@ -49,9 +34,9 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
   await Promise.all((data ?? []).map(async (row) => {
     let client: MCPClient | undefined;
     try {
-      const token = row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined;
       const transport = row.transport_mode === "sse" ? "sse" : "http";
-      client = await openMcp(row.url, token, transport);
+      const { openSavedMcp } = await import("./mcp-oauth.server");
+      client = await openSavedMcp(sb, row);
       clients.push(client);
       const { definitions, sdkTools } = await inspectMcp(client, row.url, row.allow_actions && !!sessionId);
       for (const def of definitions) {
