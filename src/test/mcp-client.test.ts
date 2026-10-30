@@ -58,6 +58,7 @@ describe("external agent tools", () => {
     const q = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), then: (resolve: (v: unknown) => void) => resolve({ data: [{ id: "framer", name: "Framer", url: "https://mcp.framer.com/mcp" }], error: null }) };
     const registry = await loadMcpTools({ from: () => q } as unknown as SupabaseClient<Database>, "owner-1");
     const result = await registry.tools.tool_search.execute({ query: "", server: "Framer", limit: 8 }, { toolCallId: "browse", messages: [], context: {} });
+    if (!("matches" in result)) throw new Error("Expected search result");
     expect(result.matches.map((t) => t.name)).toEqual(["mcp_framer.list_projects"]);
     expect(result.unavailable).toEqual([]);
     expect(result.issues).toHaveLength(1);
