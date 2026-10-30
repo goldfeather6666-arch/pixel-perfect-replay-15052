@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Check, Plug, Loader2 } from "lucide-react";
@@ -15,6 +15,7 @@ export const Route = createFileRoute("/mcp/callback")({
 
 function Callback() {
   const search = Route.useSearch();
+  const hydrated = useHydrated();
   const complete = useServerFn(completeMcpOAuth);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -33,7 +34,7 @@ function Callback() {
     <Plug className="size-7 text-primary" />
     <h1 className="text-2xl font-semibold">Connect external service</h1>
     {result && <p role="status" className={result.ok ? "text-success" : "text-destructive"}>{result.message}</p>}
-    {!result?.ok && search.state && <Button onClick={finish} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <Check />} {busy ? "Connecting…" : "Finish connection"}</Button>}
+    {!result?.ok && search.state && <Button onClick={finish} disabled={busy || !hydrated}>{busy ? <Loader2 className="animate-spin" /> : <Check />} {busy ? "Connecting…" : "Finish connection"}</Button>}
     {!search.state && !result && <p className="text-sm text-muted-foreground">This sign-in link is missing or expired.</p>}
     <div><Button variant="outline" asChild><Link to="/settings">Back to Settings</Link></Button></div>
   </main>;
