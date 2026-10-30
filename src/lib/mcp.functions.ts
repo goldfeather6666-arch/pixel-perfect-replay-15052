@@ -3,6 +3,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { connectionInput } from "./mcp-policy";
 
+export const diagnoseMcpAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { accessDiagnostics } = await import("./mcp-diagnostics.server");
+  return accessDiagnostics(context.supabase, context.userId);
+});
+
 export const listMcpConnections = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, auth_mode, oauth_status, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
   if (error) throw new Error("Could not load connections. Please retry.");

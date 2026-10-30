@@ -23,3 +23,4 @@
 - [x] Official Framer MCP preset (HTTP + service sign-in, external actions remain opt-in)
 - [x] Framer account connection — saved authorization confirmed; authenticated tool definitions retrieved (project editing not exercised)
 - [x] Repair runtime Framer schema compatibility and explicit saved-skill access; caller-owned reads verified
+- [x] Add Motion MCP presets and owner-scoped saved-skill / per-tool diagnostics; free docs connected, 18 skills and 8 Framer definitions verified without external actions
