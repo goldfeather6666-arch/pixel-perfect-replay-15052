@@ -113,7 +113,16 @@ function Workspace() {
           if (!line) continue;
           const e = JSON.parse(line) as AgentEvent;
           if (e.t === "text") patchLast((m) => ({ ...m, content: m.content + e.d }));
-          else if (e.t === "tool") patchLast((m) => ({ ...m, tools: [...(m.tools ?? []), { id: e.id, name: e.name, input: e.input }] }));
+          else if (e.t === "tool")
+            patchLast((m) => ({
+              ...m,
+              content: "",
+              tools: [
+                ...(m.tools ?? []),
+                ...(m.content.trim() ? [{ id: `note-${e.id}`, name: "note", input: {}, ok: true, summary: m.content.trim() }] : []),
+                { id: e.id, name: e.name, input: e.input },
+              ],
+            }));
           else if (e.t === "tool-result")
             patchLast((m) => ({ ...m, tools: m.tools?.map((t) => (t.id === e.id ? { ...t, ok: e.ok, summary: e.summary } : t)) }));
           else if (e.t === "pending") setPending([...e.pending]);
