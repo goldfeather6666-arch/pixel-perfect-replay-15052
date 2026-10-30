@@ -51,7 +51,7 @@ process.exit(failed ? 1 : 0);
   return `cd '${root}' && node -e '${script.replace(/'/g, "'\\''")}'`;
 }
 
-export type QualityState = { changed: boolean; localPassed: boolean; linked: boolean; supervised: boolean; deploymentState?: string };
+export type QualityState = { changed: boolean; localPassed: boolean; linked: boolean; supervised: boolean; deploymentState?: string | undefined };
 export function qualityBlocker(state: QualityState): string | null {
   if (!state.changed) return null;
   if (!state.localPassed && state.deploymentState !== "READY") return "Current changes have not passed production checks. Run deployment_preflight, fix the reported errors and re-check; if the sandbox is resource-blocked, verify the exact commit through Vercel instead.";
