@@ -34,7 +34,7 @@ export function DeployPanel({ id }: { id: string }) {
         </ul>
       </section>
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
-      <VercelCard dbLinked={!!info.data?.supabaseRef} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
+      <VercelCard dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
       )}
