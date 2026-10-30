@@ -247,9 +247,27 @@ function MessageView({ m, live }: { m: ChatMessage; live: boolean }) {
     return <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg bg-secondary px-4 py-2.5 text-sm">{m.content}</div>;
   return (
     <div className="space-y-2 text-sm">
-      {m.tools?.map((t) => <ToolView key={t.id} t={t} />)}
+      {!!m.tools?.length && <ActivityView tools={m.tools} live={live} />}
       {m.content && <div className="prose-agent"><ReactMarkdown>{m.content}</ReactMarkdown></div>}
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+    </div>
+  );
+}
+
+function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const busy = live && tools.some((t) => t.ok === undefined);
+  const failed = tools.filter((t) => t.ok === false).length;
+  const current = [...tools].reverse().find((t) => t.ok === undefined);
+  return (
+    <div className="rounded-md border bg-muted/30 text-xs">
+      <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-muted-foreground" onClick={() => setOpen(!open)}>
+        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+        {busy ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Wrench className="h-3 w-3" />}
+        <span>{busy ? `Working… ${current ? current.name : ""}` : `Background activity · ${tools.length} step${tools.length === 1 ? "" : "s"}`}</span>
+        {failed > 0 && <span className="text-destructive">{failed} failed</span>}
+      </button>
+      {open && <div className="space-y-1 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</div>}
     </div>
   );
 }
