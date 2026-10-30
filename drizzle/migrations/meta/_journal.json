@@ -71,6 +71,13 @@
       "when": 1793393855460,
       "tag": "0009_session_running_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793394209871,
+      "tag": "0010_repo_memory",
+      "breakpoints": true
     }
   ]
 }
