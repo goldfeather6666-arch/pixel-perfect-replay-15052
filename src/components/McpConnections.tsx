@@ -54,10 +54,11 @@ export function McpConnections() {
   });
   return (
     <section className="space-y-4 border-t pt-8" aria-labelledby="mcp-title">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="mcp-title" className="flex items-center gap-2 font-semibold"><Plug className="size-4" /> External tools (MCP)</h2>
         <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => { setName("DeepWiki"); setUrl("https://mcp.deepwiki.com/mcp"); setToken(""); setTrusted(false); setTransport("http"); setAllowActions(false); setAuthMode("token"); }}>DeepWiki</Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setName("Notion"); setUrl("https://mcp.notion.com/mcp"); setToken(""); setTrusted(false); setTransport("http"); setAuthMode("oauth"); }}>Notion</Button></div>
+        <Button type="button" variant="outline" size="sm" onClick={() => { setName("Notion"); setUrl("https://mcp.notion.com/mcp"); setToken(""); setTrusted(false); setTransport("http"); setAuthMode("oauth"); }}>Notion</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => { setName("Framer"); setUrl("https://mcp.framer.com/mcp"); setToken(""); setTrusted(false); setTransport("http"); setAllowActions(false); setAuthMode("oauth"); }}>Framer</Button></div>
       </div>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
         <div className="space-y-1.5"><Label htmlFor="mcp-name">Connection name</Label><Input id="mcp-name" required maxLength={80} placeholder="e.g. Project docs" value={name} onChange={(e) => setName(e.target.value)} /></div>
