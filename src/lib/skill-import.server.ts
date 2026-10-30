@@ -40,8 +40,7 @@ export function parseSkillSource(input: string): SkillSource {
   if (work.startsWith("api.github.com/")) {
     work = work.replace(/^api\.github\.com\/repos\//i, "").replace(/\/(contents|git\/trees)\//i, "/");
   } else if (work.startsWith("raw.githubusercontent.com/")) {
-    const rest = work.replace(/^raw\.githubusercontent\.com\//i, "");
-    const parts = rest.split("/");
+    const parts = work.replace(/^raw\.githubusercontent\.com\//i, "").split("/");
     if (parts.length < 3) throw new Error("That raw.githubusercontent.com link is missing a branch or file path");
     branch = parts[2] ?? null;
     work = [parts[0], parts[1], ...parts.slice(3)].join("/");
@@ -50,15 +49,17 @@ export function parseSkillSource(input: string): SkillSource {
   }
 
   const parts = work.split("/").filter((p) => p.length > 0);
-  if (parts.length < 2) throw new Error("Use owner/repo, or a full github.com link");
-  const [owner, name] = parts;
+  const owner = parts[0];
+  const name = parts[1];
+  if (!owner || !name) throw new Error("Use owner/repo, or a full github.com link");
   if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(name)) {
     throw new Error("That repository name doesn't look like a GitHub owner/repo");
   }
 
   let path: string | null = null;
   const tail = parts.slice(2);
-  if (tail[0] === "tree" || tail[0] === "blob" || tail[0] === "edit" || tail[0] === "raw") {
+  const head = tail[0];
+  if (head === "tree" || head === "blob" || head === "edit" || head === "raw") {
     branch = tail[1] ?? branch;
     path = tail.slice(2).join("/") || null;
   } else {
@@ -100,7 +101,7 @@ export function pickSkillFiles(paths: string[], root: string | null): string[] {
 
 /** Minimal front-matter reader: top-level `key: value` lines between leading `---` fences. */
 function readFrontMatter(text: string): { fields: Record<string, string>; body: string } {
-  const start = text.startsWith("﻿") ? 1 : 0;
+  const start = text.charCodeAt(0) === 0xfeff ? 1 : 0;
   if (text.slice(start, start + 3) !== "---") return { fields: {}, body: text };
   const nl = text.indexOf("\n", start);
   if (nl === -1) return { fields: {}, body: text };
@@ -108,14 +109,18 @@ function readFrontMatter(text: string): { fields: Record<string, string>; body: 
   const fields: Record<string, string> = {};
   let closed = -1;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i] ?? "";
     if (/^(---|\.\.\.)\s*$/.test(line)) {
       closed = i;
       break;
     }
-    if (/^\s/.test(line) || line.includes("|") || line.includes(">")) continue;
+    if (/^\s/.test(line)) continue;
     const m = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
-    if (m) fields[m[1].toLowerCase()] = m[2].trim().replace(/^["']|["']$/g, "");
+    if (!m) continue;
+    const key = m[1]?.toLowerCase();
+    const value = (m[2] ?? "").trim();
+    if (!key || /^[|>&@]/.test(value)) continue; // block scalars and anchors aren't read
+    fields[key] = value.replace(/^["']+|["']+$/g, "");
   }
   if (closed === -1) return { fields: {}, body: text };
   return { fields, body: lines.slice(closed + 1).join("\n") };
@@ -123,14 +128,15 @@ function readFrontMatter(text: string): { fields: Record<string, string>; body: 
 
 function firstHeading(body: string) {
   const m = body.match(/^#\s+(.+)$/m);
-  return m ? clean(m[1]) : "";
+  return m ? clean(m[1] ?? "") : "";
 }
 
 /** Turns one markdown file into a skill: name, when-to-use line and the instructions the agent sees. */
 export function parseSkillMarkdown(text: string, fallbackName: string): { name: string; description: string; instructions: string } {
   const { fields, body } = readFrontMatter(text);
-  const name = clean(fields.name || firstHeading(body) || fallbackName).slice(0, 80) || fallbackName;
-  const description = clean(fields.description || "").slice(0, 300);
+  const rawName = clean(fields["name"] || firstHeading(body) || fallbackName).slice(0, 80);
+  const name = rawName || clean(fallbackName).slice(0, 80) || "Skill";
+  const description = clean(fields["description"] || "").slice(0, 300);
   const trimmed = body.trim();
   let instructions = description ? `When to use: ${description}\n\n${trimmed}` : trimmed;
   if (instructions.length > MAX_INSTRUCTIONS) {
@@ -141,17 +147,20 @@ export function parseSkillMarkdown(text: string, fallbackName: string): { name: 
 
 /** Name shown for a file before its own title is read. */
 export function fallbackSkillName(path: string, root: string | null): string {
-  const name = baseName(path);
-  if (/^skill\.md$/i.test(name)) {
-    const dir = path.slice(0, path.length - name.length).replace(/\/+$/, "");
+  const file = baseName(path);
+  if (/^skill\.md$/i.test(file)) {
+    const dir = path.slice(0, path.length - file.length).replace(/\/+$/, "");
     const parent = baseName(dir);
     return parent && parent !== "." ? parent : root ? baseName(root) : "Skill";
   }
-  return name.replace(/\.md$/i, "");
+  return file.replace(/\.md$/i, "");
 }
 
 /** Reads the repo tree and turns the chosen markdown files into skill drafts. */
-export async function listSkillCandidates(gh: GitHub, src: SkillSource): Promise<{ repo: string; branch: string; candidates: SkillCandidate[] }> {
+export async function listSkillCandidates(
+  gh: GitHub,
+  src: SkillSource,
+): Promise<{ repo: string; branch: string; candidates: SkillCandidate[] }> {
   const branch = src.branch ?? (await gh.repoInfo(src.repo)).default_branch;
   const tree = await gh.tree(src.repo, branch);
   const files = pickSkillFiles(tree, src.path);
@@ -167,10 +176,10 @@ export async function listSkillCandidates(gh: GitHub, src: SkillSource): Promise
       const f = await gh.getFile(src.repo, branch, path);
       if (!f) return null;
       const parsed = parseSkillMarkdown(f.content, fallbackSkillName(path, src.path));
-      return { path, ...parsed, chars: parsed.instructions.length } satisfies SkillCandidate;
+      return { path, name: parsed.name, description: parsed.description, instructions: parsed.instructions, chars: parsed.instructions.length } satisfies SkillCandidate;
     }),
   );
   const candidates = read.filter((c): c is SkillCandidate => c !== null);
-  if (!candidates.length) throw new Error("Those files could not be read — is the repository private and the token able to see it?");
+  if (!candidates.length) throw new Error("Those files could not be read — is the repository private and the token unable to see it?");
   return { repo: src.repo, branch, candidates };
 }
