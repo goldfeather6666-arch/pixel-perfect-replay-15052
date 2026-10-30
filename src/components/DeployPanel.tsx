@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Database, ExternalLink, Rocket } from "lucide-react";
+import { Check, Database, ExternalLink, Rocket } from "lucide-react";
+import { saveCredential } from "@/lib/app.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +23,16 @@ export function DeployPanel({ id }: { id: string }) {
   const d = info.data;
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-3 sm:p-4">
+      <section className="rounded-lg border bg-card p-4">
+        <h2 className="font-semibold">Put your app online</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Both are optional and free to start. Connect them once; every task after that is set up in one tap.</p>
+        <ul className="mt-3 space-y-2 text-sm">
+          <li className="flex items-center gap-2"><StepBadge n={1} done={d.hasSupabase} /> Connect Supabase <span className="text-muted-foreground">(database)</span></li>
+          <li className="flex items-center gap-2"><StepBadge n={2} done={!!d.supabase_ref} /> Choose a database for this task</li>
+          <li className="flex items-center gap-2"><StepBadge n={3} done={d.hasVercel} /> Connect Vercel <span className="text-muted-foreground">(website)</span></li>
+          <li className="flex items-center gap-2"><StepBadge n={4} done={!!d.vercel_project_id} /> Choose a website for this task</li>
+        </ul>
+      </section>
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       <VercelCard id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
@@ -40,17 +51,59 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
   );
 }
 
-function NeedToken({ name }: { name: string }) {
-  return <p className="text-sm text-muted-foreground">Add a {name} token in <Link to="/settings" className="text-primary underline">Settings</Link> to connect.</p>;
+const GUIDES = {
+  Supabase: {
+    url: "https://supabase.com/dashboard/account/tokens",
+    steps: ["Tap the button below to open Supabase (sign up free if needed).", "Tap “Generate new token”, give it any name, and copy it.", "Come back here, paste it, and tap Connect."],
+  },
+  Vercel: {
+    url: "https://vercel.com/account/settings/tokens",
+    steps: ["Tap the button below to open Vercel (sign up free with GitHub).", "Create a token: any name, scope “Full Account”, no expiry. Copy it.", "Come back here, paste it, and tap Connect."],
+  },
+} as const;
+
+function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: () => void }) {
+  const [key, setKey] = useState("");
+  const save = useServerFn(saveCredential);
+  const qc = useQueryClient();
+  const g = GUIDES[name];
+  const m = useMutation({
+    mutationFn: () => save({ data: { provider: name === "Supabase" ? "supabase" : "vercel", label: name, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
+    onSuccess: () => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); onDone(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="space-y-3 text-sm">
+      <ol className="space-y-2">
+        {g.steps.map((t, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold">{i + 1}</span>
+            <span className="min-w-0 pt-0.5">{t}</span>
+          </li>
+        ))}
+      </ol>
+      <Button asChild variant="secondary" className="h-11 w-full"><a href={g.url} target="_blank" rel="noreferrer"><ExternalLink /> Get my {name} token</a></Button>
+      <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+        <Input className="h-11 min-w-0 flex-1 text-base sm:text-sm" type="password" autoComplete="off" placeholder="Paste token here" value={key} onChange={(e) => setKey(e.target.value)} />
+        <Button className="h-11 shrink-0" disabled={!key.trim() || m.isPending}>{m.isPending ? "Checking…" : "Connect"}</Button>
+      </form>
+      <p className="text-xs text-muted-foreground">Your token is checked, encrypted and never shown again.</p>
+    </div>
+  );
+}
+
+function StepBadge({ done, n }: { done: boolean; n: number }) {
+  return <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-accent"}`}>{done ? <Check className="h-3.5 w-3.5" /> : n}</span>;
 }
 
 function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean; linked: string | null; onChange: () => void }) {
-  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(`forge-${id.slice(0, 6)}`);
   const [org, setOrg] = useState("");
   const [region, setRegion] = useState("us-east-1");
   const opts = useQuery({ queryKey: ["sb-opts"], queryFn: useServerFn(listSupabaseOptions), enabled: has && !linked });
+  const orgId = org || opts.data?.orgs[0]?.id || "";
   const link = useServerFn(linkSupabase);
   const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000 });
   const applyFn = useServerFn(applyMigrations);
@@ -71,7 +124,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
 
   return (
     <Card icon={<Database className="h-4 w-4 shrink-0" />} title="Supabase database">
-      {!has ? <NeedToken name="Supabase" /> : linked ? (
+      {!has ? <NeedToken name="Supabase" onDone={onChange} /> : linked ? (
         <div className="space-y-3 text-sm">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <span className="truncate font-mono text-xs">{linked}{status.data?.dbStatus ? ` · ${status.data.dbStatus.toLowerCase().replace(/_/g, " ")}` : ""}</span>
@@ -101,8 +154,9 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
           ) : (
             <>
               <Input className="h-11 text-base sm:text-sm" placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Select value={org} onValueChange={setOrg}>
+              <details className="text-sm"><summary className="cursor-pointer py-1 text-muted-foreground">More options (team, location)</summary>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Select value={orgId} onValueChange={setOrg}>
                   <SelectTrigger className={trig}><SelectValue placeholder="Organization" /></SelectTrigger>
                   <SelectContent>{opts.data?.orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -110,9 +164,9 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
                   <SelectTrigger className={trig}><SelectValue /></SelectTrigger>
                   <SelectContent>{REGIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
-              </div>
-              <Button className="h-11 w-full" disabled={!name.trim() || !org || linkM.isPending} onClick={() => linkM.mutate({ id, create: { name: name.trim(), orgId: org, region } })}>
-                {linkM.isPending ? "Creating…" : "Create & link"}
+              </div></details>
+              <Button className="h-11 w-full" disabled={!name.trim() || !orgId || linkM.isPending} onClick={() => linkM.mutate({ id, create: { name: name.trim(), orgId, region } })}>
+                {linkM.isPending ? "Creating…" : "Create my database"}
               </Button>
               <p className="text-xs text-muted-foreground">New projects take about 2 minutes to start.</p>
             </>
@@ -124,7 +178,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
 }
 
 function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; linked: string | null; onChange: () => void }) {
-  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
   const projects = useQuery({ queryKey: ["vc-projects"], queryFn: useServerFn(listVercelProjects), enabled: has && !linked });
   const link = useServerFn(linkVercel);
@@ -139,7 +193,7 @@ function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; l
 
   return (
     <Card icon={<Rocket className="h-4 w-4 shrink-0" />} title="Vercel website">
-      {!has ? <NeedToken name="Vercel" /> : linked ? (
+      {!has ? <NeedToken name="Vercel" onDone={onChange} /> : linked ? (
         <div className="space-y-3 text-sm">
           <div className="flex items-center justify-between gap-2">
             <span className={`font-medium ${color}`}>{latest ? latest.state.toLowerCase() : deps.isLoading ? "checking…" : "no deploy for this task yet"}</span>
@@ -167,9 +221,9 @@ function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; l
           ) : (
             <>
               <Button className="h-11 w-full" disabled={linkM.isPending} onClick={() => linkM.mutate({ id, create: true })}>
-                {linkM.isPending ? "Creating…" : "Create a Vercel project for this repo"}
+                {linkM.isPending ? "Creating…" : "Create my website"}
               </Button>
-              <p className="text-xs text-muted-foreground">Needs the Vercel GitHub app installed with access to this repo.</p>
+              <p className="text-xs text-muted-foreground">If this fails with a GitHub error, Vercel needs permission to see your repo: <a className="text-primary underline" href="https://github.com/apps/vercel/installations/new" target="_blank" rel="noreferrer">allow Vercel on GitHub</a>, then try again.</p>
             </>
           )}
         </div>
@@ -183,7 +237,7 @@ function ModeSwitch({ mode, setMode }: { mode: "existing" | "new"; setMode: (m: 
     <div className="grid grid-cols-2 gap-2">
       {(["existing", "new"] as const).map((m) => (
         <button key={m} type="button" onClick={() => setMode(m)} className={`h-11 rounded-md border text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
-          {m === "existing" ? "Use existing" : "Create new"}
+          {m === "existing" ? "I already have one" : "Create new"}
         </button>
       ))}
     </div>
