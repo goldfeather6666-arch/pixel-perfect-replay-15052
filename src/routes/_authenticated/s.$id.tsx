@@ -37,7 +37,14 @@ function Workspace() {
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
     refetchInterval: (q) => (!running && (q.state.data as { running?: boolean } | undefined)?.running ? 3000 : false),
   });
-  const bgRunning = !running && !!(session.data as { running?: boolean } | undefined)?.running;
+  const sd = session.data as { running?: boolean; updated_at?: string } | undefined;
+  // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
+  const [, force] = useState(0);
+  useEffect(() => { if (!sd?.running || running) return; const t = setInterval(() => force((n) => n + 1), 5000); return () => clearInterval(t); }, [sd?.running, running]);
+  const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > 120_000;
+  const bgRunning = !running && !!sd?.running && !stale;
+  const runStart = useRef<number>(0);
+  const runPlan = useRef(false);
   const [images, setImages] = useState<{ mediaType: string; data: string; name: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   async function addImages(files: FileList | null) {
@@ -73,6 +80,7 @@ function Workspace() {
     let text = (override ?? input).trim();
     if (!text || running || bgRunning) return;
     let plan = forcePlan ?? planMode;
+    runStart.current = Date.now();
     const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
     if (cmd) {
       const [, name, rest] = cmd;
@@ -97,7 +105,7 @@ function Workspace() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${data.session?.access_token}` },
-        body: JSON.stringify({ sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) }),
+        body: JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) })),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
@@ -204,7 +212,16 @@ function Workspace() {
               </button>
               <span className="hidden text-muted-foreground sm:inline">Type / for commands: /plan /test /review /explain</span>
             </div>
-            {bgRunning && <p className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Still working in the background — progress updates here.</p>}
+            {(running || bgRunning) && (
+              <RunStatus
+                start={running ? runStart.current : null}
+                lastUpdate={running ? null : sd?.updated_at ?? null}
+                steps={(messages.at(-1)?.role === "assistant" ? messages.at(-1)?.tools ?? [] : []).filter((t) => t.name !== "note" && t.ok !== undefined).length}
+                limit={running && runPlan.current ? 20 : 50}
+                background={bgRunning}
+              />
+            )}
+            {stale && !running && <p className="mx-auto mb-2 max-w-3xl text-xs text-destructive">The last run stopped without finishing (no sign of life for over 2 minutes). Its saved progress is above — send a message such as "continue" to pick up from there.</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
                 {images.map((im, i) => (
@@ -547,5 +564,33 @@ function MemoryView({ repo }: { repo: string }) {
         )}
       </div>
     </section>
+  );
+}
+
+function mmss(ms: number) {
+  const t = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+}
+
+/** Real timings only: elapsed time, finished steps and their measured average. No invented ETA. */
+function RunStatus({ start, lastUpdate, steps, limit, background }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const elapsed = start ? now - start : 0;
+  const avg = start && steps > 0 ? elapsed / steps : 0;
+  return (
+    <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+      <Loader2 className="h-3 w-3 animate-spin text-primary" />
+      {background ? (
+        <span>Working in the background · last update {lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · {steps} steps done</span>
+      ) : (
+        <>
+          <span className="font-mono text-foreground">⌛ {mmss(elapsed)}</span>
+          <span>{steps} step{steps === 1 ? "" : "s"} done</span>
+          {avg > 0 && <span>~{Math.round(avg / 1000)}s per step</span>}
+          {avg > 0 && <span>at most ~{Math.ceil(((limit - steps) * avg) / 60000)} min left (step cap {limit}); usually finishes sooner</span>}
+        </>
+      )}
+    </div>
   );
 }
