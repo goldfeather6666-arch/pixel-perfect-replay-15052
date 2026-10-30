@@ -26,8 +26,11 @@ export type Database = {
           pending: Json
           repo: string
           sandbox_id: string | null
+          summarized_count: number
+          summary: string | null
           title: string
           updated_at: string
+          usage: Json
           user_id: string
           work_branch: string
         }
@@ -42,8 +45,11 @@ export type Database = {
           pending?: Json
           repo: string
           sandbox_id?: string | null
+          summarized_count?: number
+          summary?: string | null
           title?: string
           updated_at?: string
+          usage?: Json
           user_id?: string
           work_branch: string
         }
@@ -58,8 +64,11 @@ export type Database = {
           pending?: Json
           repo?: string
           sandbox_id?: string | null
+          summarized_count?: number
+          summary?: string | null
           title?: string
           updated_at?: string
+          usage?: Json
           user_id?: string
           work_branch?: string
         }

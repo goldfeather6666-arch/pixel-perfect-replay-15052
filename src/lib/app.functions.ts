@@ -228,22 +228,24 @@ export const getDiff = createServerFn({ method: "POST" })
 
 export const resolvePending = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional() }))
+  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional(), paths: z.array(z.string()).max(500).optional() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
     const results: string[] = [];
+    const chosen = data.paths ? s.pending.filter((c: { path: string }) => data.paths!.includes(c.path)) : s.pending;
+    const rest = data.paths ? s.pending.filter((c: { path: string }) => !data.paths!.includes(c.path)) : [];
     if (data.approve) {
       const gh = await github(context);
-      for (const c of s.pending) {
+      for (const c of chosen) {
         const msg = data.message || `agent: ${c.action} ${c.path}`;
         if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, c.content ?? "", msg);
         else await gh.deleteFile(s.repo, s.work_branch, c.path, msg);
         results.push(c.path);
       }
     }
-    const { error } = await context.supabase.from("agent_sessions").update({ pending: [] }).eq("id", data.id);
+    const { error } = await context.supabase.from("agent_sessions").update({ pending: rest }).eq("id", data.id);
     if (error) throw new Error(error.message);
-    return { committed: results };
+    return { committed: results, remaining: rest };
   });
 
 export const openPullRequest = createServerFn({ method: "POST" })

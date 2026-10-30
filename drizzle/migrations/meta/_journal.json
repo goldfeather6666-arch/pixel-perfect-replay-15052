@@ -57,6 +57,13 @@
       "when": 1793392383516,
       "tag": "0007_custom_endpoint_models",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793393385205,
+      "tag": "0008_session_summary_usage",
+      "breakpoints": true
     }
   ]
 }
