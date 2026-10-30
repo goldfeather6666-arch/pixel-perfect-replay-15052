@@ -25,7 +25,9 @@ export type Database = {
           model: string
           pending: Json
           repo: string
+          running: boolean
           sandbox_id: string | null
+          stop_requested: boolean
           summarized_count: number
           summary: string | null
           title: string
@@ -44,7 +46,9 @@ export type Database = {
           model?: string
           pending?: Json
           repo: string
+          running?: boolean
           sandbox_id?: string | null
+          stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
           title?: string
@@ -63,7 +67,9 @@ export type Database = {
           model?: string
           pending?: Json
           repo?: string
+          running?: boolean
           sandbox_id?: string | null
+          stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
           title?: string
