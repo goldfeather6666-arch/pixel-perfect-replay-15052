@@ -9,7 +9,7 @@ import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/mcp/callback")({
   head: () => ({ meta: [...pageMeta("Connect external service — Forge", "Finish your private external tool connection."), { name: "referrer", content: "no-referrer" }, { name: "robots", content: "noindex" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({ code: typeof s.code === "string" ? s.code : "", state: typeof s.state === "string" ? s.state : "", iss: typeof s.iss === "string" ? s.iss : "", error: typeof s.error === "string" ? s.error : "" }),
+  validateSearch: (s: Record<string, unknown>) => ({ code: typeof s["code"] === "string" ? s["code"] : "", state: typeof s["state"] === "string" ? s["state"] : "", iss: typeof s["iss"] === "string" ? s["iss"] : "", error: typeof s["error"] === "string" ? s["error"] : "" }),
   component: Callback,
 });
 

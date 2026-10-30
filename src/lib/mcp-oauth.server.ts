@@ -92,7 +92,7 @@ export async function openSavedMcp(sb: SupabaseClient<Database>, row: Connection
 
 export async function finishOAuth(row: Connection, code: string, state: string, issuer?: string) {
   const saved = await oauthProvider(row);
-  const result = await auth(saved.provider, { serverUrl: row.url, authorizationCode: code, callbackState: state, callbackIssuer: issuer, fetchFn: saved.fetch });
+  const result = await auth(saved.provider, { serverUrl: row.url, authorizationCode: code, callbackState: state, ...(issuer ? { callbackIssuer: issuer } : {}), fetchFn: saved.fetch });
   if (result !== "AUTHORIZED") throw new Error("Sign-in did not complete");
   delete saved.material.verifier; delete saved.material.state; await saved.persist();
   return saved;
