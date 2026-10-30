@@ -131,12 +131,14 @@ export type Database = {
       mcp_connections: {
         Row: {
           allow_actions: boolean
+          auth_mode: string
           ciphertext: string | null
           created_at: string
           enabled: boolean
           id: string
           iv: string | null
           name: string
+          oauth_status: string
           state: string
           tool_names: Json
           transport: string
@@ -147,12 +149,14 @@ export type Database = {
         }
         Insert: {
           allow_actions?: boolean
+          auth_mode?: string
           ciphertext?: string | null
           created_at?: string
           enabled?: boolean
           id?: string
           iv?: string | null
           name: string
+          oauth_status?: string
           state?: string
           tool_names?: Json
           transport?: string
@@ -163,12 +167,14 @@ export type Database = {
         }
         Update: {
           allow_actions?: boolean
+          auth_mode?: string
           ciphertext?: string | null
           created_at?: string
           enabled?: boolean
           id?: string
           iv?: string | null
           name?: string
+          oauth_status?: string
           state?: string
           tool_names?: Json
           transport?: string
@@ -178,6 +184,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_oauth_credentials: {
+        Row: {
+          ciphertext: string
+          connection_id: string
+          flow_claimed: boolean
+          flow_digest: string | null
+          flow_expires_at: string | null
+          iv: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ciphertext: string
+          connection_id: string
+          flow_claimed?: boolean
+          flow_digest?: string | null
+          flow_expires_at?: string | null
+          iv: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ciphertext?: string
+          connection_id?: string
+          flow_claimed?: boolean
+          flow_digest?: string | null
+          flow_expires_at?: string | null
+          iv?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_oauth_credentials_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_credentials: {
         Row: {
