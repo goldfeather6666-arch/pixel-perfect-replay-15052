@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { connectionInput } from "@/lib/mcp-policy";
 import { changeMcpConnection, connectMcp, listMcpConnections } from "@/lib/mcp.functions";
 import { beginMcpOAuth } from "@/lib/mcp-oauth.functions";
+import { McpDiagnostics } from "./McpDiagnostics";
 
 export function McpConnections() {
   const qc = useQueryClient();
@@ -84,6 +85,7 @@ export function McpConnections() {
           </li>
         ))}
       </ul>
+      <McpDiagnostics />
     </section>
   );
 }
