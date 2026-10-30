@@ -8,4 +8,6 @@
 - Test URL restrictions, tool isolation and cleanup; verify Settings in a signed-in browser.
 - Continue with SSE transport in mcp-client.server.ts, mcp.functions.ts and McpConnections.tsx; persist transport on owner-scoped connections.
 - Add owner-scoped external action requests, protected approve/reject functions and an approval list in Settings; expose writes only as staged requests to the model.
-- Authenticated server functions use src/start.ts bearer middleware; /api/agent separately verifies bearer tokens. OAuth-only endpoints, local stdio and sandbox execution remain separately unfinished.
+- Authenticated server functions use src/start.ts bearer middleware; /api/agent separately verifies bearer tokens.
+- OAuth: add service-only encrypted mcp_oauth_credentials; mcp-oauth.server.ts implements the installed SDK provider with PKCE/state and authorization-server binding, public-URL checked fetch and refresh persistence.
+- Add protected begin/complete sign-in functions, a /mcp/callback page resuming through the active app session, and Settings sign-in/reconnect controls. Runtime reads and action approvals use the saved provider. Local stdio and sandbox execution remain blocked on external execution services.

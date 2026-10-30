@@ -7,6 +7,7 @@
 - [x] Phase 6 (part): Skills, AGENTS.md/CLAUDE.md project instructions, README self-hosting docs, MIT license
 - [x] Phase 6: HTTPS/public or encrypted bearer-token MCP connections; read-only discovery/invocation, enable/pause, recheck and disconnect
 - [x] MCP follow-up: SSE transport and opt-in per-action approval for external writes; immutable arguments, expiry, atomic execution claim and saved results
-- [ ] MCP follow-up: OAuth sign-in (not implemented)
+- [x] MCP follow-up: OAuth sign-in implementation — encrypted credentials, active-owner/browser-bound callback, PKCE/state, SDK refresh and reconnect; real Notion registration and cancellation verified
+- [ ] OAuth acceptance: successful external account consent, post-consent reads/refresh and hosted HTTPS client metadata — blocked: needs external account consent and hosted verification
 - [ ] MCP follow-up: local stdio — blocked: requires a local execution bridge outside the hosted app
 - [ ] Phase 5: Sandbox terminal + running tests — blocked: needs a sandbox service account key (e.g. E2B or Daytona)

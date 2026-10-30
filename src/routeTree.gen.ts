@@ -12,11 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DotwellKnownOauthClientRouteImport } from './routes/[.]well-known.oauth-client'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
 import { Route as ApiAgentRouteImport } from './routes/api/agent'
+import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
+import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,6 +33,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthClientRoute = DotwellKnownOauthClientRouteImport.update({
+  id: '/.well-known/oauth-client',
+  path: '/.well-known/oauth-client',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -52,64 +60,108 @@ const ApiAgentRoute = ApiAgentRouteImport.update({
   path: '/api/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpCallbackRoute = McpCallbackRouteImport.update({
+  id: '/mcp/callback',
+  path: '/mcp/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSIdRoute = AuthenticatedSIdRouteImport.update({
   id: '/s/$id',
   path: '/s/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicOauthClientRoute = ApiPublicOauthClientRouteImport.update({
+  id: '/api/public/oauth-client',
+  path: '/api/public/oauth-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/app': typeof AuthenticatedAppRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
+  '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/app': typeof AuthenticatedAppRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
+  '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/mcp/callback': typeof McpCallbackRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
+  '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/app' | '/settings' | '/skills' | '/api/agent' | '/s/$id'
+    | '/'
+    | '/auth'
+    | '/.well-known/oauth-client'
+    | '/app'
+    | '/settings'
+    | '/skills'
+    | '/api/agent'
+    | '/mcp/callback'
+    | '/s/$id'
+    | '/api/public/oauth-client'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/app' | '/settings' | '/skills' | '/api/agent' | '/s/$id'
+  to:
+    | '/'
+    | '/auth'
+    | '/.well-known/oauth-client'
+    | '/app'
+    | '/settings'
+    | '/skills'
+    | '/api/agent'
+    | '/mcp/callback'
+    | '/s/$id'
+    | '/api/public/oauth-client'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/.well-known/oauth-client'
     | '/_authenticated/app'
     | '/_authenticated/settings'
     | '/_authenticated/skills'
     | '/api/agent'
+    | '/mcp/callback'
     | '/_authenticated/s/$id'
+    | '/api/public/oauth-client'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  DotwellKnownOauthClientRoute: typeof DotwellKnownOauthClientRoute
   ApiAgentRoute: typeof ApiAgentRoute
+  McpCallbackRoute: typeof McpCallbackRoute
+  ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -133,6 +185,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-client': {
+      id: '/.well-known/oauth-client'
+      path: '/.well-known/oauth-client'
+      fullPath: '/.well-known/oauth-client'
+      preLoaderRoute: typeof DotwellKnownOauthClientRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -163,12 +222,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp/callback': {
+      id: '/mcp/callback'
+      path: '/mcp/callback'
+      fullPath: '/mcp/callback'
+      preLoaderRoute: typeof McpCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/s/$id': {
       id: '/_authenticated/s/$id'
       path: '/s/$id'
       fullPath: '/s/$id'
       preLoaderRoute: typeof AuthenticatedSIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/oauth-client': {
+      id: '/api/public/oauth-client'
+      path: '/api/public/oauth-client'
+      fullPath: '/api/public/oauth-client'
+      preLoaderRoute: typeof ApiPublicOauthClientRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -194,7 +267,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  DotwellKnownOauthClientRoute: DotwellKnownOauthClientRoute,
   ApiAgentRoute: ApiAgentRoute,
+  McpCallbackRoute: McpCallbackRoute,
+  ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

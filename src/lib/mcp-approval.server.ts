@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import Ajv from "ajv";
 import { canonicalJson } from "./mcp-policy";
-import { decryptSecret } from "./crypto.server";
-import { openMcp, inspectMcp } from "./mcp-client.server";
+import { inspectMcp } from "./mcp-client.server";
+import { openSavedMcp } from "./mcp-oauth.server";
 
 // The caller-facing client verifies ownership before the privileged, atomic claim.
 export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: string, id: string, approve: boolean) {
@@ -25,7 +25,7 @@ export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: str
     const { data: connection } = await sb.from("mcp_connections").select("*")
       .eq("id", row.connection_id).eq("user_id", userId).eq("enabled", true).eq("state", "ready").eq("allow_actions", true).single();
     if (!connection || connection.url !== row.server_url || connection.transport_mode !== row.transport_mode) throw new Error("Connection changed or disabled");
-    client = await openMcp(connection.url, connection.ciphertext && connection.iv ? await decryptSecret(connection.ciphertext, connection.iv) : undefined, connection.transport_mode === "sse" ? "sse" : "http");
+    client = await openSavedMcp(sb, connection);
     const { definitions, sdkTools } = await inspectMcp(client, connection.url, true);
     const definition = definitions.find((d) => d.name === row.tool_name);
     const sdkTool = sdkTools[row.tool_name];

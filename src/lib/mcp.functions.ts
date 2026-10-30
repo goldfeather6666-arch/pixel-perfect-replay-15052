@@ -4,7 +4,7 @@ import { z } from "zod";
 import { connectionInput } from "./mcp-policy";
 
 export const listMcpConnections = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
+  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, auth_mode, oauth_status, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
   if (error) throw new Error("Could not load connections. Please retry.");
   return { items: data ?? [] };
 });
@@ -22,7 +22,7 @@ export const connectMcp = createServerFn({ method: "POST" }).middleware([require
     if (error) throw new Error("Save failed");
     return { ok: true, message: "Connection verified and saved" };
   } catch {
-    return { ok: false, message: "Could not connect. Check the HTTPS endpoint and token. OAuth-only servers are not supported yet." };
+    return { ok: false, message: "Could not connect. Check the HTTPS endpoint and token, or use service sign-in." };
   } finally { await client?.close().catch(() => {}); }
 });
 
@@ -34,11 +34,11 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
   } else if (data.retry) {
     const { data: row, error } = await table.select("*").eq("id", data.id).eq("user_id", context.userId).single();
     if (error || !row) throw new Error("Connection not found");
-    const { openMcp, inspectMcp } = await import("./mcp-client.server");
-    const { decryptSecret } = await import("./crypto.server");
+    const { inspectMcp } = await import("./mcp-client.server");
+    const { openSavedMcp } = await import("./mcp-oauth.server");
     let client;
     try {
-      client = await openMcp(row.url, row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined, row.transport_mode === "sse" ? "sse" : "http");
+      client = await openSavedMcp(context.supabase, row);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
       const { error: saveError } = await table.update({ state: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", data.id).eq("user_id", context.userId);
