@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects,
+  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv,
 } from "@/lib/integrations.functions";
 
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
@@ -34,7 +34,7 @@ export function DeployPanel({ id }: { id: string }) {
         </ul>
       </section>
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
-      <VercelCard id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
+      <VercelCard dbLinked={!!info.data?.supabaseRef} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
       )}
@@ -177,7 +177,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
   );
 }
 
-function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; linked: string | null; onChange: () => void }) {
+function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
   const projects = useQuery({ queryKey: ["vc-projects"], queryFn: useServerFn(listVercelProjects), enabled: has && !linked });
@@ -186,6 +186,12 @@ function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; l
   const linkM = useMutation({
     mutationFn: (v: Parameters<typeof link>[0]["data"]) => link({ data: v }),
     onSuccess: () => { onChange(); toast.success("Website updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const sync = useServerFn(syncDeployEnv);
+  const syncM = useMutation({
+    mutationFn: () => sync({ data: { id, redeploy: true } }),
+    onSuccess: (r) => { toast.success(r.redeployed ? "Database keys sent to Vercel — rebuilding now" : "Database keys sent to Vercel"); deps.refetch(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const latest = deps.data?.deployments[0];
@@ -203,6 +209,14 @@ function VercelCard({ id, has, linked, onChange }: { id: string; has: boolean; l
             <Button asChild className="h-11 w-full"><a href={latest.url} target="_blank" rel="noreferrer"><ExternalLink /> Open preview</a></Button>
           )}
           {deps.data?.log && <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-2 font-mono text-[11px]">{deps.data.log}</pre>}
+          {dbLinked && (
+            <Button variant="outline" className="h-11 w-full" disabled={syncM.isPending} onClick={() => syncM.mutate()}>
+              {syncM.isPending ? "Syncing…" : "Sync database keys to website & rebuild"}
+            </Button>
+          )}
+          {latest?.state === "ERROR" && (
+            <p className="text-xs text-muted-foreground">To have the agent fix it, go to Chat and send: <span className="font-medium text-foreground">"Fix the failed Vercel deploy"</span>.</p>
+          )}
           <p className="text-xs text-muted-foreground">Every commit on this task deploys a private preview automatically. If a deploy fails, the agent reads the error and fixes it.</p>
           {deps.error && <p className="text-xs text-destructive">{(deps.error as Error).message}</p>}
         </div>
