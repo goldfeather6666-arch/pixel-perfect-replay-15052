@@ -26,6 +26,13 @@ export class GitHub {
     const r = await this.req<any[]>("user/repos?sort=updated&per_page=100");
     return r.map((x) => ({ full_name: x.full_name as string, default_branch: x.default_branch as string, private: x.private as boolean }));
   }
+  async createRepo(name: string, description: string, isPrivate: boolean) {
+    const r = await this.req<any>("user/repos", {
+      method: "POST",
+      body: JSON.stringify({ name, description, private: isPrivate, auto_init: true }),
+    });
+    return { full_name: r.full_name as string, default_branch: (r.default_branch as string) || "main" };
+  }
   async branches(repo: string) {
     const r = await this.req<any[]>(`repos/${repo}/branches?per_page=100`);
     return r.map((b) => b.name as string);

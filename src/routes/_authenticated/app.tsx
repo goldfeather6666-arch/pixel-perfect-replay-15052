@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
+import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 
@@ -26,6 +26,7 @@ function Dashboard() {
   const fetchBranches = useServerFn(listBranches);
   const fetchModels = useServerFn(listModels);
   const create = useServerFn(createSession);
+  const makeRepo = useServerFn(createRepo);
 
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => fetchSessions() });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
@@ -51,6 +52,26 @@ function Dashboard() {
     if (!credId && aiCreds[0]) setCredId(aiCreds[0].id);
   }, [aiCreds, credId]);
 
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newPrivate, setNewPrivate] = useState(true);
+  const qc = useQueryClient();
+  const createRepoM = useMutation({
+    mutationFn: () => makeRepo({ data: { name: newName.trim(), description: newDesc, private: newPrivate } }),
+    onSuccess: async (r) => {
+      await qc.invalidateQueries({ queryKey: ["repos"] });
+      await qc.refetchQueries({ queryKey: ["repos"] });
+      setRepo(r.full_name);
+      setBranch(r.default_branch);
+      setShowNew(false);
+      setNewName("");
+      setNewDesc("");
+      toast.success(`Created ${r.full_name}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createM = useMutation({
     mutationFn: () =>
       create({ data: { repo, base_branch: branch, credential_id: credId, model: manualModel || model, mode, title: "New task" } }),
@@ -74,11 +95,30 @@ function Dashboard() {
           ) : (
             <form className="mt-4 space-y-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
               <div className="space-y-1.5">
-                <Label>Repository</Label>
-                <Select value={repo} onValueChange={setRepo}>
-                  <SelectTrigger><SelectValue placeholder={repos.isLoading ? "Loading repos…" : "Choose a repository"} /></SelectTrigger>
-                  <SelectContent>{repos.data?.map((r) => <SelectItem key={r.full_name} value={r.full_name}>{r.full_name}</SelectItem>)}</SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label>Repository</Label>
+                  <button type="button" className="text-xs text-primary underline" onClick={() => setShowNew((v) => !v)}>
+                    {showNew ? "Use existing repo" : "+ New repository"}
+                  </button>
+                </div>
+                {showNew ? (
+                  <div className="space-y-2 rounded-md border bg-background p-3">
+                    <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="my-new-project" />
+                    <Input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description (optional)" />
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={newPrivate} onChange={(e) => setNewPrivate(e.target.checked)} /> Private
+                    </label>
+                    <Button type="button" variant="secondary" size="sm" disabled={!newName.trim() || createRepoM.isPending} onClick={() => createRepoM.mutate()}>
+                      {createRepoM.isPending ? "Creating…" : "Create on GitHub"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Creates an empty repo with a README. Then describe what to build and the agent sets it up.</p>
+                  </div>
+                ) : (
+                  <Select value={repo} onValueChange={setRepo}>
+                    <SelectTrigger><SelectValue placeholder={repos.isLoading ? "Loading repos…" : "Choose a repository"} /></SelectTrigger>
+                    <SelectContent>{repos.data?.map((r) => <SelectItem key={r.full_name} value={r.full_name}>{r.full_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
                 {repos.error && <p className="text-xs text-destructive">{(repos.error as Error).message}</p>}
               </div>
               {repo && (

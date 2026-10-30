@@ -110,6 +110,26 @@ export const listBranches = createServerFn({ method: "POST" })
   .inputValidator(z.object({ repo: z.string() }))
   .handler(async ({ data, context }) => (await github(context)).branches(data.repo));
 
+export const createRepo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      name: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/, "Use letters, numbers, dots, dashes or underscores"),
+      description: z.string().max(300).default(""),
+      private: z.boolean(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const gh = await github(context);
+    const r = await gh.createRepo(data.name, data.description, data.private);
+    // GitHub initialises the first commit asynchronously; wait until the branch exists.
+    for (let i = 0; i < 10; i++) {
+      try { if ((await gh.branches(r.full_name)).includes(r.default_branch)) break; } catch {}
+      await new Promise((res) => setTimeout(res, 800));
+    }
+    return r;
+  });
+
 // ---------- Sessions ----------
 export type SessionRow = {
   id: string;
