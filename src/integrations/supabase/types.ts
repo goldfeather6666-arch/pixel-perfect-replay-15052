@@ -286,6 +286,30 @@ export type Database = {
         }
         Relationships: []
       }
+      repo_memory: {
+        Row: {
+          id: string
+          notes: string
+          repo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notes?: string
+          repo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notes?: string
+          repo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           created_at: string

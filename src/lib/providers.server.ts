@@ -68,6 +68,7 @@ export async function listProviderModels(provider: string, apiKey: string, baseU
     ids = j.data.map((m: { id: string }) => m.id);
   } else if (provider === "compatible") {
     if (!baseUrl) throw new Error("Base URL required");
+    await assertPublicEndpoint(baseUrl);
     try {
       const j = await getJson(`${trimSlash(baseUrl)}/models`, { Authorization: `Bearer ${apiKey}` });
       ids = (j.data ?? j.models ?? []).map((m: { id?: string; name?: string }) => m.id ?? m.name);
@@ -83,10 +84,17 @@ export async function listProviderModels(provider: string, apiKey: string, baseU
 
 /** Sends a one-token chat request; used to verify endpoints without a /models list. */
 export async function pingChat(baseUrl: string, apiKey: string, model: string, extra: Record<string, unknown> | null) {
+  await assertPublicEndpoint(baseUrl);
   const res = await fetch(`${trimSlash(baseUrl)}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }], ...(extra ?? {}) }),
   });
   if (!res.ok) throw new Error(`Endpoint responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
+}
+
+/** Custom endpoints must be public HTTPS hosts so keys and requests can't be aimed at private networks. */
+export async function assertPublicEndpoint(baseUrl: string) {
+  const { verifyPublicTarget } = await import("./mcp-network.server");
+  try { await verifyPublicTarget(baseUrl); } catch { throw new Error("Custom endpoint must be a public HTTPS address"); }
 }
