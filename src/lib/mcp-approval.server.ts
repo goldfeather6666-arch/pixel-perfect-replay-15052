@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import Ajv from "ajv";
+import { compileMcpSchema } from "./mcp-schema";
 import { canonicalJson } from "./mcp-policy";
 import { inspectMcp } from "./mcp-client.server";
 import { openSavedMcp } from "./mcp-oauth.server";
@@ -30,7 +30,7 @@ export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: str
     const definition = definitions.find((d) => d.name === row.tool_name);
     const sdkTool = sdkTools[row.tool_name];
     if (!definition || !sdkTool || canonicalJson(definition.inputSchema) !== canonicalJson(row.input_schema)) throw new Error("Tool changed since approval was requested");
-    const validate = new Ajv({ strict: false }).compile(definition.inputSchema);
+    const validate = compileMcpSchema(definition.inputSchema);
     if (!validate(row.arguments)) throw new Error("Invalid saved arguments");
     const output = await sdkTool.execute(row.arguments as Record<string, unknown>);
     const failed = !!(output && typeof output === "object" && "isError" in output && output.isError);
