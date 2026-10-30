@@ -273,7 +273,7 @@ function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
       <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-muted-foreground" onClick={() => setOpen(!open)}>
         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
         {busy ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Wrench className="h-3 w-3" />}
-        <span>{busy ? `Working… ${current ? current.name : ""}` : `Background activity · ${tools.length} step${tools.length === 1 ? "" : "s"}`}</span>
+        <span>{busy ? `Working… ${current ? current.name : ""}` : `Background activity · ${tools.filter((t) => t.name !== "note").length} steps`}</span>
         {failed > 0 && <span className="text-destructive">{failed} failed</span>}
       </button>
       {open && <div className="space-y-1 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</div>}
@@ -283,6 +283,7 @@ function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
 
 function ToolView({ t }: { t: ToolLog }) {
   const [open, setOpen] = useState(false);
+  if (t.name === "note") return <p className="px-1 py-0.5 text-xs italic text-muted-foreground">{t.summary}</p>;
   const arg = (t.input as { path?: string; prefix?: string; query?: string }) ?? {};
   const label = arg.path ?? arg.query ?? (arg.prefix || "/");
   return (
