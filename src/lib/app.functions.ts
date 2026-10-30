@@ -31,7 +31,7 @@ export const listCredentials = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("provider_credentials")
-      .select("id, provider, label, base_url, last4, created_at")
+      .select("id, provider, label, base_url, last4, created_at, custom_models, extra_body")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data as Credential[];
@@ -45,6 +45,8 @@ export const saveCredential = createServerFn({ method: "POST" })
       label: z.string().max(80),
       key: z.string().min(1).max(4000),
       base_url: z.string().url().nullable(),
+      custom_models: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+      extra_body: z.record(z.string(), z.unknown()).nullable().default(null),
     }),
   )
   .handler(async ({ data, context }) => {
@@ -54,7 +56,14 @@ export const saveCredential = createServerFn({ method: "POST" })
       await new GitHub(data.key).user();
     } else {
       const { listProviderModels } = await import("./providers.server");
-      await listProviderModels(data.provider, data.key, data.base_url);
+      const { pingChat } = await import("./providers.server");
+      try {
+        await listProviderModels(data.provider, data.key, data.base_url);
+      } catch (e) {
+        // Some compatible endpoints have no /models list: verify with a tiny chat call instead.
+        if (data.provider !== "compatible" || !data.base_url || !data.custom_models[0]) throw e;
+        await pingChat(data.base_url, data.key, data.custom_models[0], data.extra_body);
+      }
     }
     const { encryptSecret } = await import("./crypto.server");
     const enc = await encryptSecret(data.key);
@@ -62,6 +71,8 @@ export const saveCredential = createServerFn({ method: "POST" })
       provider: data.provider,
       label: data.label,
       base_url: data.base_url,
+      custom_models: data.custom_models,
+      extra_body: (data.extra_body ?? null) as never,
       ciphertext: enc.ciphertext,
       iv: enc.iv,
       last4: data.key.slice(-4),
@@ -86,7 +97,7 @@ export const listModels = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { row, key } = await loadSecret(context, data.id);
     const { listProviderModels } = await import("./providers.server");
-    return listProviderModels(row.provider, key, row.base_url);
+    return listProviderModels(row.provider, key, row.base_url, row.custom_models ?? []);
   });
 
 // ---------- GitHub ----------
