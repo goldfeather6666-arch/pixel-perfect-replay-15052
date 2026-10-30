@@ -84,8 +84,8 @@ function Dashboard() {
   return (
     <div className="min-h-screen">
       <AppHeader />
-      <main className="mx-auto grid max-w-5xl gap-6 p-4 sm:p-8 lg:grid-cols-[1fr_320px]">
-        <section className="rounded-lg border bg-card p-5">
+      <main className="mx-auto grid max-w-5xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[1fr_320px]">
+        <section className="min-w-0 rounded-lg border bg-card p-4 sm:p-5">
           <h1 className="text-xl font-semibold">New task</h1>
           {creds.data && !ready ? (
             <div className="mt-4 text-sm text-muted-foreground">
@@ -97,14 +97,14 @@ function Dashboard() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>Repository</Label>
-                  <button type="button" className="text-xs text-primary underline" onClick={() => setShowNew((v) => !v)}>
+                  <button type="button" className="shrink-0 py-2 text-sm text-primary underline" onClick={() => setShowNew((v) => !v)}>
                     {showNew ? "Use existing repo" : "+ New repository"}
                   </button>
                 </div>
                 {showNew ? (
                   <div className="space-y-2 rounded-md border bg-background p-3">
-                    <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="my-new-project" />
-                    <Input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description (optional)" />
+                    <Input className="h-11 text-base sm:text-sm" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="my-new-project" />
+                    <Input className="h-11 text-base sm:text-sm" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description (optional)" />
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={newPrivate} onChange={(e) => setNewPrivate(e.target.checked)} /> Private
                     </label>
@@ -115,8 +115,8 @@ function Dashboard() {
                   </div>
                 ) : (
                   <Select value={repo} onValueChange={setRepo}>
-                    <SelectTrigger><SelectValue placeholder={repos.isLoading ? "Loading repos…" : "Choose a repository"} /></SelectTrigger>
-                    <SelectContent>{repos.data?.map((r) => <SelectItem key={r.full_name} value={r.full_name}>{r.full_name}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder={repos.isLoading ? "Loading repos…" : "Choose a repository"} /></SelectTrigger>
+                    <SelectContent className="max-w-[calc(100vw-2rem)]">{repos.data?.map((r) => <SelectItem key={r.full_name} value={r.full_name}>{r.full_name}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
                 {repos.error && <p className="text-xs text-destructive">{(repos.error as Error).message}</p>}
@@ -125,8 +125,8 @@ function Dashboard() {
                 <div className="space-y-1.5">
                   <Label>Start from branch</Label>
                   <Select value={branch} onValueChange={setBranch}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{branches.data?.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-w-[calc(100vw-2rem)]">{branches.data?.map((b) => <SelectItem className="break-all" key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">The agent works on a fresh branch — your base branch is never touched.</p>
                 </div>
@@ -135,41 +135,41 @@ function Dashboard() {
                 <div className="space-y-1.5">
                   <Label>AI key</Label>
                   <Select value={credId} onValueChange={(v) => { setCredId(v); setModel(""); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{aiCreds.map((c) => <SelectItem key={c.id} value={c.id}>{c.label} · {providerName(c.provider)}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-w-[calc(100vw-2rem)]">{aiCreds.map((c) => <SelectItem className="break-all" key={c.id} value={c.id}>{c.label} · {providerName(c.provider)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Model</Label>
                   <Select value={model} onValueChange={setModel}>
-                    <SelectTrigger><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"} /></SelectTrigger>
-                    <SelectContent>{models.data?.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"} /></SelectTrigger>
+                    <SelectContent className="max-w-[calc(100vw-2rem)]">{models.data?.map((m) => <SelectItem className="break-all" key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>…or type a model ID</Label>
-                <Input value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="e.g. claude-sonnet-4-5" />
+                <Input className="h-11 text-base sm:text-sm" value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="e.g. claude-sonnet-4-5" />
               </div>
               <div className="space-y-1.5">
                 <Label>Mode</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {(["supervised", "autonomous"] as const).map((m) => (
                     <button type="button" key={m} onClick={() => setMode(m)}
-                      className={`rounded-md border p-3 text-left text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
+                      className={`min-w-0 rounded-md border p-3 text-left text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
                       <span className="font-medium capitalize">{m}</span>
                       <span className="mt-1 block text-xs text-muted-foreground">{m === "supervised" ? "You approve every edit" : "Commits as it works"}</span>
                     </button>
                   ))}
                 </div>
               </div>
-              <Button disabled={!repo || !branch || !credId || !(model || manualModel) || createM.isPending} className="w-full">
+              <Button disabled={!repo || !branch || !credId || !(model || manualModel) || createM.isPending} className="h-12 w-full text-base">
                 <Plus /> {createM.isPending ? "Creating branch…" : "Start task"}
               </Button>
             </form>
           )}
         </section>
-        <aside>
+        <aside className="min-w-0">
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Recent tasks</h2>
           {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
           <ul className="space-y-2">
