@@ -32,7 +32,7 @@ export function createModel(provider: string, apiKey: string, baseUrl: string | 
       return createOpenAICompatible({ name: "openrouter", baseURL: "https://openrouter.ai/api/v1", apiKey })(modelId);
     case "compatible":
       if (!baseUrl) throw new Error("Base URL required");
-      return createOpenAICompatible({ name: "custom", baseURL: trimSlash(baseUrl), apiKey, fetch: mergeBodyFetch(extraBody) })(modelId);
+      return createOpenAICompatible({ name: "custom", baseURL: trimSlash(baseUrl), apiKey, ...(mergeBodyFetch(extraBody) ? { fetch: mergeBodyFetch(extraBody)! } : {}) })(modelId);
     default:
       throw new Error(`Unsupported provider: ${provider}`);
   }
