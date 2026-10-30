@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
+import { McpActionApprovals } from "@/components/McpActionApprovals";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -53,7 +54,7 @@ function Workspace() {
     setRunning(true);
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
-      setMessages((ms) => [...ms.slice(0, -1), fn(ms[ms.length - 1]!)]);
+      setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
     const ac = new AbortController();
     abortRef.current = ac;
     try {
@@ -93,6 +94,7 @@ function Workspace() {
       qc.invalidateQueries({ queryKey: ["session", id] });
       qc.invalidateQueries({ queryKey: ["diff", id] });
       qc.invalidateQueries({ queryKey: ["tree", id] });
+      qc.invalidateQueries({ queryKey: ["mcp-actions", id] });
     }
   }
 
@@ -303,6 +305,7 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-3">
+      <McpActionApprovals sessionId={id} />
       {pending.length > 0 && (
         <section className="rounded-lg border border-primary/50 bg-card">
           <div className="flex flex-wrap items-center gap-2 border-b p-3">

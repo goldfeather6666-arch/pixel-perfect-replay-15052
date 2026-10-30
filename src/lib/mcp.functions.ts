@@ -4,7 +4,7 @@ import { z } from "zod";
 import { connectionInput } from "./mcp-policy";
 
 export const listMcpConnections = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
+  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
   if (error) throw new Error("Could not load connections. Please retry.");
   return { items: data ?? [] };
 });
@@ -14,11 +14,11 @@ export const connectMcp = createServerFn({ method: "POST" }).middleware([require
   const { encryptSecret } = await import("./crypto.server");
   let client;
   try {
-    client = await openMcp(data.url, data.token || undefined);
-    const { definitions } = await inspectMcp(client, data.url);
-    if (!definitions.length) return { ok: false, message: "This server has no explicitly read-only tools. It was not saved." };
+    client = await openMcp(data.url, data.token || undefined, data.transport);
+    const { definitions } = await inspectMcp(client, data.url, data.allowActions);
+    if (!definitions.length) return { ok: false, message: "No eligible tools found. Enable action requests to connect a server without read-only tools." };
     const encrypted = data.token ? await encryptSecret(data.token) : { ciphertext: null, iv: null };
-    const { error } = await context.supabase.from("mcp_connections").insert({ user_id: context.userId, name: data.name, url: data.url, ...encrypted, tool_names: definitions.map((t) => t.name) });
+    const { error } = await context.supabase.from("mcp_connections").insert({ user_id: context.userId, name: data.name, url: data.url, transport_mode: data.transport, allow_actions: data.allowActions, ...encrypted, tool_names: definitions.map((t) => t.name) });
     if (error) throw new Error("Save failed");
     return { ok: true, message: "Connection verified and saved" };
   } catch {
@@ -38,9 +38,9 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
     const { decryptSecret } = await import("./crypto.server");
     let client;
     try {
-      client = await openMcp(row.url, row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined);
-      const { definitions } = await inspectMcp(client, row.url);
-      if (!definitions.length) throw new Error("No read-only tools");
+      client = await openMcp(row.url, row.ciphertext && row.iv ? await decryptSecret(row.ciphertext, row.iv) : undefined, row.transport_mode === "sse" ? "sse" : "http");
+      const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
+      if (!definitions.length) throw new Error("No eligible tools");
       const { error: saveError } = await table.update({ state: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", data.id).eq("user_id", context.userId);
       if (saveError) throw saveError;
     } catch {

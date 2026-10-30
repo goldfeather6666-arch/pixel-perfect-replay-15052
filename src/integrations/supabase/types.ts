@@ -62,8 +62,75 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_action_requests: {
+        Row: {
+          arguments: Json
+          connection_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          input_schema: Json
+          result: string | null
+          server_name: string
+          server_url: string
+          session_id: string
+          state: string
+          tool_name: string
+          transport_mode: string
+          user_id: string
+        }
+        Insert: {
+          arguments: Json
+          connection_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_schema: Json
+          result?: string | null
+          server_name: string
+          server_url: string
+          session_id: string
+          state?: string
+          tool_name: string
+          transport_mode: string
+          user_id: string
+        }
+        Update: {
+          arguments?: Json
+          connection_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_schema?: Json
+          result?: string | null
+          server_name?: string
+          server_url?: string
+          session_id?: string
+          state?: string
+          tool_name?: string
+          transport_mode?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_action_requests_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_action_requests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_connections: {
         Row: {
+          allow_actions: boolean
           ciphertext: string | null
           created_at: string
           enabled: boolean
@@ -73,11 +140,13 @@ export type Database = {
           state: string
           tool_names: Json
           transport: string
+          transport_mode: string
           updated_at: string
           url: string
           user_id: string
         }
         Insert: {
+          allow_actions?: boolean
           ciphertext?: string | null
           created_at?: string
           enabled?: boolean
@@ -87,11 +156,13 @@ export type Database = {
           state?: string
           tool_names?: Json
           transport?: string
+          transport_mode?: string
           updated_at?: string
           url: string
           user_id: string
         }
         Update: {
+          allow_actions?: boolean
           ciphertext?: string | null
           created_at?: string
           enabled?: boolean
@@ -101,6 +172,7 @@ export type Database = {
           state?: string
           tool_names?: Json
           transport?: string
+          transport_mode?: string
           updated_at?: string
           url?: string
           user_id?: string

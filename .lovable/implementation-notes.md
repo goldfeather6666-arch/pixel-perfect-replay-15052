@@ -6,4 +6,6 @@
 - Add a connections form to Settings; probe before saving and support enable, retry and removal.
 - Merge namespaced discovery/invocation meta-tools into `/api/agent`, allow only read-only remote actions, close clients on completion and errors.
 - Test URL restrictions, tool isolation and cleanup; verify Settings in a signed-in browser.
-- OAuth-only endpoints and sandbox execution remain separately blocked/unfinished, not silently replaced with public access.
+- Continue with SSE transport in mcp-client.server.ts, mcp.functions.ts and McpConnections.tsx; persist transport on owner-scoped connections.
+- Add owner-scoped external action requests, protected approve/reject functions and an approval list in Settings; expose writes only as staged requests to the model.
+- Authenticated server functions use src/start.ts bearer middleware; /api/agent separately verifies bearer tokens. OAuth-only endpoints, local stdio and sandbox execution remain separately unfinished.
