@@ -45,8 +45,8 @@ function Workspace() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data]);
-  useEffect(() => endRef.current?.scrollIntoView({ block: "end" }), [messages]);
-  useEffect(() => taRef.current?.focus(), [running]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages]);
+  useEffect(() => { taRef.current?.focus(); }, [running]);
 
   async function send() {
     const text = input.trim();
@@ -218,7 +218,7 @@ function FilesView({ id }: { id: string }) {
   const save = useServerFn(saveFile);
   const qc = useQueryClient();
   const [draft, setDraft] = useState<string | null>(null);
-  useEffect(() => setDraft(null), [path]);
+  useEffect(() => { setDraft(null); }, [path]);
   const saveM = useMutation({
     mutationFn: () => save({ data: { id, path: path!, content: draft ?? "", message: `edit ${path}` } }),
     onSuccess: () => {
