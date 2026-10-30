@@ -41,7 +41,7 @@ export const saveCredential = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
-      provider: z.enum(["openai", "anthropic", "google", "openrouter", "compatible", "github"]),
+      provider: z.enum(["openai", "anthropic", "google", "openrouter", "compatible", "github", "supabase", "vercel"]),
       label: z.string().max(80),
       key: z.string().min(1).max(4000),
       base_url: z.string().url().nullable(),
@@ -54,6 +54,12 @@ export const saveCredential = createServerFn({ method: "POST" })
     if (data.provider === "github") {
       const { GitHub } = await import("./github.server");
       await new GitHub(data.key).user();
+    } else if (data.provider === "supabase") {
+      const { SupabaseMgmt } = await import("./integrations.server");
+      await new SupabaseMgmt(data.key).projects();
+    } else if (data.provider === "vercel") {
+      const { Vercel } = await import("./integrations.server");
+      await new Vercel(data.key).user();
     } else {
       const { listProviderModels } = await import("./providers.server");
       const { pingChat } = await import("./providers.server");

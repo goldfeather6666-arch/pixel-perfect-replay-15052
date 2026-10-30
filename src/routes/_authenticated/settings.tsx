@@ -88,6 +88,8 @@ function SettingsPage() {
                 <SelectContent>
                   {AI_PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   <SelectItem value="github">GitHub token</SelectItem>
+                  <SelectItem value="supabase">Supabase access token</SelectItem>
+                  <SelectItem value="vercel">Vercel token</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -117,7 +119,7 @@ function SettingsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Key</Label>
-              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : meta?.hint} />
+              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "supabase" ? "sbp_... (supabase.com → Account → Access Tokens)" : provider === "vercel" ? "vercel.com → Account Settings → Tokens" : meta?.hint} />
             </div>
             <Button disabled={saveM.isPending}>{saveM.isPending ? "Checking…" : "Verify & save"}</Button>
           </form>
