@@ -42,7 +42,7 @@ export class SupabaseMgmt {
   }
 }
 
-export type Deployment = { id: string; url: string; state: string; branch: string | null; created: number; target: string | null };
+export type Deployment = { id: string; name?: string; url: string; state: string; branch: string | null; created: number; target: string | null };
 
 export class Vercel {
   constructor(private token: string) {}
@@ -66,9 +66,14 @@ export class Vercel {
   async deployments(projectId: string, branch?: string): Promise<Deployment[]> {
     const r = await this.req<any>(`/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=30`);
     const all: Deployment[] = (r.deployments as any[]).map((d) => ({
-      id: d.uid, url: `https://${d.url}`, state: d.state ?? d.readyState, branch: d.meta?.githubCommitRef ?? null, created: d.created, target: d.target ?? null,
+      id: d.uid, name: d.name as string, url: `https://${d.url}`, state: d.state ?? d.readyState, branch: d.meta?.githubCommitRef ?? null, created: d.created, target: d.target ?? null,
     }));
     return branch ? all.filter((d) => d.branch === branch) : all;
+  }
+  /** Rebuilds an existing deployment so new environment variables take effect. */
+  async redeploy(d: Deployment) {
+    const r = await this.req<any>("/v13/deployments?forceNew=1", { method: "POST", body: JSON.stringify({ name: d.name, deploymentId: d.id, ...(d.target ? { target: d.target } : {}) }) });
+    return { id: r.id as string, url: `https://${r.url}` };
   }
   async buildLog(id: string) {
     const ev = await this.req<any[]>(`/v3/deployments/${id}/events?builds=1&limit=-1`);
@@ -83,4 +88,28 @@ export function pendingMigrations(tree: string[], applied: string[]) {
     .filter((p) => /^supabase\/migrations\/[^/]+\.sql$/.test(p))
     .sort()
     .filter((p) => !applied.includes(p));
+}
+
+/** Copies the Supabase project's public URL + anon key into the Vercel project (all environments). */
+export async function syncSupabaseToVercel(supabaseToken: string, vercelToken: string, ref: string, vercelId: string) {
+  const anon = await new SupabaseMgmt(supabaseToken).anonKey(ref);
+  if (!anon) throw new Error("Couldn't read the Supabase public key (project may still be starting up).");
+  const url = `https://${ref}.supabase.co`;
+  await new Vercel(vercelToken).setEnv(vercelId, {
+    SUPABASE_URL: url, SUPABASE_ANON_KEY: anon, SUPABASE_PUBLISHABLE_KEY: anon,
+    NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon,
+    VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: anon, VITE_SUPABASE_PUBLISHABLE_KEY: anon,
+  });
+  return url;
+}
+
+/** Polls the branch's latest deployment until it finishes or the time budget runs out. */
+export async function waitForDeployment(v: Vercel, projectId: string, branch: string, maxMs = 180_000) {
+  const end = Date.now() + maxMs;
+  for (;;) {
+    const latest = (await v.deployments(projectId, branch))[0];
+    if (latest && ["READY", "ERROR", "CANCELED"].includes(latest.state)) return latest;
+    if (Date.now() > end) return latest ?? null;
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
 }
