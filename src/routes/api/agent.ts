@@ -233,6 +233,8 @@ export const Route = createFileRoute("/api/agent")({
         ];
 
         const encoder = new TextEncoder();
+        if ((s as { running?: boolean }).running && Date.now() - new Date(s.updated_at).getTime() < 10 * 60_000) return new Response("This task is already running", { status: 409 });
+        await sb.from("agent_sessions").update({ running: true, stop_requested: false, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id);
         let closeStream = () => {};
         const stream = new ReadableStream({
           cancel() { closeStream(); },
@@ -275,11 +277,18 @@ export const Route = createFileRoute("/api/agent")({
                   const pu = (part as any).usage ?? {};
                   usage = { input: usage.input + (pu.inputTokens ?? 0), output: usage.output + (pu.outputTokens ?? 0) };
                   send({ t: "usage", input: usage.input, output: usage.output });
+                  // Save progress so a reopened tab can follow along, and honour Stop from any device.
+                  const { data: st } = await sb.from("agent_sessions").update({
+                    messages: [...history, { role: "user", content: message }, { role: "assistant", content: text, tools: logs }],
+                    pending, updated_at: new Date().toISOString(),
+                  }).eq("id", sessionId).eq("user_id", u.user.id).select("stop_requested").single();
+                  if (st?.stop_requested) runAbort.abort();
                 } else if (part.type === "error") {
                   throw part.error;
                 }
               }
             } catch (e: any) {
+              if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
               send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
             } finally {
               await external?.close();
@@ -302,7 +311,7 @@ export const Route = createFileRoute("/api/agent")({
                 .eq("id", sessionId).eq("user_id", u.user.id);
               send({ t: "done" });
               if (open) try { controller.close(); } catch { /* client gone */ }
-              await sb.from("agent_sessions").update({ running: false }).eq("id", sessionId).eq("user_id", u.user.id);
+              await sb.from("agent_sessions").update({ running: false, stop_requested: false }).eq("id", sessionId).eq("user_id", u.user.id);
             }
           },
         });
