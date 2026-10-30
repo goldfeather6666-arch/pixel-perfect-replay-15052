@@ -25,6 +25,20 @@ async function github(ctx: Ctx) {
   return new GitHub(key);
 }
 
+/** Like github(), but falls back to anonymous reads so public repos still work without a token. */
+async function githubAny(ctx: Ctx) {
+  const { data } = await ctx.supabase
+    .from("provider_credentials")
+    .select("id")
+    .eq("provider", "github")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const { GitHub } = await import("./github.server");
+  if (!data?.length) return new GitHub("");
+  const { key } = await loadSecret(ctx, data[0].id);
+  return new GitHub(key);
+}
+
 // ---------- Credentials ----------
 export const listCredentials = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
