@@ -126,6 +126,8 @@ function Workspace() {
             }));
           else if (e.t === "tool-result")
             patchLast((m) => ({ ...m, tools: m.tools?.map((t) => (t.id === e.id ? { ...t, ok: e.ok, summary: e.summary } : t)) }));
+          else if (e.t === "progress")
+            patchLast((m) => ({ ...m, tools: m.tools?.map((t) => (t.id === e.id ? { ...t, summary: e.summary } : t)) }));
           else if (e.t === "pending") setPending([...e.pending]);
           else if (e.t === "usage") setUsage({ input: ((session.data as { usage?: { input: number } } | undefined)?.usage?.input ?? 0) + e.input, output: ((session.data as { usage?: { output: number } } | undefined)?.usage?.output ?? 0) + e.output });
           else if (e.t === "error") toast.error(e.m);
@@ -273,12 +275,13 @@ function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
   const busy = live && tools.some((t) => t.ok === undefined);
   const failed = tools.filter((t) => t.ok === false).length;
   const current = [...tools].reverse().find((t) => t.ok === undefined);
+  const workers = live ? tools.filter((t) => t.name === "worker" && t.ok === undefined).length : 0;
   return (
     <div className="rounded-md border bg-muted/30 text-xs">
       <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-muted-foreground" onClick={() => setOpen(!open)}>
         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
         {busy ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Wrench className="h-3 w-3" />}
-        <span>{busy ? `Working… ${current ? current.name : ""}` : `Background activity · ${tools.filter((t) => t.name !== "note").length} steps`}</span>
+        <span>{busy ? (workers > 0 ? `${workers} helpers working in parallel…` : `Working… ${current ? current.name : ""}`) : `Background activity · ${tools.filter((t) => t.name !== "note").length} steps`}</span>
         {failed > 0 && <span className="text-destructive">{failed} failed</span>}
       </button>
       {open && <div className="space-y-1 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</div>}
@@ -296,12 +299,13 @@ function ToolView({ t }: { t: ToolLog }) {
       <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left" onClick={() => setOpen(!open)}>
         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
         <Wrench className="h-3 w-3 text-muted-foreground" />
-        <span className="text-primary">{t.name}</span>
+        <span className="text-primary">{t.name === "worker" ? "helper" : t.name}</span>
         <span className="truncate text-muted-foreground">{label}</span>
         <span className="ml-auto">
           {t.ok === undefined ? <Loader2 className="h-3 w-3 animate-spin" /> : t.ok ? <Check className="h-3 w-3 text-success" /> : <X className="h-3 w-3 text-destructive" />}
         </span>
       </button>
+      {t.name === "worker" && t.ok === undefined && t.summary && !open && <p className="truncate border-t px-3 py-1 text-muted-foreground">{t.summary}</p>}
       {open && <pre className="max-h-60 overflow-auto whitespace-pre-wrap border-t px-3 py-2 text-muted-foreground">{t.summary ?? "running…"}</pre>}
     </div>
   );
