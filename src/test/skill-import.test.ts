@@ -48,7 +48,7 @@ describe("pickSkillFiles", () => {
   });
 
   it("falls back to plain docs when there is no SKILL.md", () => {
-    expect(pickSkillFiles(["README.md", "docs/notes.md", "guide.md", "LICENSE"], "docs")).toEqual(["guide.md"].map(() => "docs/guide.md"));
+    expect(pickSkillFiles(["README.md", "docs/notes.md", "guide.md", "LICENSE"], "docs")).toEqual(["docs/notes.md"]);
     expect(pickSkillFiles(["README.md", "guide.md", "notes.md"], null)).toEqual(["guide.md", "notes.md"]);
   });
 

@@ -101,7 +101,6 @@ export function pickSkillFiles(paths: string[], root: string | null): string[] {
 /** Minimal front-matter reader: top-level `key: value` lines between leading `---` fences. */
 function readFrontMatter(text: string): { fields: Record<string, string>; body: string } {
   const start = text.startsWith("﻿") ? 1 : 0;
-  if (!text.slice(start, start + 3) === "---") return { fields: {}, body: text };
   if (text.slice(start, start + 3) !== "---") return { fields: {}, body: text };
   const nl = text.indexOf("\n", start);
   if (nl === -1) return { fields: {}, body: text };
