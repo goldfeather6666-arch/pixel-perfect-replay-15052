@@ -9,11 +9,11 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from:
 import { resolveMcpAction } from "@/lib/mcp-approval.server";
 
 const schema = { type: "object", properties: { issue: { type: "string" } }, required: ["issue"] };
-function database(overrides: Record<string, unknown> = {}) {
+function database(overrides: Record<string, unknown> = {}, connectionAvailable = true, requestAvailable = true) {
   const row = { id: "request-1", state: "pending", session_id: "task-1", connection_id: "connection-1", server_url: "https://docs.example.com/mcp", transport_mode: "http", tool_name: "delete", input_schema: schema, arguments: { issue: "issue-4" }, expires_at: new Date(Date.now() + 60000).toISOString(), ...overrides };
   const filters: unknown[][] = [];
   const sb = { from: (table: string) => {
-    const chain = { select: () => chain, eq: (...args: unknown[]) => { filters.push(args); return chain; }, single: async () => ({ data: table === "mcp_action_requests" ? row : table === "agent_sessions" ? { id: "task-1" } : { url: row.server_url, transport_mode: "http", enabled: true, allow_actions: true } }) };
+    const chain = { select: () => chain, eq: (...args: unknown[]) => { filters.push(args); return chain; }, single: async () => ({ data: table === "mcp_action_requests" ? requestAvailable ? row : null : table === "agent_sessions" ? { id: "task-1" } : connectionAvailable ? { url: row.server_url, transport_mode: "http", enabled: true, allow_actions: true } : null }) };
     return chain;
   } } as unknown as SupabaseClient<Database>;
   return { sb, filters };
@@ -63,5 +63,17 @@ describe("external action consent", () => {
   it("does not execute requests already resolved", async () => {
     await expect(resolveMcpAction(database({ state: "succeeded" }).sb, "owner-1", "request-1", true)).rejects.toThrow("already resolved");
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("blocks unavailable or cross-owner requests before privileged access", async () => {
+    const { sb, filters } = database({}, true, false);
+    await expect(resolveMcpAction(sb, "other-owner", "request-1", true)).rejects.toThrow("unavailable");
+    expect(filters).toContainEqual(["user_id", "other-owner"]);
+    expect(mocks.update).not.toHaveBeenCalled(); expect(mocks.execute).not.toHaveBeenCalled();
+  });
+  it("blocks disabled, removed or cross-owner connections", async () => {
+    const { sb, filters } = database({}, false);
+    expect(await resolveMcpAction(sb, "owner-1", "request-1", true)).toMatchObject({ ok: false });
+    expect(filters).toContainEqual(["enabled", true]); expect(filters).toContainEqual(["allow_actions", true]);
+    expect(mocks.open).not.toHaveBeenCalled(); expect(mocks.execute).not.toHaveBeenCalled();
   });
 });
