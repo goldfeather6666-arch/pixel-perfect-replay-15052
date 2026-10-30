@@ -19,3 +19,4 @@
 - [x] 12. Deep security scan reviewed; custom endpoints now public-HTTPS only
 - [x] 13. Per-repo agent memory (save_memory tool, shown under Changes)
 - [x] Supabase + Vercel sync per task (Deploy tab, apply_migrations, deploy_status auto-fix)
+- [x] Import skills from any GitHub repo (Settings → Skills: paste a repo/folder link, pick SKILL.md or markdown files)
