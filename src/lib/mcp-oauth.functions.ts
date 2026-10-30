@@ -27,7 +27,7 @@ export const beginMcpOAuth = createServerFn({ method: "POST" }).middleware([requ
     const saved = await oauthProvider(row, { origin, state });
     let client;
     try {
-      client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider);
+      client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider, saved.fetch);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
       await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_names: definitions.map((t) => t.name) }).eq("id", row.id).eq("user_id", context.userId);
@@ -62,7 +62,7 @@ export const completeMcpOAuth = createServerFn({ method: "POST" }).middleware([r
     try {
       if (data.denied || !data.code) throw new Error("Sign-in cancelled");
       const saved = await finishOAuth(row, data.code, data.state, data.issuer);
-      client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider);
+      client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider, saved.fetch);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
       const { error: saveError } = await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", context.userId);

@@ -7,13 +7,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import Ajv from "ajv";
 
-export async function openMcp(url: string, token?: string, transport: "http" | "sse" = "http", authProvider?: OAuthClientProvider) {
+export async function openMcp(url: string, token?: string, transport: "http" | "sse" = "http", authProvider?: OAuthClientProvider, oauthFetch?: typeof fetch) {
   const safeUrl = publicMcpUrl(url);
   await verifyPublicTarget(safeUrl);
   return createMCPClient({ transport: {
     type: transport, url: safeUrl, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     ...(authProvider ? { authProvider } : {}),
-    redirect: "error", fetch: guardedMcpFetch(safeUrl, !!authProvider),
+    redirect: "error", fetch: oauthFetch ?? guardedMcpFetch(safeUrl, !!authProvider),
   } });
 }
 

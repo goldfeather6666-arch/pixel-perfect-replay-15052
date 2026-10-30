@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { encryptSecret, decryptSecret } from "./crypto.server";
 import { guardedMcpFetch, verifyPublicTarget } from "./mcp-network.server";
 import { canonicalJson } from "./mcp-policy";
+import { mcpClientMetadata } from "./mcp-client-metadata";
 
 type Connection = Database["public"]["Tables"]["mcp_connections"]["Row"];
 type Material = { origin: string; state?: string; verifier?: string; tokens?: OAuthTokens; client?: OAuthClientInformation; server?: OAuthAuthorizationServerInformation; dynamic?: boolean };
@@ -59,7 +60,22 @@ export async function oauthProvider(row: Connection, fresh?: { origin: string; s
       await persist();
     },
   };
-  return { provider, material, persist, getAuthUrl: () => authUrl, fetch: guardedMcpFetch(row.url, true) };
+  const guarded = guardedMcpFetch(row.url, true);
+  const oauthFetch: typeof fetch = async (input, init) => {
+    const response = await guarded(input, init);
+    const target = new URL(input instanceof Request ? input.url : String(input));
+    if (!material.client && material.origin.startsWith("https://") && response.ok && target.pathname.includes("/.well-known/")) {
+      const metadata = await response.clone().json().catch(() => null) as { client_id_metadata_document_supported?: boolean; issuer?: string; token_endpoint?: string } | null;
+      if (metadata?.client_id_metadata_document_supported && metadata.issuer && metadata.token_endpoint && new URL(metadata.issuer).origin === target.origin) {
+        await verifyPublicTarget(metadata.token_endpoint);
+        material.client = { client_id: mcpClientMetadata(material.origin).client_id, issuer: metadata.issuer, authorization_server: metadata.issuer, token_endpoint: metadata.token_endpoint };
+        material.dynamic = false;
+        await persist();
+      }
+    }
+    return response;
+  };
+  return { provider, material, persist, getAuthUrl: () => authUrl, fetch: oauthFetch };
 }
 
 export async function openSavedMcp(sb: SupabaseClient<Database>, row: Connection) {
