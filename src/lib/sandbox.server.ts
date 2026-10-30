@@ -23,6 +23,8 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   const envs = { GH_AUTH: auth };
   if (!box) {
     box = await Sandbox.create({ apiKey, timeoutMs: 15 * 60_000, metadata: { session: session.id } });
+    // The base VM has ~470 MB RAM; add swap first so installs/builds don't crash out of memory.
+    await box.commands.run(SWAP_CMD, { timeoutMs: 60_000 }).catch(() => {});
     const clone = await box.commands.run(
       `git -c http.extraHeader="$GH_AUTH" clone --branch ${JSON.stringify(session.work_branch)} --single-branch https://github.com/${session.repo}.git ${REPO_DIR}`,
       { envs, timeoutMs: 120_000 },
@@ -36,7 +38,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   } else {
     await box.setTimeout(15 * 60_000).catch(() => {});
     await box.commands.run(
-      `cd ${REPO_DIR} && git -c http.extraHeader="$GH_AUTH" fetch -q origin ${JSON.stringify(session.work_branch)} && git reset -q --hard FETCH_HEAD`,
+      `${SWAP_CMD}; cd ${REPO_DIR} && git -c http.extraHeader="$GH_AUTH" fetch -q origin ${JSON.stringify(session.work_branch)} && git reset -q --hard FETCH_HEAD`,
       { envs, timeoutMs: 120_000 },
     ).catch(() => {});
   }
@@ -49,15 +51,33 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   }
   if (preview) {
     // Start a long-running dev server and expose its port through the sandbox's public HTTPS host.
-    await box.commands.run(`nohup bash -lc ${JSON.stringify(command)} > /tmp/preview.log 2>&1 &`, { cwd: REPO_DIR, timeoutMs: 15_000 }).catch(() => {});
+    await box.commands.run(`nohup bash -lc ${JSON.stringify(command)} > /tmp/preview.log 2>&1 &`, { cwd: REPO_DIR, envs: RUN_ENV, timeoutMs: 15_000 }).catch(() => {});
     await box.commands.run(`for i in $(seq 1 45); do curl -s -o /dev/null localhost:${preview.port} && exit 0; sleep 2; done; exit 1`, { timeoutMs: 100_000 }).catch(() => {});
     const log = await box.commands.run("tail -c 3000 /tmp/preview.log", { timeoutMs: 10_000 }).catch(() => null);
     return { url: `https://${box.getHost(preview.port)}`, log: String(log?.stdout ?? ""), note: "Preview stays up while the sandbox is active (15 min idle)." };
   }
-  const r = await box.commands.run(command, { cwd: REPO_DIR, timeoutMs: 180_000 }).catch((e: any) => e);
+  const started = Date.now();
+  const r = await box.commands.run(command, { cwd: REPO_DIR, envs: RUN_ENV, timeoutMs: CMD_TIMEOUT_MS }).catch((e: any) => e);
+  const timedOut = typeof r?.exitCode !== "number" && Date.now() - started >= CMD_TIMEOUT_MS - 2000;
   return {
     exit_code: typeof r?.exitCode === "number" ? r.exitCode : -1,
     stdout: clip(String(r?.stdout ?? "")),
     stderr: clip(String(r?.stderr ?? r?.message ?? "")),
+    ...(timedOut
+      ? { note: `Command stopped after ${CMD_TIMEOUT_MS / 1000}s. For long jobs run it in the background (nohup … > /tmp/x.log 2>&1 &) and check the log with tail in a later command.` }
+      : {}),
   };
 }
+
+const CMD_TIMEOUT_MS = 240_000;
+const SWAP_CMD =
+  "swapon --show 2>/dev/null | grep -q /swapfile || (sudo fallocate -l 3G /swapfile && sudo chmod 600 /swapfile && sudo mkswap -q /swapfile && sudo swapon /swapfile) >/dev/null 2>&1 || true";
+// Sensible defaults for low-memory installs/builds; commands can still override them.
+const RUN_ENV = {
+  NODE_OPTIONS: "--max-old-space-size=2560",
+  npm_config_audit: "false",
+  npm_config_fund: "false",
+  npm_config_progress: "false",
+  npm_config_maxsockets: "8",
+  NEXT_TELEMETRY_DISABLED: "1",
+};

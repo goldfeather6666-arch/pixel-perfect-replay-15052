@@ -23,7 +23,8 @@ export function TerminalView({ id }: { id: string }) {
     setLog((l) => [...l, { cmd: command }]);
     try {
       const r = await run({ data: { id, command } });
-      setLog((l) => l.map((x, i) => i === l.length - 1 ? { ...x, out: [r.stdout, r.stderr].filter(Boolean).join("\n"), code: r.exit_code } : x));
+      const o = "exit_code" in r ? r : { stdout: r.log, stderr: "", exit_code: 0, note: r.note };
+      setLog((l) => l.map((x, i) => i === l.length - 1 ? { ...x, out: [o.stdout, o.stderr, o.note].filter(Boolean).join("\n"), code: o.exit_code } : x));
     } catch (err: any) {
       setLog((l) => l.map((x, i) => i === l.length - 1 ? { ...x, err: String(err?.message ?? err) } : x));
     } finally { setBusy(false); }
