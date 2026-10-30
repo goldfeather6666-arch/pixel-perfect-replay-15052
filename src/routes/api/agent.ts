@@ -100,6 +100,7 @@ export const Route = createFileRoute("/api/agent")({
         // Live event channel + shared activity log, wired to the stream once it starts.
         let emit: (e: AgentEvent) => void = () => {};
         const runLogs: ToolLog[] = [];
+        let envSynced = false;
         // One sandbox per task, shared by every tool call in this run (warmed in the background).
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
