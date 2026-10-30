@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       agent_sessions: {
         Row: {
+          applied_migrations: string[]
           base_branch: string
           created_at: string
           credential_id: string | null
@@ -30,13 +31,16 @@ export type Database = {
           stop_requested: boolean
           summarized_count: number
           summary: string | null
+          supabase_ref: string | null
           title: string
           updated_at: string
           usage: Json
           user_id: string
+          vercel_project_id: string | null
           work_branch: string
         }
         Insert: {
+          applied_migrations?: string[]
           base_branch: string
           created_at?: string
           credential_id?: string | null
@@ -51,13 +55,16 @@ export type Database = {
           stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
+          supabase_ref?: string | null
           title?: string
           updated_at?: string
           usage?: Json
           user_id?: string
+          vercel_project_id?: string | null
           work_branch: string
         }
         Update: {
+          applied_migrations?: string[]
           base_branch?: string
           created_at?: string
           credential_id?: string | null
@@ -72,10 +79,12 @@ export type Database = {
           stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
+          supabase_ref?: string | null
           title?: string
           updated_at?: string
           usage?: Json
           user_id?: string
+          vercel_project_id?: string | null
           work_branch?: string
         }
         Relationships: []

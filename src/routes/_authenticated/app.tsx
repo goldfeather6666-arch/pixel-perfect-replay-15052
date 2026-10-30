@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
-import { providerName } from "@/lib/providers";
+import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -30,7 +30,7 @@ function Dashboard() {
 
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => fetchSessions() });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
-  const aiCreds = useMemo(() => creds.data?.filter((c) => c.provider !== "github") ?? [], [creds.data]);
+  const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
   const hasGh = creds.data?.some((c) => c.provider === "github");
   const repos = useQuery({ queryKey: ["repos"], queryFn: () => fetchRepos(), enabled: !!hasGh });
 

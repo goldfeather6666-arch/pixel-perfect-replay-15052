@@ -15,6 +15,7 @@ import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/prov
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
+import { DeployPanel } from "@/components/DeployPanel";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -169,10 +170,11 @@ function Workspace() {
         )}
       </AppHeader>
       <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-3 mt-2 self-start">
+        <TabsList className="mx-3 mt-2 max-w-[calc(100%-1.5rem)] justify-start self-start overflow-x-auto">
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
+          <TabsTrigger value="deploy">Deploy</TabsTrigger>
           <TabsTrigger value="changes">Changes{pending.length ? ` (${pending.length})` : ""}</TabsTrigger>
         </TabsList>
         <TabsContent value="chat" className="flex min-h-0 flex-1 flex-col">
@@ -236,6 +238,9 @@ function Workspace() {
         </TabsContent>
         <TabsContent value="terminal" className="min-h-0 flex-1 overflow-hidden">
           <TerminalView id={id} />
+        </TabsContent>
+        <TabsContent value="deploy" className="min-h-0 flex-1 overflow-y-auto">
+          <DeployPanel id={id} />
         </TabsContent>
         <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto">
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />

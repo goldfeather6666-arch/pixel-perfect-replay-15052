@@ -18,3 +18,4 @@
 - [x] 11. Automatic model retries (3)
 - [x] 12. Deep security scan reviewed; custom endpoints now public-HTTPS only
 - [x] 13. Per-repo agent memory (save_memory tool, shown under Changes)
+- [x] Supabase + Vercel sync per task (Deploy tab, apply_migrations, deploy_status auto-fix)

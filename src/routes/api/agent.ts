@@ -23,7 +23,7 @@ function userClient(token: string) {
 }
 
 const SYSTEM = `You are an autonomous software engineering agent working on a GitHub repository.
-You have real tools: list_files, read_file, search_files, write_file, delete_file, run_command (cloud sandbox shell), start_preview (runs the app and returns a public URL — share it with the user), delegate (parallel read-only helper agents for broad investigations).
+You have real tools: list_files, read_file, search_files, write_file, delete_file, run_command (cloud sandbox shell), start_preview (runs the app and returns a public URL — share it with the user), delegate (parallel read-only helper agents for broad investigations), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: if a Vercel project is linked, after your final commit call deploy_status; if it failed, fix and re-check.
 Workflow: inspect the repository structure, read relevant files before editing, plan briefly, then make focused changes.
 write_file replaces the ENTIRE file content — always send the complete file.
 Never claim a change was made unless the tool result confirms it. Use run_command to verify changes (tests, typecheck, build) when useful; report actual results honestly.
@@ -192,6 +192,34 @@ export const Route = createFileRoute("/api/agent")({
               const { runInSandbox } = await import("@/lib/sandbox.server");
               const r = await runInSandbox(sb, { ...s, user_id: u.user.id }, ghToken, command, pending, { port });
               return r;
+            },
+          }),
+          apply_migrations: tool({
+            description: "Apply this task's new database migration files (supabase/migrations/*.sql on the work branch, in name order) to the user's linked Supabase project. Write each schema change as a NEW timestamped file (e.g. supabase/migrations/20260101120000_add_posts.sql); never edit applied files. Returns applied files or the SQL error to fix.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const { data: fresh } = await sb.from("agent_sessions").select("id, repo, work_branch, supabase_ref, applied_migrations").eq("id", sessionId).single();
+              if (!fresh?.supabase_ref) return { error: "No Supabase project linked to this task. Ask the user to link one in the Deploy tab." };
+              if (supervised) return { staged: true, note: "Supervised mode: the user applies database changes with 'Apply to database' in the Deploy tab after approving the files. Tell them." };
+              const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
+              if (!st?.length) return { error: "No Supabase token saved in Settings." };
+              const { applySessionMigrations } = await import("@/lib/migrations.server");
+              return applySessionMigrations(sb, fresh as never, ghToken, await decryptSecret(st[0]!.ciphertext, st[0]!.iv));
+            },
+          }),
+          deploy_status: tool({
+            description: "Get the latest Vercel deployment for this task's branch: state (QUEUED/BUILDING/READY/ERROR), preview URL, and the build log tail when it failed. Vercel deploys automatically after each commit; wait ~30-90s after committing, then check. If ERROR, read the log, fix the cause, commit, and check again (max 3 rounds).",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const { data: fresh } = await sb.from("agent_sessions").select("vercel_project_id").eq("id", sessionId).single();
+              if (!fresh?.vercel_project_id) return { error: "No Vercel project linked to this task." };
+              const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
+              if (!vt?.length) return { error: "No Vercel token saved in Settings." };
+              const { Vercel } = await import("@/lib/integrations.server");
+              const v = new Vercel(await decryptSecret(vt[0]!.ciphertext, vt[0]!.iv));
+              const latest = (await v.deployments(fresh.vercel_project_id, branch))[0];
+              if (!latest) return { state: "NONE", note: "No deployment for this branch yet (commit first, or it is still queued)." };
+              return { state: latest.state, url: latest.url, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
             },
           }),
           delegate: tool({

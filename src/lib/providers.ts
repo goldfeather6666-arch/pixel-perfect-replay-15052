@@ -1,6 +1,8 @@
-export type ProviderId = "openai" | "anthropic" | "google" | "openrouter" | "compatible" | "github";
+export type ProviderId = "openai" | "anthropic" | "google" | "openrouter" | "compatible" | "github" | "supabase" | "vercel";
+export const SERVICE_IDS = ["github", "supabase", "vercel"] as const;
+export const isAiProvider = (id: string) => !(SERVICE_IDS as readonly string[]).includes(id);
 
-export const AI_PROVIDERS: { id: Exclude<ProviderId, "github">; name: string; needsBaseUrl?: boolean; hint: string }[] = [
+export const AI_PROVIDERS: { id: Exclude<ProviderId, "github" | "supabase" | "vercel">; name: string; needsBaseUrl?: boolean; hint: string }[] = [
   { id: "openai", name: "OpenAI", hint: "sk-..." },
   { id: "anthropic", name: "Anthropic", hint: "sk-ant-..." },
   { id: "google", name: "Google Gemini", hint: "AIza..." },
@@ -10,6 +12,8 @@ export const AI_PROVIDERS: { id: Exclude<ProviderId, "github">; name: string; ne
 
 export function providerName(id: string) {
   if (id === "github") return "GitHub";
+  if (id === "supabase") return "Supabase";
+  if (id === "vercel") return "Vercel";
   return AI_PROVIDERS.find((p) => p.id === id)?.name ?? id;
 }
 
