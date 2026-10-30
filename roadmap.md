@@ -16,4 +16,5 @@
 - [x] 9. Slash commands + finish notification + image attachments
 - [x] 10. Runs continue after tab close; progress saved each step; Stop works from any device
 - [x] 11. Automatic model retries (3)
-- [ ] 12. Deep security scan — running, results pending
+- [x] 12. Deep security scan reviewed; custom endpoints now public-HTTPS only
+- [x] 13. Per-repo agent memory (save_memory tool, shown under Changes)
