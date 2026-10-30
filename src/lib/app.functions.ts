@@ -335,3 +335,20 @@ export const stopSession = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const getRepoMemory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ repo: z.string().min(3).max(200) }))
+  .handler(async ({ data, context }) => {
+    const { data: m } = await context.supabase.from("repo_memory").select("notes, updated_at").eq("user_id", context.userId).eq("repo", data.repo).maybeSingle();
+    return m ?? null;
+  });
+
+export const clearRepoMemory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ repo: z.string().min(3).max(200) }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("repo_memory").delete().eq("user_id", context.userId).eq("repo", data.repo);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
+import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
@@ -230,6 +230,7 @@ function Workspace() {
         </TabsContent>
         <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto">
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
+          {s && <MemoryView repo={s.repo} />}
           <div className="mx-auto max-w-3xl px-3 pb-8">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => { await remove({ data: { id } }); nav({ to: "/app" }); }}>
               <Trash2 /> Delete task (branch stays on GitHub)
@@ -481,4 +482,33 @@ function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: 
 
 function fmt(n: number) {
   return n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
+}
+
+function MemoryView({ repo }: { repo: string }) {
+  const get = useServerFn(getRepoMemory);
+  const clear = useServerFn(clearRepoMemory);
+  const qc = useQueryClient();
+  const mem = useQuery({ queryKey: ["memory", repo], queryFn: () => get({ data: { repo } }) });
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="mx-auto max-w-3xl px-3 pb-4">
+      <div className="rounded-md border bg-card">
+        <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold" onClick={() => setOpen(!open)}>
+          <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+          <span className="flex-1">Repo memory</span>
+          <span className="text-xs font-normal text-muted-foreground">{mem.data ? `saved ${new Date(mem.data.updated_at).toLocaleDateString()}` : "none yet"}</span>
+        </button>
+        {open && (
+          <div className="border-t p-3">
+            {mem.data ? (
+              <>
+                <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">{mem.data.notes}</pre>
+                <Button size="sm" variant="ghost" className="mt-2 text-destructive" onClick={async () => { await clear({ data: { repo } }); qc.invalidateQueries({ queryKey: ["memory", repo] }); toast.success("Memory cleared"); }}><Trash2 /> Forget</Button>
+              </>
+            ) : <p className="text-xs text-muted-foreground">The agent saves notes about this repo after exploring it, so later tasks skip the full scan.</p>}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
