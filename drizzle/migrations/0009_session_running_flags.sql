@@ -1,0 +1,2 @@
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS running boolean NOT NULL DEFAULT false;
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS stop_requested boolean NOT NULL DEFAULT false;

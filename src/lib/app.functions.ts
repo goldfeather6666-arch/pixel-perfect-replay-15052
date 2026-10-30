@@ -326,3 +326,12 @@ export const runTerminal = createServerFn({ method: "POST" })
     const { runInSandbox } = await import("./sandbox.server");
     return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
   });
+
+export const stopSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("agent_sessions").update({ stop_requested: true }).eq("id", data.id).eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

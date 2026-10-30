@@ -4,13 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
+import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
+import { stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
@@ -28,11 +28,27 @@ function Workspace() {
   const fetchSession = useServerFn(getSession);
   const update = useServerFn(updateSession);
   const remove = useServerFn(deleteSession);
-  const session = useQuery({ queryKey: ["session", id], queryFn: () => fetchSession({ data: { id } }) });
+  const stop = useServerFn(stopSession);
+  const [running, setRunning] = useState(false);
+  const session = useQuery({
+    queryKey: ["session", id],
+    queryFn: () => fetchSession({ data: { id } }),
+    // While a run continues in the background (tab was closed/reopened), follow its saved progress.
+    refetchInterval: (q) => (!running && (q.state.data as { running?: boolean } | undefined)?.running ? 3000 : false),
+  });
+  const bgRunning = !running && !!(session.data as { running?: boolean } | undefined)?.running;
+  const [images, setImages] = useState<{ mediaType: string; data: string; name: string }[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  async function addImages(files: FileList | null) {
+    for (const f of Array.from(files ?? []).slice(0, 4 - images.length)) {
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(f.type) || f.size > 5_000_000) { toast.error(`${f.name}: use PNG/JPEG/WebP/GIF under 5 MB`); continue; }
+      const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] ?? ""); r.onerror = rej; r.readAsDataURL(f); });
+      setImages((x) => [...x, { mediaType: f.type, data, name: f.name }]);
+    }
+  }
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingChange[]>([]);
-  const [running, setRunning] = useState(false);
   const [input, setInput] = useState("");
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
@@ -54,7 +70,7 @@ function Workspace() {
 
   async function send(override?: string, forcePlan?: boolean) {
     let text = (override ?? input).trim();
-    if (!text || running) return;
+    if (!text || running || bgRunning) return;
     let plan = forcePlan ?? planMode;
     const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
     if (cmd) {
@@ -66,6 +82,7 @@ function Workspace() {
       else if (name === "help") { toast.info("Commands: /plan, /test, /review, /explain"); setInput(""); return; }
     }
     setInput("");
+    setImages([]);
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
     setRunning(true);
     lastWasPlan.current = plan;
@@ -79,7 +96,7 @@ function Workspace() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${data.session?.access_token}` },
-        body: JSON.stringify({ sessionId: id, message: text, plan }),
+        body: JSON.stringify({ sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
@@ -172,8 +189,19 @@ function Workspace() {
                 className={`flex items-center gap-1 rounded border px-2 py-0.5 ${planMode ? "border-primary text-primary" : "text-muted-foreground"}`}>
                 <ListChecks className="h-3 w-3" /> Plan first
               </button>
-              <span className="text-muted-foreground">Type / for commands: /plan /test /review /explain</span>
+              <span className="hidden text-muted-foreground sm:inline">Type / for commands: /plan /test /review /explain</span>
             </div>
+            {bgRunning && <p className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Still working in the background — progress updates here.</p>}
+            {images.length > 0 && (
+              <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
+                {images.map((im, i) => (
+                  <span key={i} className="relative">
+                    <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-14 rounded border object-cover" />
+                    <button type="button" aria-label={`Remove ${im.name}`} className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5" onClick={() => setImages((x) => x.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="mx-auto flex max-w-3xl items-end gap-2">
               <Textarea
                 ref={taRef}
@@ -184,8 +212,10 @@ function Workspace() {
                 className="max-h-48 min-h-11 resize-none"
                 rows={1}
               />
-              {running ? (
-                <Button type="button" size="icon" variant="secondary" aria-label="Stop" onClick={() => abortRef.current?.abort()}><Square /></Button>
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+              <Button type="button" size="icon" variant="ghost" aria-label="Attach image" disabled={images.length >= 4} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+              {running || bgRunning ? (
+                <Button type="button" size="icon" variant="secondary" aria-label="Stop" onClick={() => { stop({ data: { id } }).catch(() => {}); }}><Square /></Button>
               ) : (
                 <Button size="icon" aria-label="Send" disabled={!input.trim()}><Send /></Button>
               )}

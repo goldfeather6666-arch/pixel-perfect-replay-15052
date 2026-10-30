@@ -9,11 +9,11 @@
 - [x] 2. Test-and-fix loop (/test, system loop guidance, 50 steps)
 - [x] 3. Smarter content search (regex, 400 files, skips vendored/build dirs)
 - [x] 4. Long-conversation summarising
-- [ ] 5. Helper sub-agents
-- [ ] 6. Live app preview from sandbox
+- [x] 5. Helper sub-agents
+- [x] 6. Live app preview from sandbox
 - [x] 7. Per-file accept/reject
 - [x] 8. Token usage per task
-- [x] 9. Slash commands + finish notification (image attachments still open)
-- [ ] 10. Background tasks surviving tab close
+- [x] 9. Slash commands + finish notification + image attachments
+- [x] 10. Runs continue after tab close; progress saved each step; Stop works from any device
 - [x] 11. Automatic model retries (3)
-- [ ] 12. Full security scan
+- [ ] 12. Deep security scan — running, results pending
