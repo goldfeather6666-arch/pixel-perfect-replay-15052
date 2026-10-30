@@ -44,6 +44,10 @@ export class GitHub {
     const ref = await this.req<any>(`repos/${repo}/git/ref/heads/${encodeURIComponent(from)}`);
     await this.req(`repos/${repo}/git/refs`, { method: "POST", body: JSON.stringify({ ref: `refs/heads/${name}`, sha: ref.object.sha }) });
   }
+  async headSha(repo: string, branch: string): Promise<string> {
+    const ref = await this.req<{ object: { sha: string } }>(`repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`);
+    return ref.object.sha;
+  }
   async tree(repo: string, branch: string) {
     const t = await this.req<any>(`repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
     return (t.tree as any[]).filter((e) => e.type === "blob").map((e) => e.path as string);

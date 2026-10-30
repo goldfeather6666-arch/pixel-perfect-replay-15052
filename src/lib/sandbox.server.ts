@@ -37,10 +37,11 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     await sb.from("agent_sessions").update({ sandbox_id: box.sandboxId }).eq("id", session.id).eq("user_id", session.user_id);
   } else {
     await box.setTimeout(15 * 60_000).catch(() => {});
-    await box.commands.run(
+    const synced = await box.commands.run(
       `${SWAP_CMD}; cd ${REPO_DIR} && git -c http.extraHeader="$GH_AUTH" fetch -q origin ${JSON.stringify(session.work_branch)} && git reset -q --hard FETCH_HEAD`,
       { envs, timeoutMs: 120_000 },
-    ).catch(() => {});
+    ).catch(() => null);
+    if (synced?.exitCode !== 0) throw new Error("Sandbox could not sync the current work branch. Checks were not run on stale code; retry the command.");
   }
   // Overlay staged (not yet approved) changes so commands see the agent's current work.
   for (const c of pending) {
