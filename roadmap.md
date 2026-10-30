@@ -1,13 +1,19 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [x] Phase 1: Sign-in, encrypted BYOK provider keys, model discovery + manual model ID
-- [x] Phase 2: GitHub token — repo/branch picker, file tree, file viewer
-- [x] Phase 3: Streaming agent chat with real GitHub tools on a per-task branch, saved task history
-- [x] Phase 4: Supervised approvals with diffs, autonomous commits, checkpoints/restore/undo, in-browser editor, pull requests
-- [x] Phase 6 (part): Skills, AGENTS.md/CLAUDE.md project instructions, README self-hosting docs, MIT license
-- [x] Phase 6: HTTPS/public or encrypted bearer-token MCP connections; read-only discovery/invocation, enable/pause, recheck and disconnect
-- [x] MCP follow-up: SSE transport and opt-in per-action approval for external writes; immutable arguments, expiry, atomic execution claim and saved results
-- [x] MCP follow-up: OAuth sign-in implementation — encrypted credentials, active-owner/browser-bound callback, PKCE/state, SDK refresh and reconnect; real Notion registration and cancellation verified
-- [ ] OAuth acceptance: successful external account consent, post-consent reads/refresh and hosted HTTPS client metadata — blocked: needs external account consent and hosted verification
-- [ ] MCP follow-up: local stdio — skipped for now by user (mobile only, no computer for a local helper)
-- [x] Phase 5: E2B sandbox terminal tab + agent run_command tool (per-task sandbox, 15 min idle)
+- [x] Phases 1–6: keys, GitHub, streaming agent, approvals, checkpoints, editor, PRs, skills, MCP (HTTP/SSE/OAuth/action approvals), E2B terminal
+- [ ] OAuth acceptance — blocked: needs user's Notion consent + published check
+- [ ] Local stdio MCP — skipped by user (mobile only)
+
+## Claude-Code-quality round
+- [x] 1. Plan mode (toggle, /plan, approve-plan button; write tools removed while planning)
+- [x] 2. Test-and-fix loop (/test, system loop guidance, 50 steps)
+- [x] 3. Smarter content search (regex, 400 files, skips vendored/build dirs)
+- [x] 4. Long-conversation summarising
+- [ ] 5. Helper sub-agents
+- [ ] 6. Live app preview from sandbox
+- [x] 7. Per-file accept/reject
+- [x] 8. Token usage per task
+- [x] 9. Slash commands + finish notification (image attachments still open)
+- [ ] 10. Background tasks surviving tab close
+- [x] 11. Automatic model retries (3)
+- [ ] 12. Full security scan
