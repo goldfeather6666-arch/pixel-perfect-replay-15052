@@ -284,6 +284,8 @@ export const Route = createFileRoute("/api/agent")({
                   text += part.text;
                   send({ t: "text", d: part.text });
                 } else if (part.type === "tool-call") {
+                  if (text.trim()) logs.push({ id: `note-${part.toolCallId}`, name: "note", input: {}, ok: true, summary: text.trim() });
+                  text = "";
                   logs.push({ id: part.toolCallId, name: part.toolName, input: part.input });
                   send({ t: "tool", id: part.toolCallId, name: part.toolName, input: part.input });
                 } else if (part.type === "tool-result" || part.type === "tool-error") {
