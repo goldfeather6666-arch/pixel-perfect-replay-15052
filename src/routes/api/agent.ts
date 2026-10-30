@@ -358,7 +358,7 @@ export const Route = createFileRoute("/api/agent")({
         ];
 
         const encoder = new TextEncoder();
-        if ((s as { running?: boolean }).running && Date.now() - new Date(s.updated_at).getTime() < 10 * 60_000) return new Response("This task is already running", { status: 409 });
+        if ((s as { running?: boolean }).running && Date.now() - new Date(s.updated_at).getTime() < 2 * 60_000) return new Response("This task is already running", { status: 409 });
         await sb.from("agent_sessions").update({ running: true, stop_requested: false, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id);
         let closeStream = () => {};
         const stream = new ReadableStream({
@@ -368,6 +368,8 @@ export const Route = createFileRoute("/api/agent")({
             const send = (e: AgentEvent) => { if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
             closeStream = () => { open = false; };
             emit = send;
+            // Heartbeat: proves the run is alive between steps; a run with no beat for 2 min is treated as dead.
+            const beat = setInterval(() => { void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id); }, 30_000);
             let text = "";
             const logs = runLogs;
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
@@ -419,6 +421,7 @@ export const Route = createFileRoute("/api/agent")({
               if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
               send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
             } finally {
+              clearInterval(beat);
               await external?.close();
               const next: ChatMessage[] = [
                 ...history,
