@@ -22,6 +22,7 @@ function database(overrides: Record<string, unknown> = {}) {
 describe("external action consent", () => {
   beforeEach(() => {
     vi.clearAllMocks(); mocks.claim = true;
+    mocks.close.mockResolvedValue(undefined);
     mocks.open.mockResolvedValue({ close: mocks.close });
     mocks.inspect.mockResolvedValue({ definitions: [{ name: "delete", inputSchema: schema }], sdkTools: { delete: { execute: mocks.execute } } });
     mocks.execute.mockResolvedValue({ content: [{ type: "text", text: "Deleted issue-4" }] });
