@@ -309,7 +309,7 @@ export const runTerminal = createServerFn({ method: "POST" })
     if (error || !s) throw new Error("Task not found");
     const { data: gh } = await context.supabase.from("provider_credentials").select("id").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
     if (!gh?.length) throw new Error("Add a GitHub token in Settings first");
-    const { key } = await loadSecret(context, gh[0].id);
+    const { key } = await loadSecret(context, gh[0]!.id);
     const { runInSandbox } = await import("./sandbox.server");
     return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
   });
