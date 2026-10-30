@@ -86,7 +86,7 @@ export async function openSavedMcp(sb: SupabaseClient<Database>, row: Connection
   const { data: owned } = await sb.from("mcp_connections").select("id").eq("id", row.id).eq("user_id", row.user_id).single();
   if (!owned || row.oauth_status !== "ready") throw new Error("Connection needs sign-in");
   const saved = await oauthProvider(row);
-  try { return await openMcp(row.url, undefined, transport, saved.provider); }
+  try { return await openMcp(row.url, undefined, transport, saved.provider, saved.fetch); }
   catch { await sb.from("mcp_connections").update({ state: "failed", oauth_status: "failed" }).eq("id", row.id).eq("user_id", row.user_id); throw new Error("Connection needs sign-in or recheck"); }
 }
 
