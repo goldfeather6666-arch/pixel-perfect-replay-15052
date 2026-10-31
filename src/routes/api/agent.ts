@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
-import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
+import { checkFailure, deploymentSkill, needsFinalCheck, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
 import { agentRequest, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
 import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
@@ -114,9 +114,10 @@ export const Route = createFileRoute("/api/agent")({
         const runLogs: ToolLog[] = [];
         let syncedRef: string | null = null;
         let envRebuildNeeded = false;
-        const quality = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, linked: !!s.vercel_project_id, supervised, deploymentState: undefined as string | undefined };
+        const quality: QualityState = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, localAttempted: false, linked: !!s.vercel_project_id, supervised };
+        let checkRoot = ".";
         let revision = 0;
-        const invalidateChecks = () => { revision++; quality.changed = true; quality.localPassed = false; quality.deploymentState = undefined; };
+        const invalidateChecks = () => { revision++; quality.changed = true; quality.localPassed = false; quality.localAttempted = false; quality.localIssue = undefined; quality.deploymentState = undefined; };
         // One sandbox per task, shared by every tool call in this run (warmed in the background).
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
@@ -248,12 +249,23 @@ export const Route = createFileRoute("/api/agent")({
             description: "Install with the repo's package manager (phase=install), or run existing lint, typecheck, non-watch tests and production build (phase=check). Uses current branch + staged changes. All sandbox edits are ephemeral; save fixes/lockfiles with write_file. root is the app directory for monorepos.",
             inputSchema: z.object({ phase: z.enum(["install", "check"]).default("check"), root: z.string().max(200).default(".") }),
             execute: async ({ phase, root }) => {
-              if (!process.env["E2B_API_KEY"]) return { error: "Terminal not configured; production checks cannot run." };
+              const command = preflightCommand(phase, root);
+              checkRoot = root;
+              if (phase === "check") quality.localAttempted = true;
+              if (!process.env["E2B_API_KEY"]) {
+                quality.localIssue = checkFailure({ error: "Terminal not configured" });
+                return { error: quality.localIssue };
+              }
               const before = await gh.headSha(repo, branch);
               const checkedRevision = revision;
-              const result = await sbxRun(preflightCommand(phase, root));
+              const result = await sbxRun(command);
               const after = await gh.headSha(repo, branch);
-              if (phase === "check") quality.localPassed = "exit_code" in result && result.exit_code === 0 && before === after && revision === checkedRevision;
+              if (phase === "check") {
+                quality.localPassed = "exit_code" in result && result.exit_code === 0 && before === after && revision === checkedRevision;
+                quality.localIssue = quality.localPassed ? undefined : before !== after || revision !== checkedRevision
+                  ? "The branch changed during production checks; check the current commit again."
+                  : checkFailure(result);
+              }
               return { ...result, commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
             },
           }),
@@ -621,13 +633,39 @@ export const Route = createFileRoute("/api/agent")({
               runAbort.signal.throwIfAborted();
               usedSteps += (await abortable(result.steps, runAbort.signal)).length;
               const exhausted = usedSteps >= stepCap;
+              // The model sometimes uses ad-hoc checks only, then hits its step cap.
+              // Run one authoritative final check rather than asking the user to Continue indefinitely.
+              if (!plan && needsFinalCheck(quality)) {
+                const id = `final-check-${repairRound}`;
+                if (text.trim()) logs.push({ id: `note-${id}`, name: "note", input: {}, ok: true, summary: text.trim() });
+                text = "";
+                const input = { phase: "check" as const, root: checkRoot };
+                const log: ToolLog = { id, name: "deployment_preflight", input };
+                logs.push(log);
+                send({ t: "tool", id, name: log.name, input });
+                try {
+                  const executeCheck = tools.deployment_preflight.execute;
+                  if (!executeCheck) throw new Error("Production check tool unavailable");
+                  const checked = await abortable(Promise.resolve(executeCheck(input, { toolCallId: id, messages, abortSignal: runAbort.signal, context: {} })), runAbort.signal);
+                  const summary = quality.localPassed ? "Final production checks passed." : quality.localIssue ?? "Production checks did not finish.";
+                  Object.assign(log, { ok: quality.localPassed, summary });
+                  send({ t: "tool-result", id, ok: quality.localPassed, summary });
+                  messages.push(...(await abortable(result.response, runAbort.signal)).messages, { role: "user", content: `Forge ran final production checks automatically: ${JSON.stringify(checked)}. Read the result; fix the cause or report the precise blocker.` });
+                } catch (e) {
+                  runAbort.signal.throwIfAborted();
+                  quality.localAttempted = true;
+                  quality.localIssue = checkFailure({ error: errorText(e) });
+                  Object.assign(log, { ok: false, summary: quality.localIssue });
+                  send({ t: "tool-result", id, ok: false, summary: quality.localIssue });
+                }
+              }
               const blocker = !plan ? qualityBlocker(quality) : null;
               if (blocker && repairRound < 3 && !exhausted && !runAbort.signal.aborted) {
                 messages.push(...(await result.response).messages, { role: "user", content: `Required verification is incomplete: ${blocker} Repair follow-up ${repairRound + 1} of 3. If blocked by missing access or environment, explain exactly what is needed; do not invent success.` });
                 continue;
               }
               if (blocker || exhausted) {
-                const notice = `\n\nVerification incomplete: ${blocker ?? "This run reached its step limit."} Progress is saved. Send "continue" to resume, or resolve the reported access/environment blocker first.`;
+                const notice = `\n\n${blocker ? `Verification incomplete: ${blocker}` : "This run reached its step limit; the requested work may be unfinished."} Progress is saved.${blocker ? " Resolve the check failure or access/environment blocker before retrying." : ' Send "continue" to resume.'}`;
                 text += notice;
                 send({ t: "text", d: notice });
               }

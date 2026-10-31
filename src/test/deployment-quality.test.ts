@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
+import { checkFailure, needsFinalCheck, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
 
 function fixture(scripts: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "forge-preflight-"));
@@ -12,6 +12,29 @@ function fixture(scripts: Record<string, string>) {
   finally { rmSync(dir, { recursive: true, force: true }); }
 }
 describe("production checks", () => {
+  it("runs omitted final checks but does not blindly repeat attempted checks", () => {
+    const state = { changed: true, localPassed: false, linked: true, supervised: false };
+    expect(needsFinalCheck(state)).toBe(true);
+    expect(needsFinalCheck({ ...state, localAttempted: true })).toBe(false);
+    expect(needsFinalCheck({ ...state, deploymentState: "READY" })).toBe(false);
+    expect(needsFinalCheck({ ...state, changed: false })).toBe(false);
+  });
+  it("preserves timeout blockers without exposing raw output", () => {
+    const issue = checkFailure({ exit_code: -1, stderr: "[deadline_exceeded] the operation timed out: secret-value" });
+    expect(issue).toContain("timed out");
+    expect(issue).not.toContain("secret-value");
+    expect(qualityBlocker({ changed: true, localPassed: false, localIssue: issue, linked: true, supervised: false })).toBe(issue);
+  });
+  it("identifies missing database configuration without printing credentials", () => {
+    expect(checkFailure({ exit_code: 1, stderr: "Your project's URL and Key are required to create a Supabase client!" })).toContain("database URL/public-key settings are missing");
+  });
+  it("identifies the last failed check rather than generic verification", () => {
+    expect(checkFailure({ exit_code: 2, stdout: "[Forge check] npm run typecheck\n[Forge exit] 2" })).toContain("typecheck check failed (exit 2)");
+  });
+  it("keeps failed local checks blocking for supervised and unlinked projects", () => {
+    expect(qualityBlocker({ changed: true, localPassed: false, linked: false, supervised: false })).not.toBeNull();
+    expect(qualityBlocker({ changed: true, localPassed: false, linked: true, supervised: true })).not.toBeNull();
+  });
   it("runs real production scripts successfully", () => {
     const result = fixture({ typecheck: "node -e 'process.exit(0)'", test: "node -e 'process.exit(0)'", build: "node -e 'process.exit(0)'" });
     expect(result.status).toBe(0);
