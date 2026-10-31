@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Copy, Sparkles, Eraser, Loader2, Minus, Play, Plus, Search, TerminalSquare, X } from "lucide-react";
-import { runTerminal, suggestCommand } from "@/lib/app.functions";
+import { startTerminal, pollTerminal, suggestCommand } from "@/lib/app.functions";
 import { extractCwd, isRisky, looksLikeRequest, parseAnsi, wrapCommand } from "@/lib/terminal";
 
 type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number };
@@ -19,7 +19,10 @@ function Ansi({ text }: { text: string }) {
 const short = (cwd: string | null) => (!cwd ? "~" : cwd.replace(/^\/home\/user\/[^/]+/, "~").replace(/^\/home\/user/, "~"));
 
 export function TerminalView({ id }: { id: string }) {
-  const run = useServerFn(runTerminal);
+  const start = useServerFn(startTerminal);
+  const poll = useServerFn(pollTerminal);
+  const jobs = useRef(new Map<number, { job: string; kill: boolean }>());
+  const interrupt = (tid: number) => { const j = jobs.current.get(tid); if (j) j.kill = true; };
   const suggest = useServerFn(suggestCommand);
   const [ai, setAi] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -54,13 +57,31 @@ export function TerminalView({ id }: { id: string }) {
     const t0 = performance.now();
     const finish = (e: Partial<Entry>, cwd?: string | null) =>
       patch(tid, (t) => ({ ...t, busy: false, cwd: cwd ?? t.cwd, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, ...e, ms: Math.round(performance.now() - t0) } : x)) }));
+    const live = (out: string) =>
+      patch(tid, (t) => ({ ...t, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, out: extractCwd(out).out } : x)) }));
     try {
-      const r = await run({ data: { id, command: wrapCommand(command, tab.cwd) } });
-      const o = "exit_code" in r ? r : { stdout: r.log, stderr: "", exit_code: 0, note: r.note };
-      const { out, cwd } = extractCwd(o.stdout ?? "");
-      finish({ out: [out, o.stderr, o.note].filter(Boolean).join("\n"), code: o.exit_code }, cwd);
+      const { job } = await start({ data: { id, command: wrapCommand(command, tab.cwd) } });
+      jobs.current.set(tid, { job, kill: false });
+      let offset = 0, out = "", misses = 0;
+      for (;;) {
+        await new Promise((r) => setTimeout(r, out ? 1200 : 700));
+        const kill = jobs.current.get(tid)?.kill ?? false;
+        let r;
+        try { r = await poll({ data: { id, job, offset, kill } }); misses = 0; }
+        catch (e) { if (++misses >= 5) throw e; continue; }
+        if (kill) jobs.current.set(tid, { job, kill: false });
+        if (r.out) { out += r.out; live(out); }
+        offset = r.offset;
+        if (r.done) {
+          const { out: clean, cwd } = extractCwd(out);
+          finish({ out: [clean, "note" in r ? r.note : ""].filter(Boolean).join("\n"), code: r.exit_code ?? -1 }, cwd);
+          break;
+        }
+      }
     } catch (err) {
       finish({ err: String((err as Error)?.message ?? err) });
+    } finally {
+      jobs.current.delete(tid);
     }
     input.current?.focus();
   }
@@ -203,15 +224,19 @@ export function TerminalView({ id }: { id: string }) {
               else if (e.key === "ArrowDown") { e.preventDefault(); walk(-1); }
               else if (e.key === "Tab" || (e.key === "ArrowRight" && suggestion)) { e.preventDefault(); complete(); }
               else if (e.key === "l" && e.ctrlKey) { e.preventDefault(); patch(tab.id, (t) => ({ ...t, log: [] })); }
-              else if (e.key === "c" && e.ctrlKey && !window.getSelection()?.toString()) { e.preventDefault(); setCmd(""); }
+              else if (e.key === "c" && e.ctrlKey && !window.getSelection()?.toString()) { e.preventDefault(); if (tab.busy) interrupt(tab.id); else setCmd(""); }
             }}
-            aria-label="Terminal command" placeholder={ai ? "e.g. show the 5 biggest files in src" : tab.busy ? "running…" : "type a command"}
+            aria-label="Terminal command" placeholder={ai ? "e.g. show the 5 biggest files in src" : tab.busy ? "running… (output streams live)" : "type a command"}
             className={`relative h-9 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/50 sm:text-sm ${ai ? "font-sans" : ""}`}
             autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} />
         </div>
-        <button aria-label={ai ? "Ask AI" : "Run"} disabled={tab.busy || aiBusy || !cmd.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground disabled:opacity-40">
-          {tab.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-        </button>
+        {tab.busy ? (
+          <button type="button" aria-label="Stop command" onClick={() => interrupt(tab.id)} className="grid h-9 shrink-0 place-items-center rounded-md bg-destructive px-2.5 font-mono text-xs text-destructive-foreground">^C</button>
+        ) : (
+          <button aria-label={ai ? "Ask AI" : "Run"} disabled={aiBusy || !cmd.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground disabled:opacity-40">
+            {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          </button>
+        )}
       </form>
 
       {/* Termux-style extra keys */}

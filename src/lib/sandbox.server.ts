@@ -11,7 +11,32 @@ function clip(s: string) {
 }
 
 /** Opens (or reuses) this task's E2B sandbox, synced to the work branch plus staged changes. */
-export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }, signal?: AbortSignal) {
+const JOB_CHUNK = 60_000;
+
+/** Reads new output of a detached terminal job from `offset` (bytes) and its exit code if finished. */
+export async function pollJob(sandboxId: string, job: string, offset: number, kill = false) {
+  const apiKey = process.env["E2B_API_KEY"];
+  if (!apiKey) throw new Error("Terminal is not configured");
+  if (!/^[a-z0-9-]{8,64}$/.test(job)) throw new Error("Invalid job");
+  const { Sandbox } = await import("e2b");
+  const box = await Sandbox.connect(sandboxId, { apiKey, timeoutMs: 15 * 60_000 }).catch(() => null);
+  if (!box) return { out: "", offset, exit_code: -1, done: true, note: "Sandbox expired (15 min idle). Run the command again." };
+  const dir = `/tmp/forge-jobs/${job}`;
+  if (kill) await box.commands.run(`p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && pkill -TERM -P $p; pkill -f ${dir}/cmd.sh; kill $p 2>/dev/null; [ -f ${dir}/exit ] || echo 130 > ${dir}/exit`, { timeoutMs: 10_000 }).catch(() => {});
+  const r = await box.commands.run(
+    `s=$(stat -c%s ${dir}/out.log 2>/dev/null || echo 0); tail -c +${offset + 1} ${dir}/out.log 2>/dev/null | head -c ${JOB_CHUNK}; printf '\\036%s|%s' "$s" "$(cat ${dir}/exit 2>/dev/null)"`,
+    { timeoutMs: 20_000 },
+  ).catch(() => null);
+  const raw = String(r?.stdout ?? "");
+  const i = raw.lastIndexOf("\x1e");
+  const [size, code] = (i >= 0 ? raw.slice(i + 1) : "0|").split("|");
+  const total = Number(size) || 0;
+  const next = Math.min(total, offset + JOB_CHUNK);
+  const exit = code?.trim() ? Number(code.trim()) : null;
+  return { out: i >= 0 ? raw.slice(0, i) : "", offset: next, exit_code: exit, done: exit !== null && next >= total };
+}
+
+export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }, signal?: AbortSignal, job?: string) {
   signal?.throwIfAborted();
   const apiKey = process.env["E2B_API_KEY"];
   if (!apiKey) throw new Error("Terminal is not configured");
@@ -63,6 +88,19 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     const full = `${REPO_DIR}/${c.path}`;
     if (c.action === "delete") await box.files.remove(full).catch(() => {});
     else await box.files.write(full, c.content ?? "");
+  }
+  if (job) {
+    // Detached terminal job: output streams to a log file the client polls, so long commands
+    // (installs, builds) never hit the request time limit.
+    const dir = `/tmp/forge-jobs/${job}`;
+    await box.files.write(`${dir}/cmd.sh`, command);
+    const envStr = Object.entries(RUN_ENV).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
+    const h = await box.commands.run(
+      `${envStr} bash ${dir}/cmd.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`,
+      { cwd: REPO_DIR, background: true, timeoutMs: 0 },
+    );
+    await box.files.write(`${dir}/pid`, String(h.pid));
+    return { job, sandbox_id: box.sandboxId };
   }
   if (preview) {
     // Start a long-running dev server and expose its port through the sandbox's public HTTPS host.
