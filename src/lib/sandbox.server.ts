@@ -22,7 +22,7 @@ export async function pollJob(sandboxId: string, job: string, offset: number, ki
   const box = await Sandbox.connect(sandboxId, { apiKey, timeoutMs: 15 * 60_000 }).catch(() => null);
   if (!box) return { out: "", offset, exit_code: -1, done: true, note: "Sandbox expired (15 min idle). Run the command again." };
   const dir = `/tmp/forge-jobs/${job}`;
-  if (kill) await box.commands.run(`p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && pkill -TERM -P $p; kill $p 2>/dev/null; [ -f ${dir}/exit ] || echo 130 > ${dir}/exit`, { timeoutMs: 10_000 }).catch(() => {});
+  if (kill) await box.commands.run(`p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && pkill -TERM -P $p; pkill -f ${dir}/cmd.sh; kill $p 2>/dev/null; [ -f ${dir}/exit ] || echo 130 > ${dir}/exit`, { timeoutMs: 10_000 }).catch(() => {});
   const r = await box.commands.run(
     `s=$(stat -c%s ${dir}/out.log 2>/dev/null || echo 0); tail -c +${offset + 1} ${dir}/out.log 2>/dev/null | head -c ${JOB_CHUNK}; printf '\\036%s|%s' "$s" "$(cat ${dir}/exit 2>/dev/null)"`,
     { timeoutMs: 20_000 },
@@ -95,10 +95,11 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     const dir = `/tmp/forge-jobs/${job}`;
     await box.files.write(`${dir}/cmd.sh`, command);
     const envStr = Object.entries(RUN_ENV).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
-    await box.commands.run(
-      `cd ${REPO_DIR} && nohup bash -c ${JSON.stringify(`${envStr} bash ${dir}/cmd.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`)} > /dev/null 2>&1 & echo $! > ${dir}/pid`,
-      { timeoutMs: 15_000 },
+    const h = await box.commands.run(
+      `${envStr} bash ${dir}/cmd.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`,
+      { cwd: REPO_DIR, background: true, timeoutMs: 0 },
     );
+    await box.files.write(`${dir}/pid`, String(h.pid));
     return { job, sandbox_id: box.sandboxId };
   }
   if (preview) {
