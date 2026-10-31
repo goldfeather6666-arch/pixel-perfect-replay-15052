@@ -305,7 +305,7 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <p className="mx-auto mb-2 max-w-3xl text-xs text-destructive">The last run stopped without finishing (no sign of life for over 2 minutes). Its saved progress is above — send a message such as "continue" to pick up from there.</p>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 2 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
             {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
