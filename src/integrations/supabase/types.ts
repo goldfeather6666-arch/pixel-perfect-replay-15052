@@ -503,6 +503,115 @@ export type Database = {
           },
         ]
       }
+      preview_secrets: {
+        Row: {
+          ciphertext: string
+          iv: string
+          preview_id: string
+          updated_at: string
+          upstream_host: string
+          user_id: string
+        }
+        Insert: {
+          ciphertext: string
+          iv: string
+          preview_id: string
+          updated_at?: string
+          upstream_host: string
+          user_id: string
+        }
+        Update: {
+          ciphertext?: string
+          iv?: string
+          preview_id?: string
+          updated_at?: string
+          upstream_host?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preview_secrets_preview_id_fkey"
+            columns: ["preview_id"]
+            isOneToOne: true
+            referencedRelation: "preview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      preview_sessions: {
+        Row: {
+          branch_name: string
+          browser_errors: Json
+          command: string
+          created_at: string
+          expires_at: string
+          framework: string
+          id: string
+          last_health_check_at: string | null
+          port: number
+          preview_url: string
+          process: Json
+          project_id: string
+          run_id: string | null
+          sandbox_id: string
+          share_until: string | null
+          status: string
+          token_version: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          branch_name: string
+          browser_errors?: Json
+          command?: string
+          created_at?: string
+          expires_at?: string
+          framework?: string
+          id?: string
+          last_health_check_at?: string | null
+          port: number
+          preview_url?: string
+          process?: Json
+          project_id: string
+          run_id?: string | null
+          sandbox_id: string
+          share_until?: string | null
+          status?: string
+          token_version?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          branch_name?: string
+          browser_errors?: Json
+          command?: string
+          created_at?: string
+          expires_at?: string
+          framework?: string
+          id?: string
+          last_health_check_at?: string | null
+          port?: number
+          preview_url?: string
+          process?: Json
+          project_id?: string
+          run_id?: string | null
+          sandbox_id?: string
+          share_until?: string | null
+          status?: string
+          token_version?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preview_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_memories: {
         Row: {
           category: string

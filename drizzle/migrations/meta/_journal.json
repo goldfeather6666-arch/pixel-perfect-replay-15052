@@ -120,6 +120,13 @@
       "when": 1793487045101,
       "tag": "0016_mcp_tool_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793489772760,
+      "tag": "0017_preview_sessions",
+      "breakpoints": true
     }
   ]
 }
