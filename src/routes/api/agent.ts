@@ -355,7 +355,17 @@ export const Route = createFileRoute("/api/agent")({
                 if (!proposal) { results.push({ id, error: "Proposal not found" }); break; }
                 const error = proposalConflict(proposal, await readCurrent(proposal.path));
                 if (error) { results.push({ id, error }); break; }
-                const result = await tools.write_file.execute?.({ path: proposal.path, content: proposal.content, commit_message }, { toolCallId: id, messages: [], abortSignal: runAbort.signal });
+                let result: { staged: boolean } | { committed: string };
+                if (supervised) {
+                  pending.push({ path: proposal.path, action: "write", content: proposal.content, original: proposal.original });
+                  result = { staged: true };
+                  emit({ t: "pending", pending });
+                } else {
+                  const sha = await gh.putFile(repo, branch, proposal.path, proposal.content, commit_message);
+                  result = { committed: sha.slice(0, 7) };
+                  treeCache = null;
+                }
+                invalidateChecks();
                 proposals.delete(id);
                 results.push({ id, path: proposal.path, result });
               }
