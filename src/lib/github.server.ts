@@ -1,4 +1,5 @@
 import { b64ToUtf8, utf8ToB64 } from "./crypto.server";
+import { commitSafely } from "./branch-write-queue";
 
 export class GitHub {
   constructor(private token: string) {}
@@ -65,22 +66,26 @@ export class GitHub {
       throw e;
     }
   }
-  async putFile(repo: string, branch: string, path: string, content: string, message: string) {
-    const existing = await this.getFile(repo, branch, path);
-    const r = await this.req<any>(`repos/${repo}/contents/${this.enc(path)}`, {
-      method: "PUT",
-      body: JSON.stringify({ message, content: utf8ToB64(content), branch, ...(existing ? { sha: existing.sha } : {}) }),
+  putFile(repo: string, branch: string, path: string, content: string, message: string) {
+    return commitSafely(repo, branch, async () => {
+      const existing = await this.getFile(repo, branch, path);
+      const r = await this.req<any>(`repos/${repo}/contents/${this.enc(path)}`, {
+        method: "PUT",
+        body: JSON.stringify({ message, content: utf8ToB64(content), branch, ...(existing ? { sha: existing.sha } : {}) }),
+      });
+      return r.commit.sha as string;
     });
-    return r.commit.sha as string;
   }
-  async deleteFile(repo: string, branch: string, path: string, message: string) {
-    const existing = await this.getFile(repo, branch, path);
-    if (!existing) throw new Error(`${path} does not exist`);
-    const r = await this.req<any>(`repos/${repo}/contents/${this.enc(path)}`, {
-      method: "DELETE",
-      body: JSON.stringify({ message, sha: existing.sha, branch }),
+  deleteFile(repo: string, branch: string, path: string, message: string) {
+    return commitSafely(repo, branch, async () => {
+      const existing = await this.getFile(repo, branch, path);
+      if (!existing) throw new Error(`${path} does not exist`);
+      const r = await this.req<any>(`repos/${repo}/contents/${this.enc(path)}`, {
+        method: "DELETE",
+        body: JSON.stringify({ message, sha: existing.sha, branch }),
+      });
+      return r.commit.sha as string;
     });
-    return r.commit.sha as string;
   }
   async compare(repo: string, base: string, head: string) {
     const c = await this.req<any>(`repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
