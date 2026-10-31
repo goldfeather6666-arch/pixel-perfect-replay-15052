@@ -17,7 +17,7 @@ export function asAutonomy(mode: string | null | undefined): Autonomy {
 const SENSITIVE = /(^|\/)(package\.json|.*lock.*|\.env.*|vercel\.json|netlify\.toml|wrangler\.toml|vite\.config\.\w+|next\.config\.\w+|tsconfig\.json|Dockerfile|\.github\/workflows\/.*|supabase\/migrations\/.*|supabase\/config\.toml|.*\.sql)$/i;
 
 /** True when a file write must be staged for approval at this level. */
-export function writeNeedsApproval(level: Autonomy, f: { path: string; action: "write" | "delete"; content?: string; original?: string | null }): boolean {
+export function writeNeedsApproval(level: Autonomy, f: { path: string; action: "write" | "delete"; content?: string | undefined; original?: string | null | undefined }): boolean {
   if (level === "supervised") return true;
   if (level === "full" || level === "autonomous") return false;
   // significant: deletes, config/migration/dependency files, and large rewrites of existing files wait.
