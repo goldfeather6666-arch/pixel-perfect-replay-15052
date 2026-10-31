@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { abortable, errorText } from "@/lib/abortable";
+import { abortable, errorText, toolErrorText } from "@/lib/abortable";
 describe("abortable", () => {
   it("rejects when stopped while work is still running", async () => {
     const c = new AbortController();
@@ -15,7 +15,6 @@ describe("abortable", () => {
   });
 });
 
-import { toolErrorText } from "@/lib/abortable";
 describe("toolErrorText", () => {
   it("keeps the validation reason and drops the echoed input", () => {
     const msg = 'Invalid input for tool delegate: Type validation failed: Value: {"jobs":[' + "y".repeat(5000) + ']}.\nError message: [{"code":"too_big","path":["jobs",0,"task"]}]';
