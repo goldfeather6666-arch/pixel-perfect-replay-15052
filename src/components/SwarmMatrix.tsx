@@ -6,7 +6,7 @@ type Job = { label: string; role: string; paths?: string[]; after?: string[] };
 
 const ROLE_TONE: Record<string, string> = {
   coder: "text-primary", frontend: "text-primary", backend: "text-primary", database: "text-primary", integration: "text-primary",
-  tester: "text-warning", qa: "text-warning", debugger: "text-warning",
+  tester: "text-accent-foreground", qa: "text-accent-foreground", debugger: "text-accent-foreground",
 };
 
 /** Group jobs into dependency waves (jobs whose `after` deps are all in earlier waves). */
