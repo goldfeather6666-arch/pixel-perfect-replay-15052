@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Repair Stop waiting on stalled streams/cleanup and verify saved cancellation; inspect current Vercel result without starting a deployment.
+- [x] Repair Stop on stalled streams/cleanup, cancel actual shell work, retain stale-task Stop and suppress stopped-task auto-resume; focused tests passed. Current Artelie3d Deploy tab reads READY; task finished before a live Stop could be exercised.
 
 - [x] Master-controlled team: up to 12 specialist jobs, four active workers, parallel code proposals, stale-file rejection and serialized shared commands; 21 focused tests passed. Real provider speed/cost remains unmeasured (no paid task triggered).
 
