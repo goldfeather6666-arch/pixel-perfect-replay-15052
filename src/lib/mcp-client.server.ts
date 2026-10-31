@@ -37,6 +37,8 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
   const issues: { server: string; reason: string }[] = [];
   const servers: { name: string; tools: number }[] = [];
   let cacheHits = 0;
+  // Cache writes never affect the run.
+  const bestEffort = (fn: () => PromiseLike<unknown>) => { try { void Promise.resolve(fn()).catch(() => {}); } catch { /* ignore */ } };
   const close = async () => { await Promise.allSettled(clients.map((c) => c.close())); };
   const opened = new Map<string, Promise<MCPClient>>();
   const rows = data ?? [];
@@ -59,7 +61,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         const listed = (await (await getClient(row)).listTools()).tools as CachedTool[];
         all = listed;
         const compact = toCache(listed);
-        void sb.from("mcp_connections").update({ tool_cache: compact as unknown as Json, tool_cache_url: compact ? row.url : null, tool_cache_at: compact ? new Date().toISOString() : null }).eq("id", row.id).eq("user_id", userId).then(() => {}, () => {});
+        bestEffort(() => sb.from("mcp_connections").update({ tool_cache: compact as unknown as Json, tool_cache_url: compact ? row.url : null, tool_cache_at: compact ? new Date().toISOString() : null }).eq("id", row.id).eq("user_id", userId));
       }
       const allowActions = row.allow_actions && !!sessionId;
       const definitions = all.filter((t) => allowActions || allowedMcpTool(row.url, t));
@@ -99,7 +101,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
             } catch (e) {
               audit({ server: row.name, tool: def.name, decision: "executed", ok: false, ms: Date.now() - started });
               // A stale cached list can cause failures; rediscover next run.
-              if (cached) void sb.from("mcp_connections").update({ tool_cache: null, tool_cache_at: null }).eq("id", row.id).eq("user_id", userId).then(() => {}, () => {});
+              if (cached) bestEffort(() => sb.from("mcp_connections").update({ tool_cache: null, tool_cache_at: null }).eq("id", row.id).eq("user_id", userId));
               throw e;
             }
           },
