@@ -239,10 +239,22 @@ export const createSession = createServerFn({ method: "POST" })
 export const updateSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z.object({ id: z.string().uuid(), model: z.string().optional(), mode: z.enum(["supervised", "autonomous"]).optional() }),
+    z.object({
+      id: z.string().uuid(),
+      credential_id: z.string().uuid().optional(),
+      model: z.string().trim().min(1).max(200).optional(),
+      mode: z.enum(["supervised", "autonomous"]).optional(),
+    }),
   )
   .handler(async ({ data, context }) => {
-    const patch: { model?: string; mode?: string } = {};
+    const patch: { model?: string; mode?: string; credential_id?: string } = {};
+    if (data.credential_id) {
+      if (!data.model) throw new Error("Choose a model for the new provider.");
+      // Owner check: RLS only returns the caller's own saved keys.
+      const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.credential_id).maybeSingle();
+      if (!cred) throw new Error("That AI key was not found.");
+      patch.credential_id = data.credential_id;
+    }
     if (data.model) patch.model = data.model;
     if (data.mode) patch.mode = data.mode;
     const { id } = data;
