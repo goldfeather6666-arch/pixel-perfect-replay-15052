@@ -53,7 +53,27 @@ process.exit(failed ? 1 : 0);
 
 export type CheckResult = { exit_code?: number; stdout?: string; stderr?: string; error?: string; note?: string };
 
-// Return only fixed diagnostic categories, never arbitrary output that may contain credentials.
+// Keep file paths and compiler messages, strip anything that could carry a credential.
+function sanitizeLine(line: string): string {
+  return line
+    .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, "[redacted]") // JWTs
+    .replace(/\b(?:sk|pk|key|token|secret|password|apikey|api_key|bearer)[-_]?[A-Za-z0-9_-]{16,}\b/gi, "[redacted]")
+    .replace(/(key|token|secret|password|apikey)(["'\s]*[:=]["'\s]*)\S+/gi, "$1$2[redacted]")
+    .replace(/https?:\/\/[^\s)"']*@/g, "https://[redacted]@") // credentialed URLs
+    .slice(0, 220)
+    .trim();
+}
+
+// Pull the first meaningful error lines so the user and the agent see the real cause,
+// not just "read the output". Only error-looking lines are included, then sanitized.
+export function firstErrorLines(output: string, max = 3): string[] {
+  const lines = output.split("\n").map((l) => l.trim()).filter((l) => l.length > 0 && !/\[Forge (check|exit)\]/.test(l));
+  const matches = lines.filter((l) => /error|failed|✕|✗|not found|cannot find|missing/i.test(l));
+  const picked = (matches.length ? matches : lines.slice(-max)).slice(0, max);
+  return picked.map(sanitizeLine).filter(Boolean);
+}
+
+// Return fixed diagnostic categories plus sanitized first-error lines; never raw dumps that may contain credentials.
 export function checkFailure(result: CheckResult): string {
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error ?? ""}\n${result.note ?? ""}`;
   if (/URL and Key are required|supabaseUrl is required|supabaseKey is required|missing.*(?:environment variable|SUPABASE.*KEY|SUPABASE.*URL)/i.test(output)) return "Required database URL/public-key settings are missing in the check environment. Connect the database in Deploy and verify the current commit on Vercel; never invent credentials.";
