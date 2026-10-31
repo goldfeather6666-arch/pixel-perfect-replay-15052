@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
+import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
 describe("provider request failures", () => {
   it("identifies invalid Inception display names without changing the selected model", () => {
     expect(modelConfigurationError("https://api.inceptionlabs.ai/v1", "mercury 3")).toContain("mercury-3");
@@ -11,5 +11,15 @@ describe("provider request failures", () => {
   });
   it("never exposes raw provider bodies or secrets", () => {
     expect(providerRequestError({ message: "secret-key raw response" })).not.toContain("secret-key");
+  });
+  it("recognises throttling from the status or the token-cap wording", () => {
+    expect(isRateLimit({ statusCode: 429, message: "Too Many Requests" })).toBe(true);
+    expect(isRateLimit({ message: "Rate limit reached: output token limit exceeded" })).toBe(true);
+    expect(isRateLimit({ message: "connection reset" })).toBe(false);
+  });
+  it("tells the user to wait and continue instead of blaming the connection", () => {
+    const text = providerRequestError({ statusCode: 429, message: "Rate limit reached: output token limit exceeded" });
+    expect(text).toContain("rate limit");
+    expect(text).toContain("continue");
   });
 });

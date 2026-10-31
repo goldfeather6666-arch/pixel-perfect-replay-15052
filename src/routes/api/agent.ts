@@ -480,7 +480,10 @@ export const Route = createFileRoute("/api/agent")({
                 }
                 }
               }, runAbort.signal));
-              return { results, note: "Master: review code with read_proposals, then merge selected IDs in dependency order using apply_proposals. Verify the integrated result." };
+              const allRateLimited = results.length > 0 && results.every((r) => "error" in r && isRateLimit({ message: String((r as { error?: unknown }).error ?? "") }));
+              return { results, note: allRateLimited
+                ? "Every helper stopped at the provider's rate limit (usually a cap on generated tokens per minute). Wait a few minutes, then re-run the same wave with fewer jobs — do not retry instantly."
+                : "Master: review code with read_proposals, then merge selected IDs in dependency order using apply_proposals. Verify the integrated result." };
             },
           }),
         };
