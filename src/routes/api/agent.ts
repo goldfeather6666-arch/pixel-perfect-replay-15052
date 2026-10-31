@@ -143,8 +143,8 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           read_files: tool({
-            description: "Read up to 20 files at once, in parallel. Prefer this over many read_file calls.",
-            inputSchema: z.object({ paths: z.array(z.string()).min(1).max(20) }),
+            description: "Read up to 60 files at once, in parallel. Prefer this over many read_file calls.",
+            inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
             execute: async ({ paths }) => {
               let budget = 120000;
               const out = await parallelMap(paths, 2, async (path) => ({ path, c: await readCurrent(path).catch(() => null) }), runAbort.signal);
@@ -428,7 +428,7 @@ export const Route = createFileRoute("/api/agent")({
                   }) };
                   const coderTools = { ...base, read_files: tool({
                     description: "Read complete files before proposing edits.",
-                    inputSchema: z.object({ paths: z.array(z.string()).min(1).max(20) }),
+                    inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
                     execute: async ({ paths }) => parallelMap(paths, 2, async (path) => {
                       const content = await readCurrent(path); originals.set(path, content); return { path, content };
                     }, runAbort.signal),
