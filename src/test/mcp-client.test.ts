@@ -17,6 +17,7 @@ describe("external agent tools", () => {
         { name: "delete", inputSchema: {}, annotations: { readOnlyHint: false } },
       ] }),
       toolsFromDefinitions: () => ({ read: { execute: fake.execute }, delete: { execute: fake.execute } }),
+      callTool: (a: { arguments: unknown }) => fake.execute(a.arguments),
       close: fake.close,
     });
     fake.execute.mockResolvedValue({ content: [{ type: "text", text: "documentation" }] });
@@ -53,7 +54,7 @@ describe("external agent tools", () => {
         { name: "list_projects", inputSchema: { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" }, annotations: { readOnlyHint: true } },
         { name: "broken", inputSchema: { $schema: "https://invalid.example/schema" }, annotations: { readOnlyHint: true } },
       ] }),
-      toolsFromDefinitions: () => ({ list_projects: { execute: fake.execute }, broken: { execute: fake.execute } }), close: fake.close,
+      toolsFromDefinitions: () => ({ list_projects: { execute: fake.execute }, broken: { execute: fake.execute } }), callTool: (a: { arguments: unknown }) => fake.execute(a.arguments), close: fake.close,
     });
     const q = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), then: (resolve: (v: unknown) => void) => resolve({ data: [{ id: "framer", name: "Framer", url: "https://mcp.framer.com/mcp" }], error: null }) };
     const registry = await loadMcpTools({ from: () => q } as unknown as SupabaseClient<Database>, "owner-1");

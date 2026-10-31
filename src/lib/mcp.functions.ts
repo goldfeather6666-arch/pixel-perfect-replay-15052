@@ -46,7 +46,7 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
       client = await openSavedMcp(context.supabase, row);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
-      const { error: saveError } = await table.update({ state: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", data.id).eq("user_id", context.userId);
+      const { error: saveError } = await table.update({ state: "ready", tool_cache: null, tool_cache_at: null, tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", data.id).eq("user_id", context.userId);
       if (saveError) throw saveError;
     } catch {
       await table.update({ state: "failed" }).eq("id", data.id).eq("user_id", context.userId);

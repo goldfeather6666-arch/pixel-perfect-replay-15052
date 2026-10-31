@@ -56,4 +56,4 @@
 - [x] Phase B: model capability registry (context, vision, pricing), context trimmed to model window, vision guard, optional backup model; skill metadata/triggers/dependencies/version hash with per-run load records; MCP per-tool permissions (default/ask/deny) and execution audit.
 - [x] Phase C: typed memory (project/preference/decision/error) with remember tool and Run-tab list; 13 specialist roles with dependency waves and structured reports; four autonomy levels enforced server-side.
 - [ ] Live end-to-end run with a real key — needs your sign-in in the preview (several accounts exist, I can't pick one).
-- [ ] Not built: durable task leases/checkpoint resume beyond existing keeper + auto-resume; MCP resources/prompts; MCP tool-list caching between runs; semantic (embedding) retrieval.
+- [x] Resume checkpoints, MCP tool-list cache (6h, per URL), MCP resources/prompts (read-only), relevance-ranked memory + recall_memory
