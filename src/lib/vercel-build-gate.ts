@@ -3,7 +3,7 @@
 // Vercel ignore-command semantics: exit 0 = skip the build, exit 1 = build.
 export const DEPLOY_MARKER = "[forge deploy]";
 export const BUILD_GATE_COMMAND =
-  `case "$VERCEL_GIT_COMMIT_REF" in agent/*) echo "$VERCEL_GIT_COMMIT_MESSAGE" | grep -qF "${DEPLOY_MARKER}" && exit 1 || exit 0;; *) exit 1;; esac`;
+  `case "$VERCEL_GIT_COMMIT_REF" in agent/*) case "$VERCEL_GIT_COMMIT_MESSAGE" in *"${DEPLOY_MARKER}"*) exit 1;; *) exit 0;; esac;; *) exit 1;; esac`;
 
 /** Decide what to set on the project: only install the gate when the user has no custom ignore command. */
 export function gateUpdate(current: string | null | undefined): string | null {
