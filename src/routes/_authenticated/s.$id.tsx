@@ -16,6 +16,7 @@ import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
 import { DeployPanel } from "@/components/DeployPanel";
+import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { taskRunStatus } from "@/lib/task-run-status";
 
@@ -257,6 +258,7 @@ function Workspace() {
             >
               {s.mode}
             </button>
+            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} disabled={running || bgRunning} />
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
                 <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
