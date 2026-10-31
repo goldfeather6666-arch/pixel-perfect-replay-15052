@@ -587,23 +587,48 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => (
-            <div key={f.filename} className="overflow-hidden rounded-md border">
-              <div className="border-b bg-muted px-3 py-1.5 font-mono text-xs">{f.status} · {f.filename}</div>
-              <PatchView patch={f.patch} />
-            </div>
-          ))}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} filename={f.filename} status={f.status} patch={f.patch} />)}
         </div>
       </section>
     </div>
   );
 }
 
-function PatchView({ patch }: { patch: string }) {
+function DiffFile({ filename, status, patch }: { filename: string; status: string; patch: string }) {
+  const [open, setOpen] = useState(true);
+  const lines = patch.split("\n");
+  const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+  const del = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
   return (
-    <pre className="max-h-96 overflow-auto font-mono text-xs">
-      {patch.split("\n").map((l, i) => (
-        <div key={i} className={`px-3 ${l.startsWith("+") ? "bg-added" : l.startsWith("-") ? "bg-removed" : l.startsWith("@@") ? "text-muted-foreground" : ""}`}>{l || " "}</div>
+    <div className="panel overflow-hidden">
+      <button type="button" onClick={() => setOpen(!open)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/60 px-3 py-2 text-left font-mono text-xs">
+        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+        <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
+        <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
+      </button>
+      {open && <PatchView patch={patch} />}
+    </div>
+  );
+}
+
+function PatchView({ patch }: { patch: string }) {
+  // Track old/new line numbers from hunk headers for a gutter.
+  let o = 0, n = 0;
+  const rows = patch.split("\n").map((l) => {
+    const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
+    if (h) { o = +h[1]; n = +h[2]; return { l, a: "", b: "", k: "h" }; }
+    if (l.startsWith("+")) return { l, a: "", b: String(n++), k: "+" };
+    if (l.startsWith("-")) return { l, a: String(o++), b: "", k: "-" };
+    return { l, a: String(o++), b: String(n++), k: " " };
+  });
+  return (
+    <pre className="max-h-[28rem] overflow-auto font-mono text-xs leading-5">
+      {rows.map((r, i) => (
+        <div key={i} className={`grid grid-cols-[2.5rem_2.5rem_minmax(0,1fr)] ${r.k === "+" ? "bg-added" : r.k === "-" ? "bg-removed" : r.k === "h" ? "bg-muted/50 text-primary/80" : ""}`}>
+          <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{r.a}</span>
+          <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{r.b}</span>
+          <span className="whitespace-pre px-3">{r.l || " "}</span>
+        </div>
       ))}
     </pre>
   );
