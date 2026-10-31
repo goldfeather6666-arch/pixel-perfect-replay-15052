@@ -120,6 +120,29 @@ export const listModels = createServerFn({ method: "POST" })
     return listProviderModels(row.provider, key, row.base_url, row.custom_models ?? []);
   });
 
+/** Uses the caller's own AI key to divide a task into master/explorer/coder/tester work. */
+export const splitWork = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ credential_id: z.string().uuid(), model: z.string().min(1).max(200), task: z.string().min(10).max(20_000), repo: z.string().max(200).optional() }))
+  .handler(async ({ data, context }) => {
+    const { row, key } = await loadSecret(context, data.credential_id);
+    const { createModel } = await import("./providers.server");
+    const { SPLIT_SYSTEM, parseWorkSplit } = await import("./work-split");
+    const { streamText } = await import("ai");
+    try {
+      const result = streamText({
+        model: createModel(row.provider, key, row.base_url, data.model, row.extra_body),
+        system: SPLIT_SYSTEM,
+        prompt: `${data.repo ? `Repository: ${data.repo}\n` : ""}Task:\n${data.task}`,
+        maxRetries: 1,
+      });
+      return parseWorkSplit(await result.text);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Planning failed";
+      throw new Error(msg.slice(0, 300));
+    }
+  });
+
 // ---------- GitHub ----------
 export const listRepos = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
