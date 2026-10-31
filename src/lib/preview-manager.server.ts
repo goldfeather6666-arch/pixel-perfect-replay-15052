@@ -80,8 +80,18 @@ async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: S
     const { loadDatabaseSettings } = await import("./deployment-settings.server");
     const { deploymentEnv, isPublicDatabaseKey } = await import("./deployment-env");
     const saved = await loadDatabaseSettings(session.user_id, session.id, session.supabase_ref);
-    if (!saved?.publicKey || !isPublicDatabaseKey(saved.publicKey)) return;
-    const env = deploymentEnv(saved.url || `https://${session.supabase_ref}.supabase.co`, saved.publicKey) as Record<string, string>;
+    let publicKey = saved?.publicKey ?? "";
+    if (!publicKey) {
+      // Fall back to the linked project's public key via the user's saved database token.
+      const { data: cred } = await (await admin()).from("provider_credentials").select("ciphertext, iv").eq("user_id", session.user_id).eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
+      if (cred?.length) {
+        const { decryptSecret } = await import("./crypto.server");
+        const { SupabaseMgmt } = await import("./integrations.server");
+        publicKey = (await new SupabaseMgmt(await decryptSecret(cred[0]!.ciphertext, cred[0]!.iv)).anonKey(session.supabase_ref)) ?? "";
+      }
+    }
+    if (!publicKey || !isPublicDatabaseKey(publicKey)) return;
+    const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey) as Record<string, string>;
     const lines = Object.entries(env).filter(([k]) => !/SERVICE|SECRET/i.test(k)).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
     await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
     await sh(box, `chmod 600 ${dirOf(id)}/env`);
