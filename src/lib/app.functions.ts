@@ -465,7 +465,7 @@ export const runTerminal = createServerFn({ method: "POST" })
 
 export const suggestCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), request: z.string().trim().min(2).max(2000), cwd: z.string().max(500).optional(), history: z.array(z.string().max(500)).max(10).optional() }))
+  .inputValidator(z.object({ id: z.string().uuid(), request: z.string().trim().min(2).max(4000), cwd: z.string().max(500).optional(), history: z.array(z.string().max(500)).max(10).optional() }))
   .handler(async ({ data, context }) => {
     const { data: s, error } = await context.supabase.from("agent_sessions").select("credential_id, model, repo").eq("id", data.id).eq("user_id", context.userId).single();
     if (error || !s) throw new Error("Task not found");

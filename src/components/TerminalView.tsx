@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Copy, Sparkles, Eraser, Loader2, Minus, Play, Plus, Search, TerminalSquare, X } from "lucide-react";
 import { runTerminal, suggestCommand } from "@/lib/app.functions";
-import { extractCwd, isRisky, parseAnsi, wrapCommand } from "@/lib/terminal";
+import { extractCwd, isRisky, looksLikeRequest, parseAnsi, wrapCommand } from "@/lib/terminal";
 
 type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number };
 type Tab = { id: number; name: string; cwd: string | null; log: Entry[]; busy: boolean };
@@ -155,6 +155,12 @@ export function TerminalView({ id }: { id: string }) {
             </div>
             {e.out !== undefined && <pre className="whitespace-pre-wrap break-words text-foreground/90"><Ansi text={e.out || "(no output)"} /></pre>}
             {e.err && <div className="text-destructive">{e.err}</div>}
+            {!!e.code && i === visible.length - 1 && (
+              <button type="button" disabled={aiBusy} onClick={() => askAi(`This command failed with exit ${e.code}: ${e.cmd}\nOutput:\n${(e.out ?? "").slice(-1500)}\nGive the command that fixes it.`)}
+                className="mt-1 inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 font-sans text-[11px] text-primary hover:bg-accent">
+                <Sparkles className="h-3 w-3" />Fix with AI
+              </button>
+            )}
             {e.out === undefined && !e.err && <span className="inline-block h-4 w-2 animate-pulse bg-primary align-middle" />}
           </div>
         ))}
@@ -182,7 +188,7 @@ export function TerminalView({ id }: { id: string }) {
           <label className="flex shrink-0 items-center gap-1.5 text-muted-foreground"><input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />Run automatically</label>
         </div>
       )}
-      <form onSubmit={(e) => { e.preventDefault(); if (ai) void askAi(cmd); else void exec(cmd); }} className="flex items-center gap-2 border-t px-3 py-2 font-mono text-sm">
+      <form onSubmit={(e) => { e.preventDefault(); if (ai || looksLikeRequest(cmd)) void askAi(cmd); else void exec(cmd); }} className="flex items-center gap-2 border-t px-3 py-2 font-mono text-sm">
         <button type="button" aria-label="Ask AI for a command" aria-pressed={ai} onClick={() => { setAi(!ai); input.current?.focus(); }}
           className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border transition-colors ${ai ? "border-primary bg-accent text-primary shadow-glow" : "text-muted-foreground hover:text-primary"}`}>
           {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

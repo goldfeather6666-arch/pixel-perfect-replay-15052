@@ -74,3 +74,15 @@ export function parseCommandReply(text: string): { command: string; explanation:
 export function isRisky(command: string): boolean {
   return /\brm\s+-[a-z]*[rf]|\bgit\s+(push|reset\s+--hard|clean\s+-[a-z]*f)|\bmkfs|\bdd\s+if=|:\(\)\s*\{|\bchmod\s+-R|\bsudo\b|>\s*\/dev\/sd|\bcurl\b[^|]*\|\s*(ba)?sh/.test(command);
 }
+
+const KNOWN = new Set("ls cd cat npm npx pnpm yarn bun node git grep rg find echo pwd mkdir rm cp mv touch head tail wc sed awk curl python python3 pip make tsc vite vitest jest docker env export which chmod tree du df ps kill sort uniq xargs tar unzip deno go cargo".split(" "));
+const STOP = /\b(and|the|then|all|my|for|with|please|to|of|show|what|how|why|which|from|into|every|files?|folder|project|dependencies|everything)\b/i;
+
+/** Plain-language requests typed into the shell (e.g. "install dependencies and build") go to the AI instead. */
+export function looksLikeRequest(input: string): boolean {
+  const t = input.trim();
+  if (/[-./|><&$=;"'`~*()[\]{}\\]/.test(t)) return false;
+  const words = t.split(/\s+/);
+  if (words.length < 2) return false;
+  return !KNOWN.has(words[0]!.toLowerCase()) || (words.length >= 3 && STOP.test(words.slice(1).join(" ")));
+}
