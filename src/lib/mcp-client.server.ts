@@ -24,7 +24,10 @@ export async function inspectMcp(client: MCPClient, url: string, allowActions = 
   return { definitions: filtered.tools, sdkTools };
 }
 
-export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string, sessionId?: string) {
+export type McpAudit = (row: { server: string; tool: string; decision: "executed" | "staged" | "denied" | "invalid"; ok?: boolean; ms?: number }) => void;
+export type ToolPolicy = "allow" | "ask" | "deny";
+
+export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string, sessionId?: string, audit: McpAudit = () => {}) {
   const { data, error } = await sb.from("mcp_connections").select("*").eq("user_id", userId).eq("enabled", true).eq("state", "ready");
   if (error) throw new Error("Could not load external tool connections");
   const clients: MCPClient[] = [];
@@ -42,19 +45,24 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
       clients.push(client);
       const { definitions, sdkTools } = await inspectMcp(client, row.url, row.allow_actions && !!sessionId);
       const before = entries.length;
+      const policies = ((row as { tool_policies?: Record<string, ToolPolicy> }).tool_policies ?? {}) as Record<string, ToolPolicy>;
       for (const def of definitions) {
         const sdkTool = sdkTools[def.name];
         if (!sdkTool) continue;
+        const policy = policies[def.name] ?? "allow";
+        // Denied tools are never offered to the model.
+        if (policy === "deny") continue;
+        const needsApproval = policy === "ask" || !allowedMcpTool(row.url, def);
         let validate;
         try { validate = compileMcpSchema(def.inputSchema); }
         catch { issues.push({ server: row.name, reason: `Unsupported input schema for tool ${def.name}` }); continue; }
         entries.push({ name: `mcp_${row.id.replaceAll("-", "")}.${def.name}`, server: row.name,
           description: (def.description ?? "").slice(0, 1500), input_schema: def.inputSchema,
-          requires_approval: !allowedMcpTool(row.url, def),
+          requires_approval: needsApproval,
           execute: async (args) => {
-            if (!validate(args)) return { error: "Invalid arguments for external tool" };
-            if (!allowedMcpTool(row.url, def)) {
-              if (!sessionId || !row.allow_actions) return { error: "External actions disabled" };
+            if (!validate(args)) { audit({ server: row.name, tool: def.name, decision: "invalid" }); return { error: "Invalid arguments for external tool" }; }
+            if (needsApproval) {
+              if (!sessionId || (!row.allow_actions && policy !== "ask")) { audit({ server: row.name, tool: def.name, decision: "denied" }); return { error: "External actions disabled" }; }
               if (JSON.stringify(args).length > 20000) return { error: "External action arguments are too large" };
               const { data: staged, error: stageError } = await sb.from("mcp_action_requests").insert({
                 user_id: userId, session_id: sessionId, connection_id: row.id,
@@ -62,9 +70,18 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
                 tool_name: def.name, input_schema: def.inputSchema as Json, arguments: args as Json,
               }).select("id").single();
               if (stageError || !staged) return { error: "Could not stage external action" };
+              audit({ server: row.name, tool: def.name, decision: "staged" });
               return { staged: true, request_id: staged.id, note: "External action NOT executed. User must approve it in Changes. Never claim success until its saved result is available." };
             }
-            return sdkTool.execute(args);
+            const started = Date.now();
+            try {
+              const out = await sdkTool.execute(args);
+              audit({ server: row.name, tool: def.name, decision: "executed", ok: true, ms: Date.now() - started });
+              return out;
+            } catch (e) {
+              audit({ server: row.name, tool: def.name, decision: "executed", ok: false, ms: Date.now() - started });
+              throw e;
+            }
           },
         });
       }

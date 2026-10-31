@@ -41,4 +41,5 @@ export type AgentEvent =
   | { t: "pending"; pending: PendingChange[] }
   | { t: "usage"; input: number; output: number }
   | { t: "error"; m: string }
+  | { t: "stage"; stage: string; runId: string | null }
   | { t: "done" };
