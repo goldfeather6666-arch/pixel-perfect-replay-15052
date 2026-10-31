@@ -301,7 +301,7 @@ function Workspace() {
                       ["Review for bugs", "/review"],
                       ["Plan a feature", "/plan "],
                     ].map(([t, p]) => (
-                      <button key={t} type="button" onClick={() => { setInput(p); taRef.current?.focus(); }}
+                      <button key={t} type="button" onClick={() => { setInput(p ?? ""); taRef.current?.focus(); }}
                         className="panel px-4 py-3 text-sm transition-colors hover:border-primary">
                         <span className="font-medium">{t}</span>
                         <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">{p}</span>
@@ -643,7 +643,7 @@ function PatchView({ patch }: { patch: string }) {
   let o = 0, n = 0;
   const rows = patch.split("\n").map((l) => {
     const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
-    if (h) { o = +h[1]; n = +h[2]; return { l, a: "", b: "", k: "h" }; }
+    if (h) { o = Number(h[1] ?? 0); n = Number(h[2] ?? 0); return { l, a: "", b: "", k: "h" }; }
     if (l.startsWith("+")) return { l, a: "", b: String(n++), k: "+" };
     if (l.startsWith("-")) return { l, a: String(o++), b: "", k: "-" };
     return { l, a: String(o++), b: String(n++), k: " " };
