@@ -4,11 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles } from "lucide-react";
+import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelLeftClose, PanelRightClose } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RunTimeline } from "@/components/RunTimeline";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,9 +15,12 @@ import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, ge
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
-import { TerminalView } from "@/components/TerminalView";
+import { TerminalDeck } from "@/components/TerminalDeck";
 import { DeployPanel } from "@/components/DeployPanel";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
+import { SwarmMatrix } from "@/components/SwarmMatrix";
+import { KnowledgeDirector } from "@/components/KnowledgeDirector";
+import { FileWorkbench } from "@/components/FileWorkbench";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { taskRunStatus } from "@/lib/task-run-status";
 
@@ -27,7 +29,29 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
   component: Workspace,
 });
 
+type PanelKey = "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
+const LEFT = [
+  ["swarm", "Swarm", Network], ["run", "Run", Activity], ["changes", "Changes", GitCompare],
+  ["knowledge", "Knowledge", BookOpen], ["deploy", "Deploy", Rocket],
+] as const;
+const RIGHT = [["terminal", "Terminal", TerminalSquare], ["files", "Files", FolderTree]] as const;
+
+function useIsDesktop() {
+  const [d, setD] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setD(mq.matches);
+    on(); mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return d;
+}
+
 function Workspace() {
+  const desktop = useIsDesktop();
+  const [view, setView] = useState<PanelKey>("chat");
+  const [left, setLeft] = useState<PanelKey | null>("swarm");
+  const [right, setRight] = useState<PanelKey | null>("terminal");
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -244,6 +268,29 @@ function Workspace() {
   }
 
   const s = session.data;
+  const renderPanel = (k: PanelKey) => {
+    if (!s) return null;
+    switch (k) {
+      case "swarm": return <SwarmMatrix messages={messages} usage={usage} model={s.model} running={running || bgRunning} />;
+      case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
+      case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
+      case "deploy": return <DeployPanel id={id} />;
+      case "terminal": return <TerminalDeck id={id} />;
+      case "files": return <FileWorkbench id={id} />;
+      case "changes": return (
+        <>
+          <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
+          <MemoryView repo={s.repo} />
+          <div className="px-3 pb-8">
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => { await remove({ data: { id } }); nav({ to: "/app" }); }}>
+              <Trash2 /> Delete task (branch stays on GitHub)
+            </Button>
+          </div>
+        </>
+      );
+      default: return null;
+    }
+  };
   return (
     <div className="flex h-dvh flex-col">
       <AppHeader>
