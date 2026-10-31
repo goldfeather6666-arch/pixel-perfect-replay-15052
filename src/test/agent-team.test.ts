@@ -42,3 +42,15 @@ describe("master-controlled agent team", () => {
     expect(teamSchema.safeParse({ jobs: "not json" }).success).toBe(false);
   });
 });
+describe("team dispatch limits", () => {
+  it("accepts detailed briefs up to 20,000 characters and 40 assigned files", () => {
+    const job = { label: "Public pages", role: "coder", task: "x".repeat(7622), paths: Array.from({ length: 24 }, (_, i) => `src/p${i}.tsx`) };
+    expect(teamSchema.safeParse({ jobs: [job] }).success).toBe(true);
+    expect(teamSchema.safeParse({ jobs: [{ ...job, task: "x".repeat(20001) }] }).success).toBe(false);
+    expect(teamSchema.safeParse({ jobs: [{ ...job, paths: Array(41).fill("a.ts") }] }).success).toBe(false);
+  });
+  it("shortens long labels instead of rejecting the dispatch", () => {
+    const r = teamSchema.safeParse({ jobs: [{ label: "L".repeat(90), task: "do the thing" }] });
+    expect(r.success && r.data.jobs[0].label.length).toBe(60);
+  });
+});

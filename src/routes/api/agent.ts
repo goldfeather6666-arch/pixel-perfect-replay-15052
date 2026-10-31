@@ -1,4 +1,4 @@
-import { errorText } from "@/lib/abortable";
+import { errorText, toolErrorText } from "@/lib/abortable";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
