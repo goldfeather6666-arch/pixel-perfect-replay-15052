@@ -174,7 +174,7 @@ export const listSessions = createServerFn({ method: "GET" })
       .select("id, title, repo, work_branch, mode, updated_at, running")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at" | "running">[];
+    return (data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at" | "running">[]).map((s) => ({ ...s, running: true, updated_at: new Date().toISOString() })); // TEMP INSTRUMENTATION - revert
   });
 
 export const getSession = createServerFn({ method: "POST" })
