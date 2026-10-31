@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Master-controlled larger agent team: parallel code proposals, conflict checks, shared-command safety and focused tests.
+- [x] Master-controlled team: up to 12 specialist jobs, four active workers, parallel code proposals, stale-file rejection and serialized shared commands; 21 focused tests passed. Real provider speed/cost remains unmeasured (no paid task triggered).
 
 - [x] Phases 1–6: keys, GitHub, streaming agent, approvals, checkpoints, editor, PRs, skills, MCP (HTTP/SSE/OAuth/action approvals), E2B terminal
 - [ ] OAuth acceptance — blocked: needs user's Notion consent + published check
