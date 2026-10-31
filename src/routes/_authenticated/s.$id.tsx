@@ -43,6 +43,17 @@ function Workspace() {
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
   const [, force] = useState(0);
   useEffect(() => { if (!sd?.running || running) return; const t = setInterval(() => force((n) => n + 1), 5000); return () => clearInterval(t); }, [sd?.running, running]);
+  // Keep the phone screen awake while a run streams: a sleeping phone drops the connection and the run is cut off.
+  useEffect(() => {
+    if (!running) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } };
+    const get = () => { if (document.visibilityState === "visible") nav.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {}); };
+    get();
+    const onVis = () => { get(); if (document.visibilityState === "visible") void qc.invalidateQueries({ queryKey: ["session", id] }); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); void lock?.release().catch(() => {}); };
+  }, [running, qc, id]);
   const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > 120_000;
   const bgRunning = !running && !!sd?.running && !stale;
   const runStart = useRef<number>(0);
