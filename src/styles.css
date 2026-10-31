@@ -30,6 +30,11 @@
   --color-success: var(--success);
   --color-added: var(--added);
   --color-removed: var(--removed);
+  --color-term-yellow: oklch(0.86 0.15 90);
+  --color-term-blue: oklch(0.72 0.14 250);
+  --color-term-magenta: oklch(0.74 0.16 330);
+  --color-term-cyan: oklch(0.8 0.12 200);
+  --color-term-bg: oklch(0.13 0.006 70);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
