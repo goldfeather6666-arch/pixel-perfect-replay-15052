@@ -644,7 +644,9 @@ export const Route = createFileRoute("/api/agent")({
                 logs.push(log);
                 send({ t: "tool", id, name: log.name, input });
                 try {
-                  const checked = await abortable(tools.deployment_preflight.execute(input), runAbort.signal);
+                  const executeCheck = tools.deployment_preflight.execute;
+                  if (!executeCheck) throw new Error("Production check tool unavailable");
+                  const checked = await abortable(Promise.resolve(executeCheck(input, { toolCallId: id, messages, abortSignal: runAbort.signal })), runAbort.signal);
                   const summary = quality.localPassed ? "Final production checks passed." : quality.localIssue ?? "Production checks did not finish.";
                   Object.assign(log, { ok: quality.localPassed, summary });
                   send({ t: "tool-result", id, ok: quality.localPassed, summary });
