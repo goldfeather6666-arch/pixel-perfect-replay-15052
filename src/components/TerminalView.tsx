@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Copy, Eraser, Loader2, Minus, Play, Plus, Search, TerminalSquare, X } from "lucide-react";
-import { runTerminal } from "@/lib/app.functions";
-import { extractCwd, parseAnsi, wrapCommand } from "@/lib/terminal";
+import { ArrowDown, ArrowUp, Copy, Sparkles, Eraser, Loader2, Minus, Play, Plus, Search, TerminalSquare, X } from "lucide-react";
+import { runTerminal, suggestCommand } from "@/lib/app.functions";
+import { extractCwd, isRisky, parseAnsi, wrapCommand } from "@/lib/terminal";
 
 type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number };
 type Tab = { id: number; name: string; cwd: string | null; log: Entry[]; busy: boolean };
@@ -20,6 +20,11 @@ const short = (cwd: string | null) => (!cwd ? "~" : cwd.replace(/^\/home\/user\/
 
 export function TerminalView({ id }: { id: string }) {
   const run = useServerFn(runTerminal);
+  const suggest = useServerFn(suggestCommand);
+  const [ai, setAi] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [autoRun, setAutoRun] = useState(false);
+  const [aiNote, setAiNote] = useState<{ text: string; risky: boolean } | null>(null);
   const histKey = `forge:term-history:${id}`;
   const [tabs, setTabs] = useState<Tab[]>([{ id: 1, name: "shell 1", cwd: null, log: [], busy: false }]);
   const [active, setActive] = useState(1);
@@ -58,6 +63,20 @@ export function TerminalView({ id }: { id: string }) {
       finish({ err: String((err as Error)?.message ?? err) });
     }
     input.current?.focus();
+  }
+
+  async function askAi(request: string) {
+    if (!request.trim() || aiBusy) return;
+    setAiBusy(true); setAiNote(null);
+    try {
+      const r = await suggest({ data: { id, request, cwd: tab.cwd ?? undefined, history: history.slice(0, 8) } });
+      const risky = isRisky(r.command);
+      setAi(false);
+      setAiNote({ text: r.explanation || "Review the command, then run it.", risky });
+      if (autoRun && !risky) { void exec(r.command); } else { setCmd(r.command); input.current?.focus(); }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally { setAiBusy(false); }
   }
 
   function key(k: string) {
@@ -150,24 +169,41 @@ export function TerminalView({ id }: { id: string }) {
       </div>
 
       {/* Prompt */}
-      <form onSubmit={(e) => { e.preventDefault(); void exec(cmd); }} className="flex items-center gap-2 border-t px-3 py-2 font-mono text-sm">
-        <span className="hidden shrink-0 text-xs sm:inline"><span className="text-success">forge</span>:<span className="text-term-blue">{short(tab.cwd)}</span>$</span>
-        <span className="shrink-0 text-primary sm:hidden">$</span>
+      {aiNote && !ai && (
+        <div className={`flex items-start gap-2 border-t px-3 py-1.5 text-xs ${aiNote.risky ? "text-destructive" : "text-muted-foreground"}`}>
+          <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">{aiNote.risky ? "This command can delete or overwrite things — check it before running. " : ""}{aiNote.text}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setAiNote(null)}><X className="h-3 w-3" /></button>
+        </div>
+      )}
+      {ai && (
+        <div className="flex items-center justify-between gap-2 border-t bg-accent/40 px-3 py-1.5 text-xs">
+          <span className="flex items-center gap-1.5 text-primary"><Sparkles className="h-3 w-3" />Describe what you want — AI writes the command</span>
+          <label className="flex shrink-0 items-center gap-1.5 text-muted-foreground"><input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />Run automatically</label>
+        </div>
+      )}
+      <form onSubmit={(e) => { e.preventDefault(); if (ai) void askAi(cmd); else void exec(cmd); }} className="flex items-center gap-2 border-t px-3 py-2 font-mono text-sm">
+        <button type="button" aria-label="Ask AI for a command" aria-pressed={ai} onClick={() => { setAi(!ai); input.current?.focus(); }}
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border transition-colors ${ai ? "border-primary bg-accent text-primary shadow-glow" : "text-muted-foreground hover:text-primary"}`}>
+          {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        </button>
+        {!ai && <span className="hidden shrink-0 text-xs sm:inline"><span className="text-success">forge</span>:<span className="text-term-blue">{short(tab.cwd)}</span>$</span>}
         <div className="relative min-w-0 flex-1">
-          {suggestion && <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre text-muted-foreground/40">{suggestion}</div>}
+          {!ai && suggestion && <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre text-muted-foreground/40">{suggestion}</div>}
           <input ref={input} value={cmd} onChange={(e) => { setCmd(e.target.value); setHIdx(-1); }}
             onKeyDown={(e) => {
+              if (ai) return;
               if (e.key === "ArrowUp") { e.preventDefault(); walk(1); }
               else if (e.key === "ArrowDown") { e.preventDefault(); walk(-1); }
               else if (e.key === "Tab" || (e.key === "ArrowRight" && suggestion)) { e.preventDefault(); complete(); }
               else if (e.key === "l" && e.ctrlKey) { e.preventDefault(); patch(tab.id, (t) => ({ ...t, log: [] })); }
               else if (e.key === "c" && e.ctrlKey && !window.getSelection()?.toString()) { e.preventDefault(); setCmd(""); }
             }}
-            aria-label="Terminal command" placeholder={tab.busy ? "running…" : "type a command"}
-            className="relative h-9 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/50 sm:text-sm"
+            aria-label="Terminal command" placeholder={ai ? "e.g. show the 5 biggest files in src" : tab.busy ? "running…" : "type a command"}
+            className={`relative h-9 w-full bg-transparent text-base ${ai ? "font-sans" : ""}`} data-x=" outline-none placeholder:text-muted-foreground/50 sm:text-sm"
             autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} />
         </div>
-        <button aria-label="Run" disabled={tab.busy || !cmd.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground disabled:opacity-40">
+        <button aria-label={ai ? "Ask AI" : "Run"} disabled={tab.busy || aiBusy || !cmd.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground disabled:opacity-40">
           {tab.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
         </button>
       </form>
