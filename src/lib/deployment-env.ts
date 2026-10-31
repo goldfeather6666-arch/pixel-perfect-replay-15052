@@ -6,8 +6,17 @@ export function deploymentEnv(url: string, publicKey: string, serviceRoleKey?: s
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publicKey,
     VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: publicKey, VITE_SUPABASE_PUBLISHABLE_KEY: publicKey,
   };
-  if (serviceRoleKey) vars.SUPABASE_SERVICE_ROLE_KEY = serviceRoleKey;
+  if (serviceRoleKey) vars["SUPABASE_SERVICE_ROLE_KEY"] = serviceRoleKey;
   return vars;
+}
+
+export function isPublicDatabaseKey(key: string) {
+  if (key.startsWith("sb_publishable_")) return true;
+  try {
+    const payload = key.split(".")[1];
+    if (!payload) return false;
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))).role === "anon";
+  } catch { return false; }
 }
 
 export function deploymentTemplate() {
