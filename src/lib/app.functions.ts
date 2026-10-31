@@ -469,7 +469,8 @@ export const suggestCommand = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: s, error } = await context.supabase.from("agent_sessions").select("credential_id, model, repo").eq("id", data.id).eq("user_id", context.userId).single();
     if (error || !s) throw new Error("Task not found");
-    const { row, key } = await loadSecret(context, s.credential_id);
+    if (!s.credential_id) throw new Error("Pick an AI key for this task first");
+    const { row, key } = await loadSecret(context, s.credential_id ?? "");
     const { createModel } = await import("./providers.server");
     const { COMMAND_SYSTEM, parseCommandReply } = await import("./terminal");
     const { streamText } = await import("ai");
