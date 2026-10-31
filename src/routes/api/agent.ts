@@ -1,4 +1,4 @@
-import { errorText } from "@/lib/abortable";
+import { errorText, toolErrorText } from "@/lib/abortable";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -143,8 +143,8 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           read_files: tool({
-            description: "Read up to 20 files at once, in parallel. Prefer this over many read_file calls.",
-            inputSchema: z.object({ paths: z.array(z.string()).min(1).max(20) }),
+            description: "Read up to 60 files at once, in parallel. Prefer this over many read_file calls.",
+            inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
             execute: async ({ paths }) => {
               let budget = 120000;
               const out = await parallelMap(paths, 2, async (path) => ({ path, c: await readCurrent(path).catch(() => null) }), runAbort.signal);
@@ -428,7 +428,7 @@ export const Route = createFileRoute("/api/agent")({
                   }) };
                   const coderTools = { ...base, read_files: tool({
                     description: "Read complete files before proposing edits.",
-                    inputSchema: z.object({ paths: z.array(z.string()).min(1).max(20) }),
+                    inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
                     execute: async ({ paths }) => parallelMap(paths, 2, async (path) => {
                       const content = await readCurrent(path); originals.set(path, content); return { path, content };
                     }, runAbort.signal),
@@ -589,7 +589,7 @@ export const Route = createFileRoute("/api/agent")({
                 } else if (part.type === "tool-result" || part.type === "tool-error") {
                   const ok = part.type === "tool-result";
                   const raw = ok ? (part as any).output : (part as any).error;
-                  const summary = (ok ? (typeof raw === "string" ? raw : JSON.stringify(raw ?? "")) : errorText(raw) || "Tool failed without details").slice(0, 400);
+                  const summary = (ok ? (typeof raw === "string" ? raw : JSON.stringify(raw ?? "")) : toolErrorText(raw) || "Tool failed without details").slice(0, 400);
                   const log = logs.find((l) => l.id === part.toolCallId);
                   if (log) Object.assign(log, { ok: ok && !(raw && raw.error), summary });
                   send({ t: "tool-result", id: part.toolCallId, ok: ok && !(raw && raw.error), summary });

@@ -3,11 +3,15 @@ import { z } from "zod";
 export const MAX_TEAM_JOBS = 12;
 // Reserve outbound slots for the coordinator's progress saves and Stop polling.
 export const ACTIVE_TEAM_WORKERS = 4;
+// Limits are generous on purpose: models write detailed briefs and large file assignments, and a
+// rejected dispatch tends to be retried verbatim, stalling the whole run.
+export const MAX_JOB_TASK_CHARS = 20000;
+export const MAX_JOB_PATHS = 40;
 export const teamJobSchema = z.object({
-  label: z.string().min(2).max(60),
+  label: z.string().min(1).transform((s) => s.slice(0, 60)),
   role: z.enum(["explorer", "coder", "reviewer", "tester"]).default("explorer"),
-  task: z.string().min(5).max(4000),
-  paths: z.array(z.string().min(1).max(300)).max(20).default([]),
+  task: z.string().min(5).max(MAX_JOB_TASK_CHARS),
+  paths: z.array(z.string().min(1).max(300)).max(MAX_JOB_PATHS).default([]),
 });
 // Some models send the array as a JSON string; accept both spellings so a whole wave cannot
 // be lost to a formatting quirk.
