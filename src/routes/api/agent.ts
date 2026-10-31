@@ -662,6 +662,7 @@ export const Route = createFileRoute("/api/agent")({
             }, runAbort);
             let text = "";
             let errored = false;
+            let stepsDone = 0;
             let runOutcome: { blocker: string | null; exhausted: boolean } = { blocker: null, exhausted: false };
             const logs = runLogs;
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
@@ -743,6 +744,7 @@ export const Route = createFileRoute("/api/agent")({
               const stepCap = plan ? 20 : 50;
               runAbort.signal.throwIfAborted();
               usedSteps += (await abortable(result.steps, runAbort.signal)).length;
+              stepsDone = usedSteps;
               const exhausted = usedSteps >= stepCap;
               // The model sometimes uses ad-hoc checks only, then hits its step cap.
               // Run one authoritative final check rather than asking the user to Continue indefinitely.
@@ -750,6 +752,7 @@ export const Route = createFileRoute("/api/agent")({
                 const id = `final-check-${repairRound}`;
                 if (text.trim()) logs.push({ id: `note-${id}`, name: "note", input: {}, ok: true, summary: text.trim() });
                 text = "";
+                rec.to("VERIFYING", "Running final production checks");
                 const input = { phase: "check" as const, root: checkRoot };
                 const log: ToolLog = { id, name: "deployment_preflight", input };
                 logs.push(log);
@@ -837,7 +840,7 @@ export const Route = createFileRoute("/api/agent")({
                 const { data: staged } = await sb.from("mcp_action_requests").select("id").eq("user_id", u.user.id).eq("session_id", sessionId).eq("state", "pending");
                 const fin = finalStage({ aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
-                await rec.finish({ steps: usedStepsTotal(), usage, costUsd: costUsd(modelCaps(s.model), usage), model: s.model, pending: pending.length });
+                await rec.finish({ steps: stepsDone, usage, costUsd: costUsd(modelCaps(s.model), usage), model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
               }
               send({ t: "done" });
