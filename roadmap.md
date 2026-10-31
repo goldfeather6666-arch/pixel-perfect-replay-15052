@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Master-controlled larger agent team: parallel code proposals, conflict checks, shared-command safety and focused tests.
+
 - [x] Phases 1–6: keys, GitHub, streaming agent, approvals, checkpoints, editor, PRs, skills, MCP (HTTP/SSE/OAuth/action approvals), E2B terminal
 - [ ] OAuth acceptance — blocked: needs user's Notion consent + published check
 - [ ] Local stdio MCP — skipped by user (mobile only)

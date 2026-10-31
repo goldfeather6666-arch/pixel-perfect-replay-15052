@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import { ACTIVE_TEAM_WORKERS, MAX_TEAM_JOBS, ownsPath, parallelMap, proposalConflict, teamSchema } from "@/lib/agent-team";
+
+describe("master-controlled agent team", () => {
+  it("accepts twelve jobs including coders and rejects larger teams", () => {
+    const job = { label: "UI", role: "coder", task: "Implement UI", paths: ["src/ui.tsx"] };
+    expect(MAX_TEAM_JOBS).toBe(12);
+    expect(teamSchema.safeParse({ jobs: Array(12).fill(job) }).success).toBe(true);
+    expect(teamSchema.safeParse({ jobs: Array(13).fill(job) }).success).toBe(false);
+  });
+  it("executes four workers concurrently and preserves result order", async () => {
+    let active = 0, peak = 0;
+    const result = await parallelMap(Array.from({ length: 12 }, (_, i) => i), ACTIVE_TEAM_WORKERS, async (i) => {
+      active++; peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active--; return i;
+    });
+    expect(peak).toBe(4);
+    expect(result).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  });
+  it("stops queued jobs after explicit cancellation", async () => {
+    const controller = new AbortController();
+    let called = 0;
+    await expect(parallelMap([1, 2, 3], 1, async () => { called++; controller.abort(); }, controller.signal)).rejects.toThrow();
+    expect(called).toBe(1);
+  });
+  it("limits coder proposals to exactly assigned safe files", () => {
+    expect(ownsPath(["src/ui.tsx"], "src/ui.tsx")).toBe(true);
+    expect(ownsPath(["src/ui.tsx"], "src/auth.ts")).toBe(false);
+    expect(ownsPath(["../secret"], "../secret")).toBe(false);
+  });
+  it("rejects stale code proposals without replacing newer work", () => {
+    const proposal = { id: "p1", path: "src/ui.tsx", content: "new", original: "old", label: "UI" };
+    expect(proposalConflict(proposal, "old")).toBeNull();
+    expect(proposalConflict(proposal, "someone else's edit")).not.toBeNull();
+  });
+});
