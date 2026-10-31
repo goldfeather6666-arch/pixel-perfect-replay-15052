@@ -9,7 +9,7 @@ import { getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revo
 const DEVICES = { desktop: { w: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", icon: Smartphone, label: "Mobile" } } as const;
 type Device = keyof typeof DEVICES;
 
-const TONE: Record<string, string> = { ready: "bg-primary", starting: "bg-accent-foreground animate-pulse", unhealthy: "bg-destructive animate-pulse", crashed: "bg-destructive", stopped: "bg-muted-foreground", expired: "bg-muted-foreground" };
+const TONE: Record<string, string> = { ready: "bg-primary", starting: "bg-accent-foreground animate-pulse", unhealthy: "bg-destructive animate-pulse", error: "bg-destructive", crashed: "bg-destructive", stopped: "bg-muted-foreground", expired: "bg-muted-foreground" };
 
 export function PreviewPanel({ id }: { id: string }) {
   const qc = useQueryClient();
@@ -127,8 +127,9 @@ export function PreviewPanel({ id }: { id: string }) {
         ) : (
           <div className="mx-auto h-full transition-[width]" style={{ width: DEVICES[device].w, maxWidth: "100%" }}>
             {p?.status !== "ready" && (
+              p?.status === "error" ? <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-destructive/15 py-2 text-xs text-destructive backdrop-blur"><AlertTriangle className="h-3.5 w-3.5" />The app is returning server errors — tap Logs to see why, or ask the agent to fix it.</div> :
               <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-background/90 py-2 text-xs text-muted-foreground backdrop-blur">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{p?.status === "unhealthy" ? "Server stopped answering — checking…" : "Installing & starting the dev server… first start can take 1–3 min"}
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{p?.status === "error" ? "The app is returning server errors — open Logs to see why" : p?.status === "unhealthy" ? "Server stopped answering — checking…" : "Installing & starting the dev server… first start can take 1–3 min"}
               </div>
             )}
             {src && <iframe key={`${src}-${reload}`} ref={frame} src={src} title="Live preview" className={`h-full w-full bg-background ${device !== "desktop" ? "border-x shadow-lg" : ""}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" />}

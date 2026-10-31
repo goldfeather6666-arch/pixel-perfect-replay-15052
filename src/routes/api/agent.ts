@@ -393,7 +393,7 @@ export const Route = createFileRoute("/api/agent")({
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
               if (!row) return { error: "No preview started" };
-              await m.restartPreview(sb, row);
+              await m.restartPreview(sb, row, { ...sbxSession, supabase_ref: (s as { supabase_ref?: string | null }).supabase_ref ?? null });
               const st = await m.waitReady(sb, { ...row, status: "starting" } as never);
               return { status: st.status, log_tail: st.status === "ready" ? undefined : st.logTail?.slice(-2500) };
             },

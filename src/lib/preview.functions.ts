@@ -63,7 +63,7 @@ export const previewActionFn = createServerFn({ method: "POST" }).middleware([re
     const m = await import("./preview-manager.server");
     if (data.action === "logs") return { logs: await m.previewLogs(row, 30_000) };
     if (data.action === "stop") { await m.stopPreview(context.supabase, row); return { ok: true }; }
-    await m.restartPreview(context.supabase, row);
+    await m.restartPreview(context.supabase, row, await ownedTask(context, data.id));
     return { ok: true };
   });
 

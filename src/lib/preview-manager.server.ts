@@ -189,10 +189,11 @@ export async function stopPreview(sb: any, row: PreviewRow) {
   return { ok: true };
 }
 
-export async function restartPreview(sb: any, row: PreviewRow) {
+export async function restartPreview(sb: any, row: PreviewRow, session?: Session & { supabase_ref?: string | null }) {
   const box = await connect(row.sandbox_id);
   if (!box) throw new Error("Sandbox expired. Start a new preview.");
   await killTree(box, row.id, row.port);
+  if (session) await writePublicEnv(box, row.id, session);
   const pid = await launch(box, row, row.framework as Framework, "", row.command);
   const now = new Date().toISOString();
   await sb.from("preview_sessions").update({ status: "starting", process: { ...row.process, pid, restarted_at: now }, updated_at: now, expires_at: new Date(Date.now() + TTL_MS).toISOString() }).eq("id", row.id);
