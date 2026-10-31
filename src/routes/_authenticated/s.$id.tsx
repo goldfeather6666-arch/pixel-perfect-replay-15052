@@ -17,6 +17,7 @@ import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
 import { DeployPanel } from "@/components/DeployPanel";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
+import { taskRunStatus } from "@/lib/task-run-status";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -39,7 +40,7 @@ function Workspace() {
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
     refetchInterval: (q) => (!running && (q.state.data as { running?: boolean } | undefined)?.running ? 3000 : false),
   });
-  const sd = session.data as { running?: boolean; updated_at?: string } | undefined;
+  const sd = session.data;
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
   const [, force] = useState(0);
   useEffect(() => { if (!sd?.running || running) return; const t = setInterval(() => force((n) => n + 1), 5000); return () => clearInterval(t); }, [sd?.running, running]);
@@ -299,6 +300,7 @@ function Workspace() {
                 steps={(messages.at(-1)?.role === "assistant" ? messages.at(-1)?.tools ?? [] : []).filter((t) => t.name !== "note" && t.ok !== undefined).length}
                 limit={running && runPlan.current ? 20 : 50}
                 background={bgRunning}
+                cloud={taskRunStatus(sd ?? {}) === "cloud"}
                 stopping={stopping}
                 onStop={stopWork}
               />
@@ -663,7 +665,7 @@ function mmss(ms: number) {
 }
 
 /** Real timings only: elapsed time, finished steps and their measured average. No invented ETA. */
-function RunStatus({ start, lastUpdate, steps, limit, background, stopping, onStop }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean; stopping: boolean; onStop: () => void }) {
+function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stopping, onStop }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean; cloud: boolean; stopping: boolean; onStop: () => void }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const elapsed = start ? now - start : 0;
@@ -672,9 +674,10 @@ function RunStatus({ start, lastUpdate, steps, limit, background, stopping, onSt
     <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
       <Loader2 className="h-3 w-3 animate-spin text-primary" />
       {background ? (
-        <span className="min-w-0 flex-1">{stopping ? "Stopping… saving progress" : `Working in the background · last update ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · ${steps} steps done`}</span>
+        <span className="min-w-0 flex-1">{stopping ? "Stopping… saving progress" : `${cloud ? "Running in the cloud" : "Running in browser"} · last update ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · ${steps} steps done`}</span>
       ) : (
         <>
+          <span>Running in browser</span>
           <span className="font-mono text-foreground">⌛ {mmss(elapsed)}</span>
           <span>{steps} step{steps === 1 ? "" : "s"} done</span>
           {avg > 0 && <span>~{Math.round(avg / 1000)}s per step</span>}

@@ -32,4 +32,5 @@
 - [x] Concurrent cloud tasks: several tasks each keep their own run (per-task keeper + claim, no shared lock); E2B probe held 6 sandboxes at once; task list shows "Running in the cloud" and refreshes itself (badge verified with temporary data)
 - [x] Team runs survive provider throttling: workers stagger starts, wait with backoff on rate limits (429 / output-token caps) and say so plainly instead of dying with "check the connection"; a whole team sent as text still parses (focused tests passed)
 - [x] Stop button beside background status; independent stop polling during model waiting
+- [x] Visible task status above the new-task form on mobile and beside the open-task composer; distinguish cloud, browser, idle and stale runs using saved execution state.
 - [x] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit (boundary tests and phone-sized composer verified)
