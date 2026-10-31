@@ -6,6 +6,7 @@ import type { ModelMessage } from "ai";
 import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
 import { agentRequest, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
+import { modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -59,6 +60,8 @@ export const Route = createFileRoute("/api/agent")({
         const { decryptSecret } = await import("@/lib/crypto.server");
         const { data: cred } = await sb.from("provider_credentials").select("*").eq("id", s.credential_id).single();
         if (!cred) return new Response("AI key missing — add one in Settings", { status: 400 });
+        const modelError = modelConfigurationError(cred.base_url, s.model);
+        if (modelError) return new Response(modelError, { status: 400 });
         const { data: ghRows } = await sb
           .from("provider_credentials")
           .select("*")
@@ -501,8 +504,11 @@ export const Route = createFileRoute("/api/agent")({
               break;
               }
             } catch (e: any) {
-              if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
-              send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
+              if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else {
+                const detail = providerRequestError(e);
+                text += `\n\n${detail}`;
+                send({ t: "error", m: detail });
+              }
             } finally {
               stopWatching();
               clearInterval(beat);
