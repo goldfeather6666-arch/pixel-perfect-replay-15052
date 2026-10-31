@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Speed pass: share bounded file reads across master/helpers, coalesce repository scans, and avoid fetching unchanged cloud branches; test without paid agent runs.
+
 - [x] Stop repeated generic verification notices: run omitted final checks automatically and retain sanitized timeout/environment failures; 21 focused tests passed. Saved Artelie3d activity confirms command timeouts and missing database settings; no paid task or external deployment started.
 
 - [x] Prevent Vercel READY from masking runtime crashes: live Artelie3d HTTP 500 reproduced; Deploy panel and agent now check entry-page health; 16 focused tests passed.
