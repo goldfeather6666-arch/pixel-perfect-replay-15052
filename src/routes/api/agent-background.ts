@@ -33,6 +33,9 @@ export const Route = createFileRoute("/api/agent-background")({
         try {
           const r = await startKeeper({ sb, userId: u.user.id, sessionId: s.id, origin, token, body: JSON.stringify(parsed.data) });
           if (!r) return Response.json({ mode: "direct" });
+          // The caller's token was already verified here, so 401/403/404 means the keeper hit a private
+          // preview gate rather than Forge; stream from the browser instead.
+          if (!r.ok && [401, 403, 404, 502].includes(r.status)) return Response.json({ mode: "direct" });
           if (!r.ok) return new Response(r.message, { status: r.status });
           return Response.json({ mode: "background" });
         } catch (e) {
