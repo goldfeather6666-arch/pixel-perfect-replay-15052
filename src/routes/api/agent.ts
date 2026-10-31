@@ -589,7 +589,7 @@ export const Route = createFileRoute("/api/agent")({
                 } else if (part.type === "tool-result" || part.type === "tool-error") {
                   const ok = part.type === "tool-result";
                   const raw = ok ? (part as any).output : (part as any).error;
-                  const summary = (ok ? (typeof raw === "string" ? raw : JSON.stringify(raw ?? "")) : errorText(raw) || "Tool failed without details").slice(0, 400);
+                  const summary = (ok ? (typeof raw === "string" ? raw : JSON.stringify(raw ?? "")) : toolErrorText(raw) || "Tool failed without details").slice(0, 400);
                   const log = logs.find((l) => l.id === part.toolCallId);
                   if (log) Object.assign(log, { ok: ok && !(raw && raw.error), summary });
                   send({ t: "tool-result", id: part.toolCallId, ok: ok && !(raw && raw.error), summary });

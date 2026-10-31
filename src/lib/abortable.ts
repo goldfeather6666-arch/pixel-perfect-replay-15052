@@ -20,3 +20,15 @@ export function errorText(raw: unknown): string {
   const s = JSON.stringify(raw);
   return s === "{}" ? String(raw) : s;
 }
+
+/**
+ * Tool-input validation errors echo the model's whole input before the actual reason, so a
+ * truncated summary only showed the echo. Drop the echoed value and keep the reason.
+ */
+export function toolErrorText(raw: unknown): string {
+  const text = errorText(raw);
+  const reason = text.indexOf("Error message:");
+  if (reason === -1 || !/Invalid input for tool/i.test(text)) return text;
+  const tool = /Invalid input for tool ([\w-]+)/i.exec(text)?.[1] ?? "tool";
+  return `Invalid input for ${tool}: ${text.slice(reason + "Error message:".length).trim()}`;
+}
