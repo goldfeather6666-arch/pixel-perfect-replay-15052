@@ -43,3 +43,4 @@
 - [x] Stop button beside background status; independent stop polling during model waiting
 - [x] Visible task status above the new-task form on mobile and beside the open-task composer; distinguish cloud, browser, idle and stale runs using saved execution state.
 - [x] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit (boundary tests and phone-sized composer verified)
+- [x] Surface real build errors: preflight failures now include the first sanitized error lines (credentials redacted) in the activity log and final notice instead of "read its output in Background activity"; 149 tests passed.
