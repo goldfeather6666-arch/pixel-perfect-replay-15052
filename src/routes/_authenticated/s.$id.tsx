@@ -78,6 +78,11 @@ function Workspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [input, setInput] = useState("");
+  useEffect(() => {
+    const key = `forge:draft:${id}`;
+    const saved = sessionStorage.getItem(key);
+    if (saved) { setInput(saved); sessionStorage.removeItem(key); }
+  }, [id]);
   const [sendError, setSendError] = useState<string | null>(null);
   const capacity = promptCapacity(input);
   const [planMode, setPlanMode] = useState(false);

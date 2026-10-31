@@ -13,6 +13,7 @@ import { createRepo, createSession, listBranches, listCredentials, listModels, l
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { taskRunStatus } from "@/lib/task-run-status";
+import { WorkSplitPanel } from "@/components/WorkSplitPanel";
 import { DeployPanel } from "@/components/DeployPanel";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -48,6 +49,7 @@ function Dashboard() {
   const [branch, setBranch] = useState("");
   const [credId, setCredId] = useState("");
   const [model, setModel] = useState("");
+  const [teamPrompt, setTeamPrompt] = useState<string | null>(null);
   const [manualModel, setManualModel] = useState("");
   const [mode, setMode] = useState<"supervised" | "autonomous">("supervised");
 
@@ -85,7 +87,7 @@ function Dashboard() {
   const createM = useMutation({
     mutationFn: () =>
       create({ data: { repo, base_branch: branch, credential_id: credId, model: manualModel || model, mode, title: "New task" } }),
-    onSuccess: (id) => setupConnections ? setSetupId(id) : nav({ to: "/s/$id", params: { id } }),
+    onSuccess: (id) => { if (teamPrompt) sessionStorage.setItem(`forge:draft:${id}`, teamPrompt); return setupConnections ? setSetupId(id) : nav({ to: "/s/$id", params: { id } }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -173,6 +175,7 @@ function Dashboard() {
                   ))}
                 </div>
               </div>
+              <WorkSplitPanel credId={credId} model={manualModel || model} repo={repo} onPrompt={setTeamPrompt} />
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={setupConnections} onChange={(e) => setSetupConnections(e.target.checked)} /> Set up database & Vercel before starting</label>
               <Button disabled={!repo || !branch || !credId || !(model || manualModel) || createM.isPending || !!setupId} className="h-12 w-full text-base">
                 <Plus /> {createM.isPending ? "Creating branch…" : "Start task"}
