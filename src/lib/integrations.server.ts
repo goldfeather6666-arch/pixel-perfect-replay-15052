@@ -159,3 +159,28 @@ export async function waitForDeployment(v: Pick<Vercel, "deployments">, projectI
     });
   }
 }
+
+type BranchWriter = {
+  getFile(repo: string, branch: string, path: string): Promise<{ content: string } | null>;
+  putFile(repo: string, branch: string, path: string, content: string, message: string): Promise<string>;
+  emptyCommit(repo: string, branch: string, message: string): Promise<string>;
+};
+
+/**
+ * Builds the work branch's current code exactly once: stops pushes to agent/* from spending Vercel's
+ * deployment quota (vercel.json), adds one marked commit and asks Vercel to build that commit.
+ * Throws DeployLimitError when Vercel refuses because the quota is used up.
+ */
+export async function startForgeDeploy(v: Vercel, gh: BranchWriter, projectId: string, repo: string, branch: string) {
+  const { DEPLOY_MARKER, withAgentDeploysDisabled } = await import("./vercel-build-gate");
+  await v.ensureBuildGate(projectId).catch(() => false);
+  try {
+    const root = await v.rootDirectory(projectId);
+    const path = root ? `${root}/vercel.json` : "vercel.json";
+    const next = withAgentDeploysDisabled((await gh.getFile(repo, branch, path))?.content ?? null);
+    if (next) await gh.putFile(repo, branch, path, next, "chore: stop per-save Vercel builds on Forge work branches");
+  } catch { /* optional quota saver; the deploy below still works without it */ }
+  const sha = await gh.emptyCommit(repo, branch, `chore: deploy ${DEPLOY_MARKER}`);
+  const d = await v.createGitDeployment(projectId, repo, branch, sha);
+  return { commitSha: sha, deploymentId: d.id, url: d.url };
+}
