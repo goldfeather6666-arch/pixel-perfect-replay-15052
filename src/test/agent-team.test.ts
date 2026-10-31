@@ -51,6 +51,6 @@ describe("team dispatch limits", () => {
   });
   it("shortens long labels instead of rejecting the dispatch", () => {
     const r = teamSchema.safeParse({ jobs: [{ label: "L".repeat(90), task: "do the thing" }] });
-    expect(r.success && r.data.jobs[0].label.length).toBe(60);
+    expect(r.success && r.data.jobs[0]?.label.length).toBe(60);
   });
 });
