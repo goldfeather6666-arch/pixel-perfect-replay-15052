@@ -72,7 +72,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         if (policy === "deny") continue;
         const needsApproval = policy === "ask" || !allowedMcpTool(row.url, def);
         let validate;
-        try { validate = compileMcpSchema(def.inputSchema); }
+        try { validate = compileMcpSchema(def.inputSchema as Record<string, unknown>); }
         catch { issues.push({ server: row.name, reason: `Unsupported input schema for tool ${def.name}` }); continue; }
         entries.push({ name: `mcp_${row.id.replaceAll("-", "")}.${def.name}`, server: row.name,
           description: (def.description ?? "").slice(0, 1500), input_schema: def.inputSchema,

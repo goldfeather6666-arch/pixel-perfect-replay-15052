@@ -13,7 +13,7 @@ export function buildCheckpoint(run: { objective: string; stage: string; started
   const agents: string[] = [];
   let memories = 0;
   for (const e of events) {
-    const p = (e.payload ?? {}) as Record<string, unknown>;
+    const p = (e.payload ?? {}) as { tool?: unknown; ok?: unknown; label?: unknown };
     if (e.type === "tool.execution.completed" && typeof p.tool === "string") {
       const t = done.get(p.tool) ?? { n: 0, failed: 0 };
       t.n++; if (p.ok === false) t.failed++;

@@ -2,7 +2,7 @@
 export const MCP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 export const MCP_CACHE_MAX_BYTES = 400_000;
 
-export type CachedTool = { name: string; description?: string; inputSchema: unknown; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } };
+export type CachedTool = { name: string; description?: string | undefined; inputSchema: unknown; annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined };
 
 /** Cached definitions only when they were saved for this exact URL and are still fresh. */
 export function freshCachedTools(row: { url: string; tool_cache?: unknown; tool_cache_url?: string | null; tool_cache_at?: string | null }, now = Date.now()): CachedTool[] | null {
