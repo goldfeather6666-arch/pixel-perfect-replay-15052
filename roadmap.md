@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Repair production MCP schema validation for Framer and Motion using a non-eval cloud-compatible interpreter; retain argument validation and approval checks.
+
 - [x] Recover stale page imports with bounded cache-busted document requests and a working manual retry; simulated failed sign-in import recovered in browser, four focused tests passed.
 
 - [x] Guided new-project database/Vercel setup, encrypted optional server-only credentials, production/preview environment sync and blank GitHub configuration template (supervised staging preserved). Signed-in screens verified; external setting changes, repository writes and builds not triggered during checks.

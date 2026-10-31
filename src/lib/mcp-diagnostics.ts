@@ -1,10 +1,10 @@
-import { compileMcpSchema } from "./mcp-schema";
+import { compileMcpSchema, McpSchemaError } from "./mcp-schema";
 import { allowedMcpTool } from "./mcp-policy";
 
 export function diagnoseTool(url: string, allowActions: boolean, enabled: boolean, definition: { name: string; inputSchema: Record<string, unknown>; annotations?: { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined }, executable: boolean) {
   let schemaError: string | null = null;
   try { compileMcpSchema(definition.inputSchema); }
-  catch { schemaError = "Input schema cannot be compiled by Forge. The server must supply a supported, self-contained JSON Schema."; }
+  catch (error) { schemaError = error instanceof McpSchemaError ? error.message : "Forge could not validate this tool’s input schema. Retry diagnostics after updating Forge."; }
   const readOnly = allowedMcpTool(url, definition);
   const error = schemaError ?? (!executable ? "The SDK did not expose this tool for execution." : null);
   return {
