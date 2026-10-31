@@ -16,3 +16,18 @@ describe("terminal helpers", () => {
     expect(s[1]).toEqual({ text: " ok", cls: "" });
   });
 });
+
+import { isRisky, parseCommandReply } from "@/lib/terminal";
+describe("AI command helper", () => {
+  it("reads JSON replies, even fenced", () => {
+    expect(parseCommandReply('```json\n{"command":"npm test","explanation":"Runs tests"}\n```')).toEqual({ command: "npm test", explanation: "Runs tests" });
+  });
+  it("falls back to a bare command line", () => {
+    expect(parseCommandReply("$ git status").command).toBe("git status");
+  });
+  it("never auto-runs destructive commands", () => {
+    expect(isRisky("rm -rf node_modules")).toBe(true);
+    expect(isRisky("git push origin main")).toBe(true);
+    expect(isRisky("ls -la")).toBe(false);
+  });
+});
