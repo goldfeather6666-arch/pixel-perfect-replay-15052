@@ -335,8 +335,12 @@ export const Route = createFileRoute("/api/agent")({
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
               if (!latest) return { state: "NONE", commit: commitSha, envNote, note: "Vercel accepted the build but it has not appeared yet. Call deploy_status again once." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
-              quality.deploymentState = latest.state;
-              return { state: latest.state, commit: commitSha, url: latest.url, envNote, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
+              const { checkDeploymentRuntime } = await import("@/lib/deployment-runtime.server");
+              const runtime = latest.state === "READY" ? await checkDeploymentRuntime(latest.url, runAbort.signal) : null;
+              const verifiedState = runtime && runtime.state !== "PASSED" ? (runtime.state === "ERROR" ? "RUNTIME_ERROR" : "UNVERIFIED") : latest.state;
+              if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during runtime verification. Check the new commit." };
+              quality.deploymentState = verifiedState;
+              return { state: verifiedState, buildState: latest.state, runtime, commit: commitSha, url: latest.url, envNote, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
             },
           }),
           read_proposals: tool({

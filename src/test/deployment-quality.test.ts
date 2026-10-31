@@ -30,6 +30,8 @@ describe("production checks", () => {
   it("requires a healthy deployment even after local checks pass", () => {
     const state = { changed: true, localPassed: true, linked: true, supervised: false };
     expect(qualityBlocker({ ...state, deploymentState: "ERROR" })).not.toBeNull();
+    expect(qualityBlocker({ ...state, deploymentState: "RUNTIME_ERROR" })).not.toBeNull();
+    expect(qualityBlocker({ ...state, deploymentState: "UNVERIFIED" })).not.toBeNull();
     expect(qualityBlocker({ ...state, deploymentState: "READY" })).toBeNull();
   });
   it("does not require deployment of staged supervised changes", () => {

@@ -195,29 +195,33 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
     onError: (e: Error) => toast.error(e.message),
   });
   const latest = deps.data?.deployments[0];
-  const color = latest?.state === "READY" ? "text-primary" : latest?.state === "ERROR" ? "text-destructive" : "text-muted-foreground";
+  const runtime = deps.data?.runtime;
+  const failed = latest?.state === "ERROR" || runtime?.state === "ERROR";
+  const color = failed ? "text-destructive" : runtime?.state === "PASSED" ? "text-primary" : "text-muted-foreground";
+  const status = runtime?.state === "ERROR" ? "Built, but page is failing" : runtime?.state === "UNVERIFIED" ? "Built · page health unverified" : runtime?.state === "PASSED" ? "Built · entry page responding" : latest?.state.toLowerCase();
 
   return (
     <Card icon={<Rocket className="h-4 w-4 shrink-0" />} title="Vercel website">
       {!has ? <NeedToken name="Vercel" onDone={onChange} /> : linked ? (
         <div className="space-y-3 text-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className={`font-medium ${color}`}>{latest ? latest.state.toLowerCase() : deps.isLoading ? "checking…" : "no deploy for this task yet"}</span>
+            <span className={`font-medium ${color}`}>{latest ? status : deps.isLoading ? "checking…" : "no deploy for this task yet"}</span>
             <Button size="sm" variant="ghost" onClick={() => linkM.mutate({ id, unlink: true })}>Unlink</Button>
           </div>
           {latest?.state === "READY" && (
             <Button asChild className="h-11 w-full"><a href={latest.url} target="_blank" rel="noreferrer"><ExternalLink /> Open preview</a></Button>
           )}
           {deps.data?.log && <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-2 font-mono text-[11px]">{deps.data.log}</pre>}
+          {runtime && runtime.state !== "PASSED" && <p className={`text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}>{runtime.note}</p>}
           {dbLinked && (
             <Button variant="outline" className="h-11 w-full" disabled={syncM.isPending} onClick={() => syncM.mutate()}>
               {syncM.isPending ? "Syncing…" : "Sync database keys to website & rebuild"}
             </Button>
           )}
-          {latest?.state === "ERROR" && (
+          {failed && (
             <p className="text-xs text-muted-foreground">To have the agent fix it, go to Chat and send: <span className="font-medium text-foreground">"Fix the failed Vercel deploy"</span>.</p>
           )}
-          <p className="text-xs text-muted-foreground">Every commit on this task deploys a private preview automatically. If a deploy fails, the agent reads the error and fixes it.</p>
+          <p className="text-xs text-muted-foreground">Forge requests a deployment after checks, not after every file save. Build success and entry-page health are checked separately.</p>
           {deps.error && <p className="text-xs text-destructive">{(deps.error as Error).message}</p>}
         </div>
       ) : (

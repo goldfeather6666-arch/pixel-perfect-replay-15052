@@ -154,13 +154,15 @@ export const getDeployments = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
-    if (!s.vercel_project_id) return { deployments: [], log: null as string | null };
+    if (!s.vercel_project_id) return { deployments: [], log: null as string | null, runtime: null };
     const { Vercel } = await import("./integrations.server");
     const v = new Vercel(await need(context, "vercel"));
     const deployments = (await v.deployments(s.vercel_project_id, s.work_branch)).slice(0, 5);
     const latest = deployments[0];
     const log = latest && latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : null;
-    return { deployments, log };
+    const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
+    const runtime = latest?.state === "READY" ? await checkDeploymentRuntime(latest.url) : null;
+    return { deployments, log, runtime };
   });
 
 export const getMigrationStatus = createServerFn({ method: "POST" })
