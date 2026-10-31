@@ -463,6 +463,33 @@ export const runTerminal = createServerFn({ method: "POST" })
     return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
   });
 
+/** Starts a terminal command detached in the sandbox; poll output with pollTerminal. */
+export const startTerminal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), command: z.string().trim().min(1).max(4000) }))
+  .handler(async ({ data, context }) => {
+    const { data: s, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).eq("user_id", context.userId).single();
+    if (error || !s) throw new Error("Task not found");
+    const { data: gh } = await context.supabase.from("provider_credentials").select("id").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
+    if (!gh?.length) throw new Error("Add a GitHub token in Settings first");
+    const { key } = await loadSecret(context, gh[0]!.id);
+    const { runInSandbox } = await import("./sandbox.server");
+    const job = crypto.randomUUID();
+    const r = await runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? [], undefined, undefined, job);
+    return { job: (r as { job: string }).job };
+  });
+
+export const pollTerminal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), job: z.string().uuid(), offset: z.number().int().min(0), kill: z.boolean().optional() }))
+  .handler(async ({ data, context }) => {
+    const { data: s } = await context.supabase.from("agent_sessions").select("sandbox_id").eq("id", data.id).eq("user_id", context.userId).single();
+    if (!s?.sandbox_id) return { out: "", offset: data.offset, exit_code: -1, done: true, note: "Sandbox is no longer running. Run the command again." };
+    const { pollJob } = await import("./sandbox.server");
+    return pollJob(s.sandbox_id, data.job, data.offset, data.kill);
+  });
+
+
 export const suggestCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid(), request: z.string().trim().min(2).max(4000), cwd: z.string().max(500).optional(), history: z.array(z.string().max(500)).max(10).optional() }))
