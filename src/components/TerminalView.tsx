@@ -200,7 +200,7 @@ export function TerminalView({ id }: { id: string }) {
               else if (e.key === "c" && e.ctrlKey && !window.getSelection()?.toString()) { e.preventDefault(); setCmd(""); }
             }}
             aria-label="Terminal command" placeholder={ai ? "e.g. show the 5 biggest files in src" : tab.busy ? "running…" : "type a command"}
-            className={`relative h-9 w-full bg-transparent text-base ${ai ? "font-sans" : ""}`} data-x=" outline-none placeholder:text-muted-foreground/50 sm:text-sm"
+            className={`relative h-9 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/50 sm:text-sm ${ai ? "font-sans" : ""}`}
             autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} />
         </div>
         <button aria-label={ai ? "Ask AI" : "Run"} disabled={tab.busy || aiBusy || !cmd.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground disabled:opacity-40">
