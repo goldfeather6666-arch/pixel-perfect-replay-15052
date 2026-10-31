@@ -13,7 +13,7 @@
 - User AI keys and GitHub tokens are stored only AES-GCM encrypted (src/lib/crypto.server.ts) and decrypted server-side; never return them to the browser. Why: BYOK security requirement.
 - Model calls use the user's own provider key via src/lib/providers.server.ts, never the Lovable AI Gateway. Why: the product is BYOK.
 - The agent streams from the /api/agent server route as NDJSON events (AgentEvent in src/lib/providers.ts). Why: long tool loops need streaming outside server-fn request/response.
-- Explicit Stop is owner-scoped and polled independently of model steps; keep the stream open to save partial progress. Why: background runs must cancel during model waiting without treating ordinary tab closure as Stop.
+- Explicit Stop is owner-scoped, polled independently of model steps, and releases stalled SDK streams; save completion before remote cleanup and suppress auto-resume for stop-requested tasks. Stale stop updates compare the heartbeat before clearing a keeper. Why: cancellation must not hang on tools/cleanup or restart stopped work.
 - Agent writes go only to its own per-task branch; supervised mode stages them in agent_sessions.pending until approved. Why: never touch the user's base branch without consent.
 - GitHub file commits are serialized per repo+branch and retried on 409/sha conflicts (src/lib/branch-write-queue.ts). Why: parallel write_file calls race for the branch head.
 - External MCP is a runtime client, not this app's MCP server: owner-scoped connections use encrypted optional bearer tokens and public HTTPS HTTP/SSE transports; read-only tools execute, all other tools stage immutable per-task requests when opted in, and clients close per turn. Why: preserve user isolation and explicit consent for external effects.

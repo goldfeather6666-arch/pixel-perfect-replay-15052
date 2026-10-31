@@ -38,7 +38,7 @@ function Workspace() {
     queryKey: ["session", id],
     queryFn: () => fetchSession({ data: { id } }),
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
-    refetchInterval: (q) => (!running && (q.state.data as { running?: boolean } | undefined)?.running ? 3000 : false),
+    refetchInterval: (q) => (stopping || (!running && (q.state.data as { running?: boolean } | undefined)?.running) ? 3000 : false),
   });
   const sd = session.data;
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
@@ -104,7 +104,7 @@ function Workspace() {
     setStopping(true);
     try {
       await stop({ data: { id } });
-      if (!running) await qc.invalidateQueries({ queryKey: ["session", id] });
+      await qc.invalidateQueries({ queryKey: ["session", id] });
     } catch (error) {
       setStopping(false);
       toast.error(`Could not stop: ${(error as Error).message}. Try again.`);
@@ -115,7 +115,7 @@ function Workspace() {
   const autoResumes = useRef(0);
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!stale || running || stopping || !sd?.updated_at) return;
+    if (!stale || running || stopping || sd?.stop_requested || !sd?.updated_at) return;
     if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
     resumedFor.current = sd.updated_at;
     autoResumes.current++;

@@ -11,6 +11,22 @@ export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> 
   });
 }
 
+/** Stop waiting even when an SDK stream is stuck in a tool that ignores cancellation. */
+export async function* abortableStream<T>(source: AsyncIterable<T>, signal: AbortSignal): AsyncGenerator<T> {
+  const iterator = source[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      signal.throwIfAborted();
+      const next = await abortable(iterator.next(), signal);
+      if (next.done) return;
+      yield next.value;
+    }
+  } finally {
+    // Never let an uncooperative iterator's cleanup hold task completion hostage.
+    void iterator.return?.().catch(() => {});
+  }
+}
+
 /** Human-readable text for a tool error; Error objects otherwise serialize to "{}". */
 export function errorText(raw: unknown): string {
   if (raw == null) return "";
