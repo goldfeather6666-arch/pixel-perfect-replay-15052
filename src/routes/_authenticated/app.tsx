@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AUTONOMY, AUTONOMY_LABEL, type Autonomy } from "@/lib/engine/autonomy";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -51,7 +52,7 @@ function Dashboard() {
   const [model, setModel] = useState("");
   const [teamPrompt, setTeamPrompt] = useState<string | null>(null);
   const [manualModel, setManualModel] = useState("");
-  const [mode, setMode] = useState<"supervised" | "autonomous">("supervised");
+  const [mode, setMode] = useState<Autonomy>("supervised");
 
   const branches = useQuery({ queryKey: ["branches", repo], queryFn: () => fetchBranches({ data: { repo } }), enabled: !!repo });
   const models = useQuery({ queryKey: ["models", credId], queryFn: () => fetchModels({ data: { id: credId } }), enabled: !!credId, retry: false });
@@ -164,13 +165,13 @@ function Dashboard() {
                 <Input className="h-11 text-base sm:text-sm" value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="e.g. claude-sonnet-4-5" />
               </div>
               <div className="space-y-1.5">
-                <Label>Mode</Label>
+                <Label>Autonomy level</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["supervised", "autonomous"] as const).map((m) => (
+                  {AUTONOMY.map((m) => (
                     <button type="button" key={m} onClick={() => setMode(m)}
                       className={`min-w-0 rounded-md border p-3 text-left text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
-                      <span className="font-medium capitalize">{m}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">{m === "supervised" ? "You approve every edit" : "Commits as it works"}</span>
+                      <span className="font-medium">{AUTONOMY_LABEL[m].title}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{AUTONOMY_LABEL[m].hint}</span>
                     </button>
                   ))}
                 </div>

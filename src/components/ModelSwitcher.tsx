@@ -9,24 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listCredentials, listModels, updateSession } from "@/lib/app.functions";
 
 /** Lets the user switch the AI key/provider and model of an ongoing task; applies from the next message. */
-export function ModelSwitcher({ id, credentialId, model, disabled }: { id: string; credentialId: string | null; model: string; disabled?: boolean }) {
+export function ModelSwitcher({ id, credentialId, model, fallbackModel, disabled }: { id: string; credentialId: string | null; model: string; fallbackModel?: string | null; disabled?: boolean }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [cred, setCred] = useState(credentialId ?? "");
   const [m, setM] = useState(model);
   const [saving, setSaving] = useState(false);
+  const [fb, setFb] = useState(fallbackModel ?? "");
   const fetchCreds = useServerFn(listCredentials);
   const fetchModels = useServerFn(listModels);
   const update = useServerFn(updateSession);
   const creds = useQuery({ queryKey: ["credentials"], queryFn: () => fetchCreds(), enabled: open });
   const models = useQuery({ queryKey: ["models", cred], queryFn: () => fetchModels({ data: { id: cred } }), enabled: open && !!cred, retry: false });
-  useEffect(() => { if (open) { setCred(credentialId ?? ""); setM(model); } }, [open, credentialId, model]);
+  useEffect(() => { if (open) { setCred(credentialId ?? ""); setM(model); setFb(fallbackModel ?? ""); } }, [open, credentialId, model, fallbackModel]);
 
   async function save() {
     if (!cred || !m) return;
     setSaving(true);
     try {
-      await update({ data: { id, credential_id: cred, model: m } });
+      await update({ data: { id, credential_id: cred, model: m, fallback_model: fb && fb !== m ? fb : null } });
       await qc.invalidateQueries({ queryKey: ["session", id] });
       toast.success(`Next messages will use ${m}`);
       setOpen(false);
@@ -58,6 +59,13 @@ export function ModelSwitcher({ id, credentialId, model, disabled }: { id: strin
               <SelectContent className="max-w-[calc(100vw-2rem)]">{models.data?.map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
             </Select>
             {models.isError && <p className="text-xs text-destructive">Could not load models for this key.</p>}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Backup model (optional): used once if the main model fails from overload, rate limits or timeouts before any work starts. Same AI key.</p>
+              <Select value={fb || "none"} onValueChange={(v) => setFb(v === "none" ? "" : v)} disabled={!cred}>
+                <SelectTrigger className="h-11 w-full [&>span]:truncate"><SelectValue placeholder="No backup" /></SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="none">No backup</SelectItem>{models.data?.filter((x) => x !== m).map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <Button className="h-11 w-full" disabled={!cred || !m || saving} onClick={save}>{saving ? "Saving…" : "Use this model"}</Button>
           </div>
         </DialogContent>
