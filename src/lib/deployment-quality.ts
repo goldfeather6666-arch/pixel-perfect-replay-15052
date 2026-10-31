@@ -55,6 +55,7 @@ export type QualityState = { changed: boolean; localPassed: boolean; linked: boo
 export function qualityBlocker(state: QualityState): string | null {
   if (!state.changed) return null;
   if (!state.localPassed && state.deploymentState !== "READY") return "Current changes have not passed production checks. Run deployment_preflight, fix the reported errors and re-check; if the sandbox is resource-blocked, verify the exact commit through Vercel instead.";
-  if (state.linked && !state.supervised && state.deploymentState !== "READY") return "The current commit is not verified READY on Vercel. Call deploy_status, read the actual build log and fix any failure. Do not report a completed deployment while it is failed, pending or missing.";
+  // LIMITED = Vercel refused to build because the account's deployment quota is used up; retrying can't help.
+  if (state.linked && !state.supervised && state.deploymentState !== "READY" && state.deploymentState !== "LIMITED") return "The current commit is not verified READY on Vercel. Call deploy_status, read the actual build log and fix any failure. Do not report a completed deployment while it is failed, pending or missing.";
   return null;
 }
