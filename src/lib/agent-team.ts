@@ -7,11 +7,56 @@ export const ACTIVE_TEAM_WORKERS = 4;
 // rejected dispatch tends to be retried verbatim, stalling the whole run.
 export const MAX_JOB_TASK_CHARS = 20000;
 export const MAX_JOB_PATHS = 40;
+// Specialist catalogue. Writers propose files only within exact assigned paths; checkers share the
+// serialized sandbox; the rest are read-only. Only the master merges.
+export const SPECIALIST_ROLES = ["explorer", "coder", "reviewer", "tester", "architect", "research", "frontend", "backend", "database", "integration", "qa", "security", "debugger"] as const;
+export type SpecialistRole = (typeof SPECIALIST_ROLES)[number];
+export const WRITER_ROLES: readonly SpecialistRole[] = ["coder", "frontend", "backend", "database", "integration"];
+export const CHECKER_ROLES: readonly SpecialistRole[] = ["tester", "qa", "debugger"];
+export const ROLE_BRIEF: Record<SpecialistRole, string> = {
+  explorer: "Find and explain the relevant code. Prefer search_files and read_files (batch reads).",
+  research: "Read docs, existing implementations and MCP resources; report verified APIs, versions and constraints with file references.",
+  architect: "Analyze architecture, dependencies and data flow; return a concrete technical design with files to change and risks.",
+  reviewer: "Review the requested code against requirements; report concrete bugs, incomplete work, duplication and risks with file:line evidence.",
+  security: "Audit auth, authorization, secrets exposure, injection and destructive operations; report findings with severity and file:line.",
+  coder: "Implement the assigned change by proposing complete file contents only for assigned paths.",
+  frontend: "Build UI in assigned files: reuse existing components, responsive layout, accessibility, loading/empty/error states.",
+  backend: "Implement server logic in assigned files: validate inputs, handle errors, keep secrets server-side, preserve auth checks.",
+  database: "Write schema/migration/query changes in assigned files: new timestamped migrations, indexes, RLS, never edit applied files.",
+  integration: "Wire external APIs/webhooks/MCP in assigned files with timeouts, failure handling and no credential leakage.",
+  tester: "Run the project's tests/typecheck/build with run_command and report exact failures with file:line.",
+  qa: "Write/execute tests for acceptance criteria with run_command; report pass/fail per criterion with exact output lines.",
+  debugger: "Reproduce the failure with run_command, read logs/stack traces, identify root cause and propose the targeted fix.",
+};
+
+/**
+ * Dependency waves: jobs run once every job they name in \`after\` finished. Unknown labels and
+ * cycles are rejected up front so the master cannot deadlock the team.
+ */
+export function scheduleWaves(jobs: { label: string; after?: string[] }[]): number[][] | string {
+  const index = new Map<string, number>();
+  jobs.forEach((j, i) => { if (!index.has(j.label)) index.set(j.label, i); });
+  for (const j of jobs) for (const d of j.after ?? []) {
+    if (!index.has(d)) return `Job "${j.label}" waits for unknown job "${d}".`;
+    if (d === j.label) return `Job "${j.label}" cannot wait for itself.`;
+  }
+  const done = new Set<number>();
+  const waves: number[][] = [];
+  while (done.size < jobs.length) {
+    const wave = jobs.map((_, i) => i).filter((i) => !done.has(i) && (jobs[i]!.after ?? []).every((d) => done.has(index.get(d)!)));
+    if (!wave.length) return "Job dependencies form a cycle.";
+    wave.forEach((i) => done.add(i));
+    waves.push(wave);
+  }
+  return waves;
+}
+
 export const teamJobSchema = z.object({
   label: z.string().min(1).transform((s) => s.slice(0, 60)),
-  role: z.enum(["explorer", "coder", "reviewer", "tester"]).default("explorer"),
+  role: z.enum(SPECIALIST_ROLES).default("explorer"),
   task: z.string().min(5).max(MAX_JOB_TASK_CHARS),
   paths: z.array(z.string().min(1).max(300)).max(MAX_JOB_PATHS).default([]),
+  after: z.array(z.string().min(1).max(60)).max(MAX_TEAM_JOBS).default([]),
 });
 // Some models send the array as a JSON string; accept both spellings so a whole wave cannot
 // be lost to a formatting quirk.
