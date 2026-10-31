@@ -13,6 +13,8 @@ import { createRepo, createSession, listBranches, listCredentials, listModels, l
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { taskRunStatus } from "@/lib/task-run-status";
+import { DeployPanel } from "@/components/DeployPanel";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({ meta: pageMeta("Workspace — Forge", "Your coding agent tasks.") }),
@@ -28,6 +30,8 @@ function Dashboard() {
   const fetchModels = useServerFn(listModels);
   const create = useServerFn(createSession);
   const makeRepo = useServerFn(createRepo);
+  const [setupId, setSetupId] = useState<string | null>(null);
+  const [setupConnections, setSetupConnections] = useState(true);
 
   const sessions = useQuery({
     queryKey: ["sessions"],
@@ -81,7 +85,7 @@ function Dashboard() {
   const createM = useMutation({
     mutationFn: () =>
       create({ data: { repo, base_branch: branch, credential_id: credId, model: manualModel || model, mode, title: "New task" } }),
-    onSuccess: (id) => nav({ to: "/s/$id", params: { id } }),
+    onSuccess: (id) => setupConnections ? setSetupId(id) : nav({ to: "/s/$id", params: { id } }),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -169,7 +173,8 @@ function Dashboard() {
                   ))}
                 </div>
               </div>
-              <Button disabled={!repo || !branch || !credId || !(model || manualModel) || createM.isPending} className="h-12 w-full text-base">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={setupConnections} onChange={(e) => setSetupConnections(e.target.checked)} /> Set up database & Vercel before starting</label>
+              <Button disabled={!repo || !branch || !credId || !(model || manualModel) || createM.isPending || !!setupId} className="h-12 w-full text-base">
                 <Plus /> {createM.isPending ? "Creating branch…" : "Start task"}
               </Button>
             </form>
@@ -201,6 +206,14 @@ function Dashboard() {
           </ul>
         </aside>
       </main>
+      <Dialog open={!!setupId} onOpenChange={(open) => { if (!open && setupId) void nav({ to: "/s/$id", params: { id: setupId } }); }}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto p-4">
+          <DialogTitle>Connect your new project</DialogTitle>
+          <DialogDescription>Use existing accounts or connect once. Public settings sync to Vercel production and previews; private keys never go into GitHub.</DialogDescription>
+          {setupId && <DeployPanel id={setupId} />}
+          <Button onClick={() => { if (setupId) void nav({ to: "/s/$id", params: { id: setupId } }); }}>Continue to task</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
