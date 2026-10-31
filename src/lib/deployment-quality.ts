@@ -83,7 +83,11 @@ export function checkFailure(result: CheckResult): string {
   if (/Production build script missing/i.test(output)) return "The repository has no production build script. Add the correct build command before verification.";
   const checks = [...output.matchAll(/\[Forge check\] (?:npm|pnpm|yarn|bun) run (lint|typecheck|type-check|check-types|test|build)\b/g)];
   const phase = checks.at(-1)?.[1];
-  return phase ? `The ${phase} check failed (exit ${result.exit_code ?? "unknown"}). Read its output in Background activity, fix the first error, and run production checks again.` : `Production checks failed (exit ${result.exit_code ?? "unknown"}). Read the check output in Background activity before retrying.`;
+  const first = firstErrorLines(output);
+  const detail = first.length ? ` First error: ${first.join(" — ")}` : "";
+  return phase
+    ? `The ${phase} check failed (exit ${result.exit_code ?? "unknown"}).${detail} Fix the first error and run production checks again.`
+    : `Production checks failed (exit ${result.exit_code ?? "unknown"}).${detail}`;
 }
 
 export type QualityState = { changed: boolean; localPassed: boolean; localAttempted?: boolean; localIssue?: string | undefined; linked: boolean; supervised: boolean; deploymentState?: string | undefined };
