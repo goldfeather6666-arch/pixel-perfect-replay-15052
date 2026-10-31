@@ -78,7 +78,7 @@ async function handle({ request }: { request: Request }) {
   const method = request.method.toUpperCase();
   let upstream: Response;
   try {
-    upstream = await fetch(target, { method, headers, body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(), redirect: "manual" });
+    upstream = await fetch(target, { method, headers, body: method === "GET" || method === "HEAD" ? null : await request.arrayBuffer(), redirect: "manual" });
   } catch {
     return deny(502, "The dev server is not answering yet. It may still be starting.");
   }

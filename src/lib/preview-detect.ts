@@ -21,7 +21,7 @@ export function detectPackageManager(files: string[]): PackageManager {
 export function detectFramework(pkg: Pkg, files: string[]): Framework {
   if (!pkg) return files.includes("index.html") ? "static" : "unknown";
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  const dev = pkg.scripts?.dev ?? "";
+  const dev = pkg.scripts?.["dev"] ?? "";
   if (deps["next"]) return "next";
   if (deps["@remix-run/dev"] || deps["@react-router/dev"]) return "remix";
   if (deps["nuxt"]) return "nuxt";

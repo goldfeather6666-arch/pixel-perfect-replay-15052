@@ -131,9 +131,9 @@ export async function previewStatus(sb: any, row: PreviewRow, opts: { autoRestar
   const logTail = rest.join("\n");
   let status = alive === "1" ? (isHealthy(code) ? "ready" : row.status === "ready" ? "unhealthy" : "starting") : "crashed";
   const proc = { ...row.process, last_http: code, exit_code: exitStr ? Number(exitStr) : null };
-  if (status === "crashed" && opts.autoRestart && Number(row.process.restarts ?? 0) < MAX_AUTO_RESTARTS && exitStr !== "90") {
+  if (status === "crashed" && opts.autoRestart && Number(row.process["restarts"] ?? 0) < MAX_AUTO_RESTARTS && exitStr !== "90") {
     const pid = await launch(box, row, row.framework as Framework, "", row.command);
-    Object.assign(proc, { pid, restarts: Number(row.process.restarts ?? 0) + 1, restarted_at: new Date().toISOString() });
+    Object.assign(proc, { pid, restarts: Number(row.process["restarts"] ?? 0) + 1, restarted_at: new Date().toISOString() });
     status = "starting";
   }
   const now = new Date().toISOString();
