@@ -163,6 +163,7 @@ export type SessionRow = {
   messages: ChatMessage[];
   pending: PendingChange[];
   updated_at: string;
+  running?: boolean;
 };
 
 export const listSessions = createServerFn({ method: "GET" })
@@ -170,10 +171,10 @@ export const listSessions = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("agent_sessions")
-      .select("id, title, repo, work_branch, mode, updated_at")
+      .select("id, title, repo, work_branch, mode, updated_at, running")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at">[];
+    return data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at" | "running">[];
   });
 
 export const getSession = createServerFn({ method: "POST" })

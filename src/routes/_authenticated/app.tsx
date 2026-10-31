@@ -28,7 +28,17 @@ function Dashboard() {
   const create = useServerFn(createSession);
   const makeRepo = useServerFn(createRepo);
 
-  const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => fetchSessions() });
+  const sessions = useQuery({
+    queryKey: ["sessions"],
+    queryFn: () => fetchSessions(),
+    // Keep the list fresh while any task is running in the cloud (heartbeat is every 30 s).
+    refetchInterval: (q) =>
+      ((q.state.data ?? []) as { running?: boolean; updated_at?: string }[]).some(
+        (s) => s.running && Date.now() - new Date(s.updated_at ?? 0).getTime() < 2 * 60_000,
+      )
+        ? 3000
+        : false,
+  });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
   const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
   const hasGh = creds.data?.some((c) => c.provider === "github");
