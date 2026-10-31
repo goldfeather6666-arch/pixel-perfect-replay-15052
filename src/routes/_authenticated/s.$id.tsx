@@ -147,12 +147,25 @@ function Workspace() {
       setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
     const ac = new AbortController();
     abortRef.current = ac;
+    let backgrounded = false;
     try {
-      const { data } = await supabase.auth.getSession();
+      // A fresh token gives the cloud-kept run a full hour of access.
+      const refreshed = await supabase.auth.refreshSession().catch(() => null);
+      const token = refreshed?.data.session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token;
+      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) }));
+      // Prefer a cloud-kept run so work continues when the phone sleeps or switches apps.
+      const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
+      if (!bg.ok) throw new Error(await bg.text());
+      if ((await bg.json() as { mode?: string }).mode === "background") {
+        accepted = true;
+        backgrounded = true;
+        toast.success("Running in the cloud — you can switch apps or lock your phone.");
+        return;
+      }
       const res = await fetch("/api/agent", {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${data.session?.access_token}` },
-        body: JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) })),
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body,
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
