@@ -93,13 +93,60 @@ function Dashboard() {
   });
 
   const ready = creds.data && aiCreds.length > 0 && hasGh;
+  const stats = useMemo(() => {
+    const list = sessions.data ?? [];
+    const st = list.map((s) => taskRunStatus(s));
+    return {
+      total: list.length,
+      cloud: st.filter((x) => x === "cloud").length,
+      live: st.filter((x) => x === "cloud" || x === "browser").length,
+      stale: st.filter((x) => x === "stale").length,
+      repos: new Set(list.map((s) => s.repo)).size,
+    };
+  }, [sessions.data]);
+  const [preset, setPreset] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen">
+    <div className="bg-aurora min-h-screen">
       <AppHeader />
-      <main className="mx-auto grid max-w-5xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[1fr_320px]">
-        <section className="min-w-0 rounded-lg border bg-card p-4 sm:p-5">
-          <h1 className="text-xl font-semibold">New task</h1>
+      <div className="mx-auto max-w-6xl px-3 pt-5 sm:px-8 sm:pt-8">
+        <p className="hud-label">Command center</p>
+        <h1 className="text-gradient mt-1 text-2xl font-semibold sm:text-3xl">Ship code with your agents</h1>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          {([
+            ["Active runs", stats.live, Activity, stats.live > 0],
+            ["In the cloud", stats.cloud, Cloud, stats.cloud > 0],
+            ["Tasks", stats.total, Layers, false],
+            ["Repositories", stats.repos, FolderGit2, false],
+          ] as const).map(([label, v, Icon, hot]) => (
+            <div key={label} className={`panel relative overflow-hidden p-3 sm:p-4 ${hot ? "shadow-glow" : ""}`}>
+              <div className="flex items-center justify-between"><span className="hud-label">{label}</span><Icon className={`h-4 w-4 ${hot ? "text-primary" : "text-muted-foreground"}`} /></div>
+              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums sm:text-3xl">{sessions.isLoading ? "—" : v}</p>
+              {hot && <span className="absolute bottom-0 left-0 h-0.5 w-full animate-pulse bg-primary" />}
+            </div>
+          ))}
+        </div>
+        {stats.stale > 0 && <p className="mt-2 text-xs text-destructive">{stats.stale} task{stats.stale > 1 ? "s" : ""} stopped reporting — open to resume.</p>}
+      </div>
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="panel min-w-0 p-4 sm:p-6">
+          <div className="flex items-center gap-2"><Rocket className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">New task</h2></div>
+          {ready && (
+            <div className="mt-4">
+              <p className="hud-label mb-2">Quick start</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {PRESETS.map((p) => (
+                  <button key={p.title} type="button" onClick={() => { const on = preset === p.title; setPreset(on ? null : p.title); setTeamPrompt(on ? null : p.prompt); }}
+                    className={`min-w-0 rounded-lg border p-3 text-left transition-colors hover:border-primary ${preset === p.title ? "border-primary bg-accent" : "bg-background/60"}`}>
+                    <p.icon className="h-4 w-4 text-primary" />
+                    <span className="mt-2 block truncate text-sm font-medium">{p.title}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{p.hint}</span>
+                  </button>
+                ))}
+              </div>
+              {preset && <p className="mt-2 text-xs text-muted-foreground">“{preset}” will be your first message — edit it before sending.</p>}
+            </div>
+          )}
           {creds.data && !ready ? (
             <div className="mt-4 text-sm text-muted-foreground">
               You need {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"} first.{" "}
