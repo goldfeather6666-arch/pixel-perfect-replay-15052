@@ -1,4 +1,4 @@
-import { errorText, toolErrorText } from "@/lib/abortable";
+import { abortable, abortableStream, errorText, toolErrorText } from "@/lib/abortable";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -128,7 +128,7 @@ export const Route = createFileRoute("/api/agent")({
           const { abortable } = await import("@/lib/abortable");
           return abortable(serializeBy(`sandbox:${sessionId}`, () => {
             runAbort.signal.throwIfAborted();
-            return runInSandbox(sb, sbxSession, ghToken, command, pending, preview);
+            return runInSandbox(sb, sbxSession, ghToken, command, pending, preview, runAbort.signal);
           }), runAbort.signal);
         };
         if (process.env["E2B_API_KEY"]) warm = sbxRun("true").catch(() => null);
@@ -537,6 +537,9 @@ export const Route = createFileRoute("/api/agent")({
         // Atomic claim: only one run per task (a dead run counts as free after 2 min without a heartbeat).
         // The user's message is saved immediately so a reopened page shows it before the first step finishes.
         const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString();
+        // Do not erase a Stop pressed while this request was preparing repository context.
+        const { data: beforeClaim } = await sb.from("agent_sessions").select("stop_requested, updated_at").eq("id", sessionId).eq("user_id", u.user.id).single();
+        if (beforeClaim?.stop_requested && beforeClaim.updated_at !== s.updated_at) return new Response("Task stopped", { status: 409 });
         const { data: claimed } = await sb.from("agent_sessions").update({
           running: true, stop_requested: false, updated_at: new Date().toISOString(),
           messages: [...history, { role: "user", content: message }, { role: "assistant", content: "", tools: [] }],
@@ -563,7 +566,9 @@ export const Route = createFileRoute("/api/agent")({
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
             try {
               const { loadMcpTools } = await import("@/lib/mcp-client.server");
-               external = await loadMcpTools(sb, u.user.id, sessionId);
+               const loading = loadMcpTools(sb, u.user.id, sessionId);
+               void loading.then((loaded) => { if (runAbort.signal.aborted) void loaded.close().catch(() => {}); }, () => {});
+               external = await abortable(loading, runAbort.signal);
                const externalContext = `\nConnected MCP servers: ${JSON.stringify(external.servers)}. Connection issues: ${JSON.stringify(external.issues)}. To browse a server, call tool_search with server set to its exact name and query set to an empty string. Do not repeatedly search keywords when a server is unavailable; report the connection issue. Framer website MCP edits Framer-hosted projects, not GitHub source files; Framer Motion/Motion and Three.js are separate libraries. Do not claim Framer MCP was used when it was not.`;
                const { data: actions } = await sb.from("mcp_action_requests").select("tool_name, state, result").eq("user_id", u.user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(10);
               let usedSteps = 0;
@@ -577,7 +582,7 @@ export const Route = createFileRoute("/api/agent")({
                 maxRetries: 3,
                 abortSignal: runAbort.signal,
               });
-              for await (const part of result.fullStream) {
+              for await (const part of abortableStream(result.fullStream, runAbort.signal)) {
                 if (part.type === "text-delta") {
                   text += part.text;
                   send({ t: "text", d: part.text });
@@ -609,7 +614,8 @@ export const Route = createFileRoute("/api/agent")({
                 }
               }
               const stepCap = plan ? 20 : 50;
-              usedSteps += (await result.steps).length;
+              runAbort.signal.throwIfAborted();
+              usedSteps += (await abortable(result.steps, runAbort.signal)).length;
               const exhausted = usedSteps >= stepCap;
               const blocker = !plan ? qualityBlocker(quality) : null;
               if (blocker && repairRound < 3 && !exhausted && !runAbort.signal.aborted) {
@@ -634,7 +640,6 @@ export const Route = createFileRoute("/api/agent")({
               clearInterval(beat);
               if (runAbort.signal.aborted && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
               if (runAbort.signal.aborted) send({ t: "text", d: "\n\n_(stopped)_" });
-              await external?.close();
               const next: ChatMessage[] = [
                 ...history,
                 { role: "user", content: images?.length ? `${message}\n\n(${images.length} image${images.length > 1 ? "s" : ""} attached)` : message },
@@ -644,6 +649,9 @@ export const Route = createFileRoute("/api/agent")({
                 .from("agent_sessions")
                 .update({
                   messages: next,
+                  running: false,
+                  stop_requested: false,
+                  ...(ownKeeper ? { keeper_id: null } : {}),
                   pending,
                   summary: summary || null,
                   summarized_count: summarizedCount,
@@ -654,7 +662,8 @@ export const Route = createFileRoute("/api/agent")({
                 .eq("id", sessionId).eq("user_id", u.user.id);
               send({ t: "done" });
               if (open) try { controller.close(); } catch { /* client gone */ }
-              await sb.from("agent_sessions").update({ running: false, stop_requested: false, ...(ownKeeper ? { keeper_id: null } : {}) }).eq("id", sessionId).eq("user_id", u.user.id);
+              // Completion is saved before remote cleanup, which can stall independently.
+              void external?.close().catch(() => {});
               if (ownKeeper && keeperId) { const { stopKeeper } = await import("@/lib/background-run.server"); await stopKeeper(keeperId); }
             }
           },

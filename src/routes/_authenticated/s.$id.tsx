@@ -38,7 +38,7 @@ function Workspace() {
     queryKey: ["session", id],
     queryFn: () => fetchSession({ data: { id } }),
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
-    refetchInterval: (q) => (!running && (q.state.data as { running?: boolean } | undefined)?.running ? 3000 : false),
+    refetchInterval: (q) => (stopping || (!running && (q.state.data as { running?: boolean } | undefined)?.running) ? 3000 : false),
   });
   const sd = session.data;
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
@@ -104,7 +104,7 @@ function Workspace() {
     setStopping(true);
     try {
       await stop({ data: { id } });
-      if (!running) await qc.invalidateQueries({ queryKey: ["session", id] });
+      await qc.invalidateQueries({ queryKey: ["session", id] });
     } catch (error) {
       setStopping(false);
       toast.error(`Could not stop: ${(error as Error).message}. Try again.`);
@@ -115,7 +115,7 @@ function Workspace() {
   const autoResumes = useRef(0);
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!stale || running || stopping || !sd?.updated_at) return;
+    if (!stale || running || stopping || sd?.stop_requested || !sd?.updated_at) return;
     if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
     resumedFor.current = sd.updated_at;
     autoResumes.current++;
@@ -305,7 +305,7 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <p className="mx-auto mb-2 max-w-3xl text-xs text-destructive">The last run stopped without finishing (no sign of life for over 2 minutes). Its saved progress is above — send a message such as "continue" to pick up from there.</p>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 2 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
             {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">

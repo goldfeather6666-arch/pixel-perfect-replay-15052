@@ -164,6 +164,7 @@ export type SessionRow = {
   pending: PendingChange[];
   updated_at: string;
   running?: boolean;
+  stop_requested?: boolean;
   keeper_id?: string | null;
 };
 
@@ -427,8 +428,21 @@ export const stopSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("agent_sessions").update({ stop_requested: true }).eq("id", data.id).eq("user_id", context.userId);
+    const { data: task, error: readError } = await context.supabase.from("agent_sessions").select("running, updated_at, keeper_id").eq("id", data.id).eq("user_id", context.userId).single();
+    if (readError || !task) throw new Error("Task not found");
+    const { taskRunStatus } = await import("./task-run-status");
+    const stale = taskRunStatus(task) === "stale";
+    const { data: stopped, error } = await context.supabase.from("agent_sessions").update({
+      stop_requested: true,
+      updated_at: new Date().toISOString(),
+      ...(stale ? { running: false, keeper_id: null } : {}),
+    }).eq("id", data.id).eq("user_id", context.userId).eq("updated_at", task.updated_at).select("id");
     if (error) throw new Error(error.message);
+    if (!stopped?.length) throw new Error("Task status changed. Please press Stop again.");
+    if (stale && task.keeper_id) {
+      const { stopKeeper } = await import("./background-run.server");
+      await stopKeeper(task.keeper_id);
+    }
     return { ok: true };
   });
 

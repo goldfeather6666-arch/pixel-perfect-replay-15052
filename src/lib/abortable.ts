@@ -1,5 +1,5 @@
 /** Resolve with `work`, or reject as soon as `signal` aborts (the work keeps running but is no longer awaited). */
-export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+export function abortable<T>(work: PromiseLike<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Stopped"));
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason ?? new Error("Stopped"));
@@ -9,6 +9,22 @@ export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> 
       (e) => { signal.removeEventListener("abort", onAbort); reject(e); },
     );
   });
+}
+
+/** Stop waiting even when an SDK stream is stuck in a tool that ignores cancellation. */
+export async function* abortableStream<T>(source: AsyncIterable<T>, signal: AbortSignal): AsyncGenerator<T> {
+  const iterator = source[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      signal.throwIfAborted();
+      const next = await abortable(iterator.next(), signal);
+      if (next.done) return;
+      yield next.value;
+    }
+  } finally {
+    // Never let an uncooperative iterator's cleanup hold task completion hostage.
+    void iterator.return?.().catch(() => {});
+  }
 }
 
 /** Human-readable text for a tool error; Error objects otherwise serialize to "{}". */
