@@ -31,6 +31,27 @@ describe("production checks", () => {
   it("identifies the last failed check rather than generic verification", () => {
     expect(checkFailure({ exit_code: 2, stdout: "[Forge check] npm run typecheck\n[Forge exit] 2" })).toContain("typecheck check failed (exit 2)");
   });
+  it("shows the first real error line so the failure is actionable", () => {
+    const issue = checkFailure({
+      exit_code: 1,
+      stdout: "[Forge check] npm run build\nsrc/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.\n[Forge exit] 1",
+    });
+    expect(issue).toContain("build check failed (exit 1)");
+    expect(issue).toContain("First error: src/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.");
+    expect(issue).not.toContain("Read its output in Background activity");
+  });
+  it("redacts token-like values from surfaced error lines", () => {
+    const issue = checkFailure({
+      exit_code: 1,
+      stdout: "[Forge check] npm run build\nError: request to https://user:ghp_abcdef1234567890abcdef1234567890ab@example.com failed with token=ghp_abcdef1234567890abcdef1234567890ab\n[Forge exit] 1",
+    });
+    expect(issue).toContain("failed");
+    expect(issue).not.toContain("ghp_abcdef1234567890abcdef1234567890ab");
+  });
+  it("falls back to the last output lines when nothing looks like an error", () => {
+    const issue = checkFailure({ exit_code: 1, stdout: "step one\nstep two\nfinal line" });
+    expect(issue).toContain("final line");
+  });
   it("keeps failed local checks blocking for supervised and unlinked projects", () => {
     expect(qualityBlocker({ changed: true, localPassed: false, linked: false, supervised: false })).not.toBeNull();
     expect(qualityBlocker({ changed: true, localPassed: false, linked: true, supervised: true })).not.toBeNull();
