@@ -9,7 +9,13 @@ export const teamJobSchema = z.object({
   task: z.string().min(5).max(4000),
   paths: z.array(z.string().min(1).max(300)).max(20).default([]),
 });
-export const teamSchema = z.object({ jobs: z.array(teamJobSchema).min(1).max(MAX_TEAM_JOBS) });
+// Some models send the array as a JSON string; accept both spellings so a whole wave cannot
+// be lost to a formatting quirk.
+const jobsField = z.preprocess(
+  (v) => (typeof v === "string" ? (() => { try { return JSON.parse(v); } catch { return v; } })() : v),
+  z.array(teamJobSchema).min(1).max(MAX_TEAM_JOBS),
+);
+export const teamSchema = z.object({ jobs: jobsField });
 export type CodeProposal = { id: string; path: string; content: string; original: string | null; label: string };
 
 export function ownsPath(paths: string[], path: string): boolean {
@@ -31,6 +37,17 @@ export async function parallelMap<T, R>(items: T[], limit: number, run: (item: T
     }
   }));
   return results;
+}
+
+/** Abortable wait used for provider rate-limit backoff between worker attempts. */
+export async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(t);
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    }, { once: true });
+  });
 }
 
 export function proposalConflict(proposal: CodeProposal, current: string | null): string | null {

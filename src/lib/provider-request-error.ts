@@ -6,10 +6,20 @@ export function modelConfigurationError(baseUrl: string | null, model: string): 
   }
   return null;
 }
+
+/** Provider throttling (429 / output-token caps) is recoverable by waiting; other failures are not. */
+export function isRateLimit(error: unknown): boolean {
+  const e = error as { statusCode?: number; message?: string };
+  return e?.statusCode === 429 || /rate.?limit|too many requests|output token limit|token limit|insufficient_quota/i.test(String(e?.message ?? ""));
+}
+
 export function providerRequestError(error: unknown): string {
   const e = error as { statusCode?: number; message?: string };
   if (e?.statusCode === 400 || /^bad request$/i.test(e?.message ?? "")) {
     return "The AI provider rejected the model request (400), after Forge accepted your prompt. Check the exact model ID, custom request options, and whether the model supports tools and this context size. No work completed; your prompt remains in the conversation.";
+  }
+  if (isRateLimit(e)) {
+    return "The AI provider's rate limit was reached (usually a cap on generated tokens per minute). Everything done so far is saved — wait a few minutes and send “continue”.";
   }
   return "The agent request failed. Check the provider connection and try again after resolving the issue.";
 }

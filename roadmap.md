@@ -29,5 +29,7 @@
 - [x] Deployment reliability: built-in coding skill, repeatable production checks, commit-matched Vercel results and bounded repair follow-ups (14 focused tests passed)
 - [ ] Real failing-project deployment verification — requires an authorized task run; do not trigger paid agent runs or external deployments during tests
 - [x] Cloud-kept runs: tasks continue when the phone sleeps/switches apps (keeper round trip verified; a full paid run not exercised)
+- [x] Concurrent cloud tasks: several tasks each keep their own run (per-task keeper + claim, no shared lock); E2B probe held 6 sandboxes at once; task list shows "Running in the cloud" and refreshes itself (badge verified with temporary data)
+- [x] Team runs survive provider throttling: workers stagger starts, wait with backoff on rate limits (429 / output-token caps) and say so plainly instead of dying with "check the connection"; a whole team sent as text still parses (focused tests passed)
 - [x] Stop button beside background status; independent stop polling during model waiting
 - [x] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit (boundary tests and phone-sized composer verified)

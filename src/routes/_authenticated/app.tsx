@@ -28,7 +28,17 @@ function Dashboard() {
   const create = useServerFn(createSession);
   const makeRepo = useServerFn(createRepo);
 
-  const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => fetchSessions() });
+  const sessions = useQuery({
+    queryKey: ["sessions"],
+    queryFn: () => fetchSessions(),
+    // Keep the list fresh while any task is running in the cloud (heartbeat is every 30 s).
+    refetchInterval: (q) =>
+      ((q.state.data ?? []) as { running?: boolean; updated_at?: string }[]).some(
+        (s) => s.running && Date.now() - new Date(s.updated_at ?? 0).getTime() < 2 * 60_000,
+      )
+        ? 3000
+        : false,
+  });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
   const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
   const hasGh = creds.data?.some((c) => c.provider === "github");
@@ -173,14 +183,23 @@ function Dashboard() {
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Recent tasks</h2>
           {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
           <ul className="space-y-2">
-            {sessions.data?.map((s) => (
-              <li key={s.id}>
-                <Link to="/s/$id" params={{ id: s.id }} className="block rounded-md border bg-card p-3 hover:border-primary">
-                  <p className="truncate text-sm font-medium">{s.title}</p>
-                  <p className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3" />{s.repo}</p>
-                </Link>
-              </li>
-            ))}
+            {sessions.data?.map((s) => {
+              const live = s.running && Date.now() - new Date(s.updated_at).getTime() < 2 * 60_000;
+              return (
+                <li key={s.id}>
+                  <Link to="/s/$id" params={{ id: s.id }} className="block rounded-md border bg-card p-3 hover:border-primary">
+                    <p className="truncate text-sm font-medium">{s.title}</p>
+                    <p className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3" />{s.repo}</p>
+                    {live && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-primary">
+                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
+                        Running in the cloud
+                      </p>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </aside>
       </main>

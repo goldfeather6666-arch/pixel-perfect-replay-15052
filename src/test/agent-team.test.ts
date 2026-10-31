@@ -34,4 +34,11 @@ describe("master-controlled agent team", () => {
     expect(proposalConflict(proposal, "old")).toBeNull();
     expect(proposalConflict(proposal, "someone else's edit")).not.toBeNull();
   });
+  it("accepts a whole team sent as a JSON string and still rejects malformed text", () => {
+    const job = { label: "UI", role: "coder", task: "Implement UI", paths: ["src/ui.tsx"] };
+    const packed = teamSchema.safeParse({ jobs: JSON.stringify([job]) });
+    expect(packed.success).toBe(true);
+    if (packed.success) expect(packed.data.jobs[0]?.label).toBe("UI");
+    expect(teamSchema.safeParse({ jobs: "not json" }).success).toBe(false);
+  });
 });
