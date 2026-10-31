@@ -5,6 +5,7 @@ import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/prov
 import type { ModelMessage } from "ai";
 import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
 import { agentRequest, requestError } from "@/lib/agent-request";
+import { watchForStop } from "@/lib/agent-stop";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -112,7 +113,9 @@ export const Route = createFileRoute("/api/agent")({
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
         const sbxRun = async (command: string, preview?: { port: number }) => {
+          runAbort.signal.throwIfAborted();
           await warm?.catch(() => {});
+          runAbort.signal.throwIfAborted();
           const { runInSandbox } = await import("@/lib/sandbox.server");
           return runInSandbox(sb, sbxSession, ghToken, command, pending, preview);
         };
@@ -306,7 +309,7 @@ export const Route = createFileRoute("/api/agent")({
                 deploymentId = (await v.redeploy(cur)).id;
                 envRebuildNeeded = false;
               }
-              const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) });
+              const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) }, runAbort.signal);
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
               if (!latest) return { state: "NONE", envNote, note: "No deployment for this branch yet. Check the Vercel project is connected to this GitHub repo, or commit a change." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
@@ -428,6 +431,10 @@ export const Route = createFileRoute("/api/agent")({
             emit = send;
             // Heartbeat: proves the run is alive between steps; a run with no beat for 2 min is treated as dead.
             const beat = setInterval(() => { void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id); }, 30_000);
+            const stopWatching = watchForStop(async () => {
+              const { data } = await sb.from("agent_sessions").select("stop_requested").eq("id", sessionId).eq("user_id", u.user.id).single();
+              return data?.stop_requested === true;
+            }, runAbort);
             let text = "";
             const logs = runLogs;
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
@@ -497,7 +504,10 @@ export const Route = createFileRoute("/api/agent")({
               if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
               send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
             } finally {
+              stopWatching();
               clearInterval(beat);
+              if (runAbort.signal.aborted && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
+              if (runAbort.signal.aborted) send({ t: "text", d: "\n\n_(stopped)_" });
               await external?.close();
               const next: ChatMessage[] = [
                 ...history,

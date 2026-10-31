@@ -104,14 +104,20 @@ export async function syncSupabaseToVercel(supabaseToken: string, vercelToken: s
 }
 
 /** Polls the branch's latest deployment until it finishes or the time budget runs out. */
-export async function waitForDeployment(v: Pick<Vercel, "deployments">, projectId: string, branch: string, maxMs = 180_000, expected?: { commitSha: string; deploymentId?: string }) {
+export async function waitForDeployment(v: Pick<Vercel, "deployments">, projectId: string, branch: string, maxMs = 180_000, expected?: { commitSha: string; deploymentId?: string }, signal?: AbortSignal) {
   const end = Date.now() + maxMs;
   for (;;) {
+    signal?.throwIfAborted();
     const latest = (await v.deployments(projectId, branch))
       .filter((d) => !expected || (d.commitSha === expected.commitSha && (!expected.deploymentId || d.id === expected.deploymentId)))
       .sort((a, b) => b.created - a.created)[0];
     if (latest && ["READY", "ERROR", "CANCELED"].includes(latest.state)) return latest;
     if (Date.now() >= end) return latest ?? null;
-    await new Promise((r) => setTimeout(r, 10_000));
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); reject(signal?.reason ?? new Error("Stopped")); };
+      const timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, 10_000);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
   }
 }

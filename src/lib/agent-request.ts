@@ -1,9 +1,14 @@
 import { z } from "zod";
 
-export const MAX_PROMPT_CHARS = 200_000;
+export const MAX_PROMPT_CHARS = 300_000;
+export function promptCapacity(message: string) {
+  const used = message.length;
+  const remaining = MAX_PROMPT_CHARS - used;
+  return { used, remaining, nearLimit: remaining >= 0 && remaining <= MAX_PROMPT_CHARS / 10, overLimit: remaining < 0 };
+}
 export function promptError(message: string): string | null {
   if (!message.trim()) return "Enter a message before sending.";
-  if (message.length > MAX_PROMPT_CHARS) return `Your prompt has ${message.length.toLocaleString("en-US")} characters. Forge accepts up to 200,000 per message; split it into smaller messages.`;
+  if (message.length > MAX_PROMPT_CHARS) return `Your prompt has ${message.length.toLocaleString("en-US")} characters. Forge accepts up to ${MAX_PROMPT_CHARS.toLocaleString("en-US")} per message; split it into smaller messages.`;
   return null;
 }
 const image = z.object({ mediaType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]), data: z.string().max(7_000_000) });

@@ -16,7 +16,7 @@ import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
 import { DeployPanel } from "@/components/DeployPanel";
-import { promptError } from "@/lib/agent-request";
+import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -32,6 +32,7 @@ function Workspace() {
   const remove = useServerFn(deleteSession);
   const stop = useServerFn(stopSession);
   const [running, setRunning] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const session = useQuery({
     queryKey: ["session", id],
     queryFn: () => fetchSession({ data: { id } }),
@@ -60,6 +61,7 @@ function Workspace() {
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [input, setInput] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const capacity = promptCapacity(input);
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
   const abortRef = useRef<AbortController | null>(null);
@@ -77,6 +79,19 @@ function Workspace() {
   }, [session.data]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages]);
   useEffect(() => { taRef.current?.focus(); }, [running]);
+  useEffect(() => { if (!running && !sd?.running) setStopping(false); }, [running, sd?.running]);
+
+  async function stopWork() {
+    if (stopping) return;
+    setStopping(true);
+    try {
+      await stop({ data: { id } });
+      if (!running) await qc.invalidateQueries({ queryKey: ["session", id] });
+    } catch (error) {
+      setStopping(false);
+      toast.error(`Could not stop: ${(error as Error).message}. Try again.`);
+    }
+  }
 
   async function send(override?: string, forcePlan?: boolean) {
     let text = (override ?? input).trim();
@@ -236,6 +251,8 @@ function Workspace() {
                 steps={(messages.at(-1)?.role === "assistant" ? messages.at(-1)?.tools ?? [] : []).filter((t) => t.name !== "note" && t.ok !== undefined).length}
                 limit={running && runPlan.current ? 20 : 50}
                 background={bgRunning}
+                stopping={stopping}
+                onStop={stopWork}
               />
             )}
             {stale && !running && <p className="mx-auto mb-2 max-w-3xl text-xs text-destructive">The last run stopped without finishing (no sign of life for over 2 minutes). Its saved progress is above — send a message such as "continue" to pick up from there.</p>}
@@ -253,6 +270,9 @@ function Workspace() {
             <div className="mx-auto flex max-w-3xl items-end gap-2">
               <Textarea
                 ref={taRef}
+                aria-label="Task prompt"
+                aria-describedby="prompt-capacity"
+                aria-invalid={capacity.overLimit}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -263,10 +283,14 @@ function Workspace() {
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
               <Button type="button" size="icon" variant="ghost" aria-label="Attach image" disabled={images.length >= 4} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
               {running || bgRunning ? (
-                <Button type="button" size="icon" variant="secondary" aria-label="Stop" onClick={() => { stop({ data: { id } }).catch(() => {}); }}><Square /></Button>
+                <Button type="button" size="icon" variant="secondary" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>
               ) : (
-                <Button size="icon" aria-label="Send" disabled={!input.trim()}><Send /></Button>
+                <Button size="icon" aria-label="Send" disabled={!input.trim() || capacity.overLimit}><Send /></Button>
               )}
+            </div>
+            <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
+              <span className="tabular-nums">{capacity.used.toLocaleString("en-US")} / {MAX_PROMPT_CHARS.toLocaleString("en-US")} characters</span>
+              <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
             </div>
           </form>
         </TabsContent>
@@ -591,7 +615,7 @@ function mmss(ms: number) {
 }
 
 /** Real timings only: elapsed time, finished steps and their measured average. No invented ETA. */
-function RunStatus({ start, lastUpdate, steps, limit, background }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean }) {
+function RunStatus({ start, lastUpdate, steps, limit, background, stopping, onStop }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean; stopping: boolean; onStop: () => void }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const elapsed = start ? now - start : 0;
@@ -600,7 +624,7 @@ function RunStatus({ start, lastUpdate, steps, limit, background }: { start: num
     <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
       <Loader2 className="h-3 w-3 animate-spin text-primary" />
       {background ? (
-        <span>Working in the background · last update {lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · {steps} steps done</span>
+        <span className="min-w-0 flex-1">{stopping ? "Stopping… saving progress" : `Working in the background · last update ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · ${steps} steps done`}</span>
       ) : (
         <>
           <span className="font-mono text-foreground">⌛ {mmss(elapsed)}</span>
@@ -609,6 +633,7 @@ function RunStatus({ start, lastUpdate, steps, limit, background }: { start: num
           {avg > 0 && <span>at most ~{Math.ceil(((limit - steps) * avg) / 60000)} min left (step cap {limit}); usually finishes sooner</span>}
         </>
       )}
+      <Button type="button" size="sm" variant="outline" className="ml-auto shrink-0" disabled={stopping} onClick={onStop} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button>
     </div>
   );
 }
