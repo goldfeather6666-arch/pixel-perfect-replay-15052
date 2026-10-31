@@ -14,7 +14,7 @@ export function freshCachedTools(row: { url: string; tool_cache?: unknown; tool_
 }
 
 /** Compact definitions for storage, or null when too large to cache. */
-export function toCache(defs: { name: string; description?: string; inputSchema: unknown; annotations?: unknown }[]): CachedTool[] | null {
+export function toCache(defs: { name: string; description?: string | undefined; inputSchema: unknown; annotations?: unknown }[]): CachedTool[] | null {
   const out = defs.map((d) => ({ name: d.name, description: (d.description ?? "").slice(0, 1500), inputSchema: d.inputSchema, ...(d.annotations ? { annotations: d.annotations as CachedTool["annotations"] } : {}) }));
   return JSON.stringify(out).length > MCP_CACHE_MAX_BYTES ? null : out;
 }
