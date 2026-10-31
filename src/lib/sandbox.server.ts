@@ -12,6 +12,11 @@ function clip(s: string) {
 
 /** Opens (or reuses) this task's E2B sandbox, synced to the work branch plus staged changes. */
 const JOB_CHUNK = 60_000;
+/** Pass as `job` to runInSandbox to just open/sync the task sandbox and get the instance back. */
+export const OPEN_ONLY = "__open_only__";
+export async function openTaskBox(sb: any, session: Session, ghToken: string, pending: PendingChange[] = []) {
+  return (await runInSandbox(sb, session, ghToken, "true", pending, undefined, undefined, OPEN_ONLY)) as unknown as { box: import("e2b").Sandbox };
+}
 
 /** Reads new output of a detached terminal job from `offset` (bytes) and its exit code if finished. */
 export async function pollJob(sandboxId: string, job: string, offset: number, kill = false) {
@@ -59,7 +64,8 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   const auth = `AUTHORIZATION: basic ${btoa(`x-access-token:${ghToken}`)}`;
   const envs = { GH_AUTH: auth };
   if (!box) {
-    box = await Sandbox.create({ apiKey, timeoutMs: 15 * 60_000, metadata: { session: session.id } });
+    // Private traffic: sandbox URLs need the traffic token, so previews are reachable only through Forge's gateway.
+    box = await Sandbox.create({ apiKey, timeoutMs: 15 * 60_000, metadata: { session: session.id }, network: { allowPublicTraffic: false } });
     if (signal?.aborted) { cancel(); signal.throwIfAborted(); }
     // The base VM has ~470 MB RAM; add swap first so installs/builds don't crash out of memory.
     await box.commands.run(SWAP_CMD, { timeoutMs: 60_000 }).catch(() => {});
@@ -89,6 +95,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     if (c.action === "delete") await box.files.remove(full).catch(() => {});
     else await box.files.write(full, c.content ?? "");
   }
+  if (job === OPEN_ONLY) return { box } as never;
   if (job) {
     // Detached terminal job: output streams to a log file the client polls, so long commands
     // (installs, builds) never hit the request time limit.
