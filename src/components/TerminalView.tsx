@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Copy, Sparkles, Eraser, Loader2, Minus, Play, Plus,
 import { startTerminal, pollTerminal, suggestCommand } from "@/lib/app.functions";
 import { extractCwd, isRisky, looksLikeRequest, parseAnsi, wrapCommand } from "@/lib/terminal";
 
-export type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number; job?: string; at?: number };
+export type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number; job?: string | undefined; at?: number };
 export type Tab = { id: number; name: string; cwd: string | null; log: Entry[]; busy: boolean };
 
 const SNIPPETS = ["git status", "ls -la", "npm install", "npm run build", "npm test", "git log --oneline -10", "cat package.json", "npx tsc --noEmit"];
@@ -72,7 +72,7 @@ export function TerminalView({ id, pane = 1 }: { id: string; pane?: number }) {
     if (saved) {
       setTabs(saved.tabs); setActive(saved.active);
       for (const t of saved.tabs) {
-        const e = t.log.findLast((x) => x.job);
+        const e = [...t.log].reverse().find((x: Entry) => x.job);
         if (e?.job) void follow(t.id, e.job, e.at ?? Date.now());
       }
     }
