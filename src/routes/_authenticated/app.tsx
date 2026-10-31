@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
+import { taskRunStatus } from "@/lib/task-run-status";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({ meta: pageMeta("Workspace — Forge", "Your coding agent tasks.") }),
@@ -31,13 +32,8 @@ function Dashboard() {
   const sessions = useQuery({
     queryKey: ["sessions"],
     queryFn: () => fetchSessions(),
-    // Keep the list fresh while any task is running in the cloud (heartbeat is every 30 s).
-    refetchInterval: (q) =>
-      ((q.state.data ?? []) as { running?: boolean; updated_at?: string }[]).some(
-        (s) => s.running && Date.now() - new Date(s.updated_at ?? 0).getTime() < 2 * 60_000,
-      )
-        ? 3000
-        : false,
+    // Poll even when idle so runs started on another device become visible.
+    refetchInterval: 3000,
   });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
   const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
@@ -179,12 +175,13 @@ function Dashboard() {
             </form>
           )}
         </section>
-        <aside className="min-w-0">
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Recent tasks</h2>
+        <aside className="order-first min-w-0 lg:order-last">
+          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Your tasks</h2>
           {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
           <ul className="space-y-2">
             {sessions.data?.map((s) => {
-              const live = s.running && Date.now() - new Date(s.updated_at).getTime() < 2 * 60_000;
+              const status = taskRunStatus(s);
+              const live = status === "cloud" || status === "browser";
               return (
                 <li key={s.id}>
                   <Link to="/s/$id" params={{ id: s.id }} className="block rounded-md border bg-card p-3 hover:border-primary">
@@ -193,9 +190,10 @@ function Dashboard() {
                     {live && (
                       <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-primary">
                         <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
-                        Running in the cloud
+                        {status === "cloud" ? "Running in the cloud" : "Running in browser"}
                       </p>
                     )}
+                    {!live && <p className={`mt-2 text-xs ${status === "stale" ? "text-destructive" : "text-muted-foreground"}`}>{status === "stale" ? "No recent update" : "Not running"}</p>}
                   </Link>
                 </li>
               );
