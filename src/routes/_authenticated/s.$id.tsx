@@ -54,6 +54,12 @@ function Workspace() {
     document.addEventListener("visibilitychange", onVis);
     return () => { document.removeEventListener("visibilitychange", onVis); void lock?.release().catch(() => {}); };
   }, [running, qc, id]);
+  // Cloud-kept runs: notify when the saved run flips from running to finished.
+  const wasBgRunning = useRef(false);
+  useEffect(() => {
+    if (wasBgRunning.current && !sd?.running && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
+    wasBgRunning.current = !!sd?.running;
+  }, [sd?.running]);
   const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > 120_000;
   const bgRunning = !running && !!sd?.running && !stale;
   const runStart = useRef<number>(0);
@@ -220,7 +226,7 @@ function Workspace() {
     } finally {
       setRunning(false);
       abortRef.current = null;
-      if (document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
+      if (!backgrounded && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
       qc.invalidateQueries({ queryKey: ["session", id] });
       qc.invalidateQueries({ queryKey: ["diff", id] });
       qc.invalidateQueries({ queryKey: ["tree", id] });
