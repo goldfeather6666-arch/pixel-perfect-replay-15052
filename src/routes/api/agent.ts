@@ -5,6 +5,7 @@ import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/prov
 import type { ModelMessage } from "ai";
 import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
 import { agentRequest, requestError } from "@/lib/agent-request";
+import { watchForStop } from "@/lib/agent-stop";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -428,6 +429,10 @@ export const Route = createFileRoute("/api/agent")({
             emit = send;
             // Heartbeat: proves the run is alive between steps; a run with no beat for 2 min is treated as dead.
             const beat = setInterval(() => { void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id); }, 30_000);
+            const stopWatching = watchForStop(async () => {
+              const { data } = await sb.from("agent_sessions").select("stop_requested").eq("id", sessionId).eq("user_id", u.user.id).single();
+              return data?.stop_requested === true;
+            }, runAbort);
             let text = "";
             const logs = runLogs;
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
@@ -497,7 +502,10 @@ export const Route = createFileRoute("/api/agent")({
               if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else
               send({ t: "error", m: String(e?.message ?? e).slice(0, 500) });
             } finally {
+              stopWatching();
               clearInterval(beat);
+              if (runAbort.signal.aborted && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
+              if (runAbort.signal.aborted) send({ t: "text", d: "\n\n_(stopped)_" });
               await external?.close();
               const next: ChatMessage[] = [
                 ...history,
