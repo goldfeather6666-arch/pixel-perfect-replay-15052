@@ -16,7 +16,7 @@ import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
 import { DeployPanel } from "@/components/DeployPanel";
-import { promptError } from "@/lib/agent-request";
+import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -61,6 +61,7 @@ function Workspace() {
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [input, setInput] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const capacity = promptCapacity(input);
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
   const abortRef = useRef<AbortController | null>(null);
@@ -269,6 +270,9 @@ function Workspace() {
             <div className="mx-auto flex max-w-3xl items-end gap-2">
               <Textarea
                 ref={taRef}
+                aria-label="Task prompt"
+                aria-describedby="prompt-capacity"
+                aria-invalid={capacity.overLimit}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -281,8 +285,12 @@ function Workspace() {
               {running || bgRunning ? (
                 <Button type="button" size="icon" variant="secondary" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>
               ) : (
-                <Button size="icon" aria-label="Send" disabled={!input.trim()}><Send /></Button>
+                <Button size="icon" aria-label="Send" disabled={!input.trim() || capacity.overLimit}><Send /></Button>
               )}
+            </div>
+            <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
+              <span className="tabular-nums">{capacity.used.toLocaleString("en-US")} / {MAX_PROMPT_CHARS.toLocaleString("en-US")} characters</span>
+              <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
             </div>
           </form>
         </TabsContent>
