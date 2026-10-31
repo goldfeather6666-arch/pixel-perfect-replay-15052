@@ -4,7 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { GitBranch, Plus } from "lucide-react";
+import { Activity, Bug, Cloud, FolderGit2, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+
+const PRESETS = [
+  { title: "Landing page", hint: "Modern, animated", icon: LayoutTemplate, prompt: "Build a modern, responsive, animated landing page for this project. Match the existing stack, keep it mobile-friendly, then run deployment_preflight." },
+  { title: "Fix the build", hint: "Repair failures", icon: Bug, prompt: "Run the project's typecheck, tests and build in the sandbox. Fix every failure at its root cause and re-run until all pass. Report what was broken." },
+  { title: "Security review", hint: "Find & fix risks", icon: ShieldCheck, prompt: "/review Audit this repository for security issues (secrets, auth, injection, unsafe data access). List findings by severity with file references." },
+  { title: "Full-stack app", hint: "Auth + database", icon: Layers, prompt: "/plan Plan a full-stack app in this repo with sign-in, a database with migrations under supabase/migrations, and deployable pages. Show the plan before building." },
+];
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -93,13 +100,61 @@ function Dashboard() {
   });
 
   const ready = creds.data && aiCreds.length > 0 && hasGh;
+  const stats = useMemo(() => {
+    const list = sessions.data ?? [];
+    const st = list.map((s) => taskRunStatus(s));
+    return {
+      total: list.length,
+      cloud: st.filter((x) => x === "cloud").length,
+      live: st.filter((x) => x === "cloud" || x === "browser").length,
+      stale: st.filter((x) => x === "stale").length,
+      repos: new Set(list.map((s) => s.repo)).size,
+    };
+  }, [sessions.data]);
+  const [preset, setPreset] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   return (
-    <div className="min-h-screen">
+    <div className="bg-aurora min-h-screen">
       <AppHeader />
-      <main className="mx-auto grid max-w-5xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[1fr_320px]">
-        <section className="min-w-0 rounded-lg border bg-card p-4 sm:p-5">
-          <h1 className="text-xl font-semibold">New task</h1>
+      <div className="mx-auto max-w-6xl px-3 pt-5 sm:px-8 sm:pt-8">
+        <p className="hud-label">Command center</p>
+        <h1 className="text-gradient mt-1 text-2xl font-semibold sm:text-3xl">Ship code with your agents</h1>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          {([
+            ["Active runs", stats.live, Activity, stats.live > 0],
+            ["In the cloud", stats.cloud, Cloud, stats.cloud > 0],
+            ["Tasks", stats.total, Layers, false],
+            ["Repositories", stats.repos, FolderGit2, false],
+          ] as const).map(([label, v, Icon, hot]) => (
+            <div key={label} className={`panel relative overflow-hidden p-3 sm:p-4 ${hot ? "shadow-glow" : ""}`}>
+              <div className="flex items-center justify-between"><span className="hud-label">{label}</span><Icon className={`h-4 w-4 ${hot ? "text-primary" : "text-muted-foreground"}`} /></div>
+              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums sm:text-3xl">{sessions.isLoading ? "—" : v}</p>
+              {hot && <span className="absolute bottom-0 left-0 h-0.5 w-full animate-pulse bg-primary" />}
+            </div>
+          ))}
+        </div>
+        {stats.stale > 0 && <p className="mt-2 text-xs text-destructive">{stats.stale} task{stats.stale > 1 ? "s" : ""} stopped reporting — open to resume.</p>}
+      </div>
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="panel min-w-0 p-4 sm:p-6">
+          <div className="flex items-center gap-2"><Rocket className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">New task</h2></div>
+          {ready && (
+            <div className="mt-4">
+              <p className="hud-label mb-2">Quick start</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {PRESETS.map((p) => (
+                  <button key={p.title} type="button" onClick={() => { const on = preset === p.title; setPreset(on ? null : p.title); setTeamPrompt(on ? null : p.prompt); }}
+                    className={`min-w-0 rounded-lg border p-3 text-left transition-colors hover:border-primary ${preset === p.title ? "border-primary bg-accent" : "bg-background/60"}`}>
+                    <p.icon className="h-4 w-4 text-primary" />
+                    <span className="mt-2 block truncate text-sm font-medium">{p.title}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{p.hint}</span>
+                  </button>
+                ))}
+              </div>
+              {preset && <p className="mt-2 text-xs text-muted-foreground">“{preset}” will be your first message — edit it before sending.</p>}
+            </div>
+          )}
           {creds.data && !ready ? (
             <div className="mt-4 text-sm text-muted-foreground">
               You need {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"} first.{" "}
@@ -185,24 +240,27 @@ function Dashboard() {
           )}
         </section>
         <aside className="order-first min-w-0 lg:order-last">
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Your tasks</h2>
-          {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
-          <ul className="space-y-2">
-            {sessions.data?.map((s) => {
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="hud-label">Your tasks</h2>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter…" aria-label="Filter tasks"
+              className="h-8 w-32 rounded-md border bg-card/70 px-2 text-xs outline-none focus:border-primary" />
+          </div>
+          {sessions.data?.length === 0 && <div className="panel p-6 text-center text-sm text-muted-foreground">No tasks yet — start one with a quick preset.</div>}
+          <ul className="max-h-[28rem] space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-14rem)]">
+            {sessions.data?.filter((s) => `${s.title} ${s.repo}`.toLowerCase().includes(q.toLowerCase())).map((s) => {
               const status = taskRunStatus(s);
               const live = status === "cloud" || status === "browser";
               return (
                 <li key={s.id}>
-                  <Link to="/s/$id" params={{ id: s.id }} className="block rounded-md border bg-card p-3 hover:border-primary">
-                    <p className="truncate text-sm font-medium">{s.title}</p>
-                    <p className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3" />{s.repo}</p>
-                    {live && (
-                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-primary">
-                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
-                        {status === "cloud" ? "Running in the cloud" : "Running in browser"}
-                      </p>
-                    )}
-                    {!live && <p className={`mt-2 text-xs ${status === "stale" ? "text-destructive" : "text-muted-foreground"}`}>{status === "stale" ? "No recent update" : "Not running"}</p>}
+                  <Link to="/s/$id" params={{ id: s.id }} className={`panel grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 transition-colors hover:border-primary ${live ? "border-primary/50" : ""}`}>
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${live ? "animate-pulse bg-primary" : status === "stale" ? "bg-destructive" : "bg-muted-foreground/40"}`} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{s.title}</span>
+                      <span className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3 shrink-0" /><span className="truncate">{s.repo}</span></span>
+                      <span className={`mt-1.5 block text-[11px] ${live ? "text-primary" : status === "stale" ? "text-destructive" : "text-muted-foreground"}`}>
+                        {status === "cloud" ? "Running in the cloud" : status === "browser" ? "Running in browser" : status === "stale" ? "No recent update" : "Idle"}
+                      </span>
+                    </span>
                   </Link>
                 </li>
               );

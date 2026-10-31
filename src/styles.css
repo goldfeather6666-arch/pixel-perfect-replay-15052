@@ -99,6 +99,36 @@
 @utility shadow-glow {
   box-shadow: var(--glow);
 }
+/* Raised glass panel used for HUD cards and the composer dock. */
+@utility panel {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 92%, var(--primary) 8%), var(--card));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent) inset, 0 12px 32px -18px oklch(0 0 0 / 0.7);
+}
+@utility glass {
+  background: color-mix(in oklab, var(--background) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+@utility hud-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+@utility text-gradient {
+  background: linear-gradient(100deg, var(--foreground) 20%, var(--primary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility bg-aurora {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%),
+    radial-gradient(40rem 24rem at -10% 10%, color-mix(in oklab, var(--success) 8%, transparent), transparent 60%),
+    var(--background);
+}
 @utility prose-agent {
   & p { margin: 0.4em 0; }
   & pre { background: var(--muted); padding: 0.75rem; border-radius: var(--radius); overflow-x: auto; font-family: var(--font-mono); font-size: 0.8rem; }

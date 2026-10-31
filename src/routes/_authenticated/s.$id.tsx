@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X } from "lucide-react";
+import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -272,19 +272,43 @@ function Workspace() {
         )}
       </AppHeader>
       <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-3 mt-2 max-w-[calc(100%-1.5rem)] justify-start self-start overflow-x-auto">
-          <TabsTrigger value="chat">Chat</TabsTrigger>
-          <TabsTrigger value="run">Run</TabsTrigger>
-          <TabsTrigger value="files">Files</TabsTrigger>
-          <TabsTrigger value="terminal">Terminal</TabsTrigger>
-          <TabsTrigger value="deploy">Deploy</TabsTrigger>
-          <TabsTrigger value="changes">Changes{pending.length ? ` (${pending.length})` : ""}</TabsTrigger>
-        </TabsList>
+        <div className="border-b px-3 py-2">
+          <TabsList className="h-10 w-full justify-start overflow-x-auto rounded-lg bg-card/70 p-1 sm:w-auto">
+            {([
+              ["chat", "Chat", MessageSquare], ["run", "Run", Activity], ["files", "Files", FolderTree],
+              ["terminal", "Terminal", TerminalSquare], ["deploy", "Deploy", Rocket], ["changes", "Changes", GitCompare],
+            ] as const).map(([v, label, Icon]) => (
+              <TabsTrigger key={v} value={v} className="gap-1.5 px-3 text-xs data-[state=active]:text-primary">
+                <Icon className="h-3.5 w-3.5" />{label}
+                {v === "changes" && pending.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{pending.length}</span>}
+                {v === "run" && (running || bgRunning) && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
         <TabsContent value="chat" className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mx-auto max-w-3xl space-y-5">
               {messages.length === 0 && (
-                <p className="py-16 text-center text-sm text-muted-foreground">Describe a task. The agent will read the repo and make changes on <span className="font-mono">{s?.work_branch}</span>.</p>
+                <div className="py-10 text-center sm:py-16">
+                  <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-accent text-primary shadow-glow"><Sparkles className="h-5 w-5" /></div>
+                  <h2 className="text-gradient text-xl font-semibold">What should we build?</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Work happens on <span className="font-mono text-foreground">{s?.work_branch}</span> — your base branch stays untouched.</p>
+                  <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
+                    {[
+                      ["Map the codebase", "/explain overall architecture and key modules"],
+                      ["Run & fix checks", "/test"],
+                      ["Review for bugs", "/review"],
+                      ["Plan a feature", "/plan "],
+                    ].map(([t, p]) => (
+                      <button key={t} type="button" onClick={() => { setInput(p ?? ""); taRef.current?.focus(); }}
+                        className="panel px-4 py-3 text-sm transition-colors hover:border-primary">
+                        <span className="font-medium">{t}</span>
+                        <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">{p}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {messages.map((m, i) => (
                 <MessageView key={i} m={m} live={running && i === messages.length - 1} />
@@ -297,13 +321,16 @@ function Workspace() {
               <div ref={endRef} />
             </div>
           </div>
-          <form className="border-t p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
-            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 text-xs">
+          <form className="glass border-t p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
+            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
               <button type="button" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
-                className={`flex items-center gap-1 rounded border px-2 py-0.5 ${planMode ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 ${planMode ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>
                 <ListChecks className="h-3 w-3" /> Plan first
               </button>
-              <span className="hidden text-muted-foreground sm:inline">Type / for commands: /plan /test /review /explain</span>
+              {["/test", "/review", "/explain", "/plan"].map((c) => (
+                <button key={c} type="button" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
+                  className="shrink-0 rounded-full border px-2.5 py-1 font-mono text-muted-foreground transition-colors hover:border-primary hover:text-primary">{c}</button>
+              ))}
             </div>
             {(running || bgRunning) && (
               <RunStatus
@@ -587,23 +614,48 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => (
-            <div key={f.filename} className="overflow-hidden rounded-md border">
-              <div className="border-b bg-muted px-3 py-1.5 font-mono text-xs">{f.status} · {f.filename}</div>
-              <PatchView patch={f.patch} />
-            </div>
-          ))}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} filename={f.filename} status={f.status} patch={f.patch} />)}
         </div>
       </section>
     </div>
   );
 }
 
-function PatchView({ patch }: { patch: string }) {
+function DiffFile({ filename, status, patch }: { filename: string; status: string; patch: string }) {
+  const [open, setOpen] = useState(true);
+  const lines = patch.split("\n");
+  const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+  const del = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
   return (
-    <pre className="max-h-96 overflow-auto font-mono text-xs">
-      {patch.split("\n").map((l, i) => (
-        <div key={i} className={`px-3 ${l.startsWith("+") ? "bg-added" : l.startsWith("-") ? "bg-removed" : l.startsWith("@@") ? "text-muted-foreground" : ""}`}>{l || " "}</div>
+    <div className="panel overflow-hidden">
+      <button type="button" onClick={() => setOpen(!open)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/60 px-3 py-2 text-left font-mono text-xs">
+        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+        <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
+        <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
+      </button>
+      {open && <PatchView patch={patch} />}
+    </div>
+  );
+}
+
+function PatchView({ patch }: { patch: string }) {
+  // Track old/new line numbers from hunk headers for a gutter.
+  let o = 0, n = 0;
+  const rows = patch.split("\n").map((l) => {
+    const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
+    if (h) { o = Number(h[1] ?? 0); n = Number(h[2] ?? 0); return { l, a: "", b: "", k: "h" }; }
+    if (l.startsWith("+")) return { l, a: "", b: String(n++), k: "+" };
+    if (l.startsWith("-")) return { l, a: String(o++), b: "", k: "-" };
+    return { l, a: String(o++), b: String(n++), k: " " };
+  });
+  return (
+    <pre className="max-h-[28rem] overflow-auto font-mono text-xs leading-5">
+      {rows.map((r, i) => (
+        <div key={i} className={`grid grid-cols-[2.5rem_2.5rem_minmax(0,1fr)] ${r.k === "+" ? "bg-added" : r.k === "-" ? "bg-removed" : r.k === "h" ? "bg-muted/50 text-primary/80" : ""}`}>
+          <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{r.a}</span>
+          <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{r.b}</span>
+          <span className="whitespace-pre px-3">{r.l || " "}</span>
+        </div>
       ))}
     </pre>
   );
