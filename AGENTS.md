@@ -11,7 +11,7 @@
 
 ## Architecture rules
 - User AI keys and GitHub tokens are stored only AES-GCM encrypted (src/lib/crypto.server.ts) and decrypted server-side; never return them to the browser. Why: BYOK security requirement.
-- Model calls use the user's own provider key via src/lib/providers.server.ts, never the Lovable AI Gateway. Why: the product is BYOK.
+- Model calls use the user's key via providers.server.ts, never the Lovable AI Gateway. Why: BYOK.
 - The agent streams from the /api/agent server route as NDJSON events (AgentEvent in src/lib/providers.ts). Why: long tool loops need streaming outside server-fn request/response.
 - Explicit Stop is owner-scoped, polled independently of model steps, and releases stalled SDK streams; save completion before remote cleanup and suppress auto-resume for stop-requested tasks. Stale stop updates compare the heartbeat before clearing a keeper. Why: cancellation must not hang on tools/cleanup or restart stopped work.
 - Agent writes go only to its own per-task branch; supervised mode stages them in agent_sessions.pending until approved. Why: never touch the user's base branch without consent.
@@ -26,7 +26,8 @@
 - Agent teams: the master dispatches up to 12 jobs with four active workers, exact coder file assignments and ephemeral proposals; only the master merges non-stale proposals and verifies the integrated result. Shared sandbox commands and team dispatches serialize per session, workers cannot recursively delegate or trigger external effects, and worker model calls stagger then back off on provider throttling instead of retrying instantly. Why: parallel coding without overlapping writes, resource contention, shared-quota storms or bypassing approvals.
 - Skills can be imported from any GitHub repository (src/lib/skill-import.server.ts): markdown is read through the GitHub API and stored as owner-scoped skills rows carrying a source pointer; imported text is only ever injected as instructions, never executed. Why: keep third-party repo content inert, attributable and reviewable.
 - Saved enabled skills are caller-scoped and exposed through list_skills/read_skill to the primary and helper agents; load errors cannot masquerade as empty skills. Why: skills live in Forge, not repository files.
-- External MCP schemas select the appropriate JSON Schema validator and isolate unsupported tools instead of dropping the entire server. Why: remote providers use different schema dialects.
+- MCP schemas select dialect validators and isolate unsupported tools. Why: remote schema compatibility.
+- Chunk failures use bounded cache-busted document reloads, not router invalidation. Why: replace stale manifests.
 - Access diagnostics use caller-scoped saved skills and live MCP discovery/schema validation, never invoke external tools or expose remote error bodies; distinguish discovery from execution. Why: truthful access checks without external effects or credential leaks.
 - Edits invalidate deployment checks; run omitted final preflight once and keep sanitized failure categories. Vercel READY requires current commit/rebuild ID plus a bounded deployment-host entry-page probe. Why: generic retry loops hide blockers and passing builds can serve crashed pages.
 - Vercel builds for agent/* branches: a vercel.json `git.deploymentEnabled` rule stops pushes from creating deployments (skipped builds still count toward Vercel's daily quota), and deploy_status/rebuild create one API deployment of a marked commit via startForgeDeploy; the ignore-command gate stays as a fallback and is never written over a user's own. A quota refusal is reported as LIMITED and ends the repair loop. Why: per-file commits exhausted Vercel's daily deployment limit.
