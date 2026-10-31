@@ -92,6 +92,13 @@
       "when": 1793401976551,
       "tag": "0012_add_skill_source",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793416877194,
+      "tag": "0013_agent_session_keeper",
+      "breakpoints": true
     }
   ]
 }

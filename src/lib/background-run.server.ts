@@ -1,0 +1,51 @@
+import { KEEPER_SCRIPT, readKeeperProbe } from "./background-run";
+
+const KEEPER_TIMEOUT_MS = 60 * 60_000;
+const ACCEPT_WAIT_MS = 75_000;
+
+type Result = { ok: true } | { ok: false; status: number; message: string };
+
+/**
+ * Starts a dedicated, short-lived E2B sandbox that only holds the agent stream open.
+ * It never contains the repository, so repo code cannot read the user's session token.
+ */
+export async function startKeeper(opts: { sb: any; userId: string; sessionId: string; origin: string; token: string; body: string }): Promise<Result | null> {
+  const apiKey = process.env["E2B_API_KEY"];
+  if (!apiKey) return null;
+  const { Sandbox } = await import("e2b");
+  const box = await Sandbox.create({ apiKey, timeoutMs: KEEPER_TIMEOUT_MS, metadata: { keeper: opts.sessionId } });
+  try {
+    await opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId }).eq("id", opts.sessionId).eq("user_id", opts.userId);
+    await box.files.write("/tmp/req.json", opts.body);
+    await box.commands.run(KEEPER_SCRIPT, {
+      background: true,
+      timeoutMs: 0,
+      envs: { FORGE_URL: opts.origin, FORGE_TOKEN: opts.token, FORGE_KEEPER: box.sandboxId },
+    });
+    const started = Date.now();
+    while (Date.now() - started < ACCEPT_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const probe = await box.commands
+        .run(`printf '%s|%s|' "$(cat /tmp/done 2>/dev/null)" "$(head -1 /tmp/headers 2>/dev/null | tr -d '\\r')"; [ -f /tmp/done ] && head -c 1000 /tmp/out.ndjson`, { timeoutMs: 10_000 })
+        .catch((e: any) => e);
+      const res = readKeeperProbe(String(probe?.stdout ?? ""));
+      if (!res) continue;
+      if (res.accepted) return { ok: true };
+      await box.kill().catch(() => {});
+      return { ok: false, status: res.status, message: res.message };
+    }
+    // Still preparing (long history summary); the keeper keeps waiting, the page follows saved progress.
+    return { ok: true };
+  } catch (e) {
+    await box.kill().catch(() => {});
+    throw e;
+  }
+}
+
+/** Ends a keeper sandbox once its run finished (best effort; it also expires on its own). */
+export async function stopKeeper(id: string) {
+  const apiKey = process.env["E2B_API_KEY"];
+  if (!apiKey) return;
+  const { Sandbox } = await import("e2b");
+  await Sandbox.kill(id, { apiKey }).catch(() => {});
+}
