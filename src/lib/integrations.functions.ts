@@ -76,8 +76,14 @@ export const syncDeployEnv = createServerFn({ method: "POST" })
     let redeployed: string | null = null;
     if (data.redeploy) {
       const v = new Vercel(vt);
-      const latest = (await v.deployments(s.vercel_project_id, s.work_branch))[0];
-      if (latest) redeployed = (await v.redeploy(latest)).url;
+      // Build the branch's CURRENT code (rebuilding the last deployment would rebuild an old commit).
+      const gt = await token(context, "github");
+      if (!gt) throw new Error("Add a GitHub token in Settings first");
+      const { GitHub } = await import("./github.server");
+      const { DEPLOY_MARKER } = await import("./vercel-build-gate");
+      await v.ensureBuildGate(s.vercel_project_id).catch(() => false);
+      await new GitHub(gt).emptyCommit(s.repo, s.work_branch, `chore: deploy ${DEPLOY_MARKER}`);
+      redeployed = "started";
     }
     return { synced: true, redeployed };
   });
@@ -134,6 +140,7 @@ export const linkVercel = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("agent_sessions").update({ vercel_project_id: pid }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await wireEnv(context, s.supabase_ref, pid).catch(() => {});
+    if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel")).ensureBuildGate(pid).catch(() => {}); }
     return { projectId: pid };
   });
 

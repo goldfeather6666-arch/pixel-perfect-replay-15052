@@ -75,6 +75,14 @@ export class Vercel {
     const r = await this.req<any>("/v13/deployments?forceNew=1", { method: "POST", body: JSON.stringify({ name: d.name, deploymentId: d.id, ...(d.target ? { target: d.target } : {}) }) });
     return { id: r.id as string, url: `https://${r.url}` };
   }
+  /** Installs Forge's build gate (skip agent/* commits unless marked for deploy). Returns true when the gate is active. */
+  async ensureBuildGate(projectId: string) {
+    const { gateUpdate, BUILD_GATE_COMMAND } = await import("./vercel-build-gate");
+    const p = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}`);
+    const next = gateUpdate(p.commandForIgnoringBuildStep);
+    if (next) await this.req(`/v9/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ commandForIgnoringBuildStep: next }) });
+    return (next ?? p.commandForIgnoringBuildStep) === BUILD_GATE_COMMAND;
+  }
   async buildLog(id: string) {
     const ev = await this.req<any[]>(`/v3/deployments/${id}/events?builds=1&limit=-1`);
     const lines = ev.map((e) => e.payload?.text ?? e.text).filter(Boolean) as string[];
