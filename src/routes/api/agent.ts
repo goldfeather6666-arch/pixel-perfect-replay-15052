@@ -298,41 +298,42 @@ export const Route = createFileRoute("/api/agent")({
               const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
               const vercelCred = vt?.[0];
               if (!vercelCred) return { error: "No Vercel token saved in Settings." };
-              const { Vercel, syncSupabaseToVercel, waitForDeployment } = await import("@/lib/integrations.server");
+              const { Vercel, DeployLimitError, startForgeDeploy, syncSupabaseToVercel, waitForDeployment } = await import("@/lib/integrations.server");
               const vToken = await decryptSecret(vercelCred.ciphertext, vercelCred.iv);
               const v = new Vercel(vToken);
-              // Builds only run for commits marked for deploy, so trigger exactly one for the current code.
-              let gated = false;
-              try { gated = await v.ensureBuildGate(fresh.vercel_project_id); } catch { /* keep auto-deploy behaviour */ }
-              let commitSha = await gh.headSha(repo, branch);
-              if (gated) {
-                const { DEPLOY_MARKER } = await import("@/lib/vercel-build-gate");
-                const existing = (await v.deployments(fresh.vercel_project_id, branch)).find((d) => d.commitSha === commitSha);
-                if (!existing || existing.state === "CANCELED") commitSha = await gh.emptyCommit(repo, branch, `chore: deploy ${DEPLOY_MARKER}`);
-              }
               const deployedRevision = revision;
               quality.deploymentState = undefined;
-              let deploymentId: string | undefined;
               let envNote: string | undefined;
               if (fresh.supabase_ref && syncedRef !== fresh.supabase_ref) {
                 const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
                 const databaseCred = st?.[0];
                 if (databaseCred) {
-                  try { await syncSupabaseToVercel(await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Public database settings synced. A rebuild is required for these settings to take effect."; }
+                  try { await syncSupabaseToVercel(await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Public database settings synced into Vercel; this build includes them."; }
                   catch { return { error: "Database settings could not sync to Vercel. Reconnect the service or retry; deployment is not verified." }; }
                 } else {
                   return { error: "Database token missing. Connect it before verifying the linked deployment." };
                 }
               }
-              if (redeploy || envRebuildNeeded) {
-                const cur = (await v.deployments(fresh.vercel_project_id, branch)).find((d) => d.commitSha === commitSha);
-                if (!cur) return { state: "NONE", commit: commitSha, envNote, note: "No deployment exists for the current commit yet. Retry after GitHub auto-deploy starts." };
-                deploymentId = (await v.redeploy(cur)).id;
-                envRebuildNeeded = false;
+              // Build exactly one deployment of the current code, created through the Vercel API (pushes to agent/* don't build).
+              let commitSha = await gh.headSha(repo, branch);
+              let deploymentId: string | undefined;
+              const existing = (await v.deployments(fresh.vercel_project_id, branch)).find((d) => d.commitSha === commitSha && d.state !== "CANCELED");
+              if (!existing || redeploy || envRebuildNeeded) {
+                try {
+                  const started = await startForgeDeploy(v, gh, fresh.vercel_project_id, repo, branch);
+                  commitSha = started.commitSha; deploymentId = started.deploymentId; envRebuildNeeded = false;
+                } catch (e) {
+                  if (e instanceof DeployLimitError) {
+                    const { deployLimitMessage } = await import("@/lib/vercel-build-gate");
+                    quality.deploymentState = "LIMITED";
+                    return { state: "LIMITED", envNote, note: `${deployLimitMessage(e)} Do not call deploy_status again in this run or try to work around it. Make sure local checks pass, then tell the user plainly that Vercel's daily limit blocked the hosted build.` };
+                  }
+                  return { error: `Vercel could not start the build: ${errorText(e)}` };
+                }
               }
               const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) }, runAbort.signal);
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
-              if (!latest) return { state: "NONE", envNote, note: "No deployment for this branch yet. Check the Vercel project is connected to this GitHub repo, or commit a change." };
+              if (!latest) return { state: "NONE", commit: commitSha, envNote, note: "Vercel accepted the build but it has not appeared yet. Call deploy_status again once." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
               quality.deploymentState = latest.state;
               return { state: latest.state, commit: commitSha, url: latest.url, envNote, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };

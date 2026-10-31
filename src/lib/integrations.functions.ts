@@ -70,19 +70,24 @@ export const syncDeployEnv = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
     if (!s.supabase_ref || !s.vercel_project_id) throw new Error("Link both Supabase and Vercel first");
-    const { syncSupabaseToVercel, Vercel } = await import("./integrations.server");
+    const { syncSupabaseToVercel, Vercel, DeployLimitError, startForgeDeploy } = await import("./integrations.server");
     const vt = await need(context, "vercel");
     await syncSupabaseToVercel(await need(context, "supabase"), vt, s.supabase_ref, s.vercel_project_id);
     let redeployed: string | null = null;
     if (data.redeploy) {
-      const v = new Vercel(vt);
-      // Build the branch's CURRENT code (rebuilding the last deployment would rebuild an old commit).
+      // Build the branch's CURRENT code once (rebuilding the last deployment would rebuild an old commit).
       const gt = await token(context, "github");
       if (!gt) throw new Error("Add a GitHub token in Settings first");
       const { GitHub } = await import("./github.server");
-      const { DEPLOY_MARKER } = await import("./vercel-build-gate");
-      await v.ensureBuildGate(s.vercel_project_id).catch(() => false);
-      await new GitHub(gt).emptyCommit(s.repo, s.work_branch, `chore: deploy ${DEPLOY_MARKER}`);
+      try {
+        await startForgeDeploy(new Vercel(vt), new GitHub(gt), s.vercel_project_id, s.repo, s.work_branch);
+      } catch (e) {
+        if (e instanceof DeployLimitError) {
+          const { deployLimitMessage } = await import("./vercel-build-gate");
+          throw new Error(`Database keys were sent, but no rebuild started. ${deployLimitMessage(e)}`);
+        }
+        throw e;
+      }
       redeployed = "started";
     }
     return { synced: true, redeployed };

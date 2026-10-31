@@ -44,6 +44,12 @@ export class SupabaseMgmt {
 
 export type Deployment = { id: string; name?: string; url: string; state: string; branch: string | null; commitSha?: string | null; created: number; target: string | null };
 
+export class DeployLimitError extends Error {
+  constructor(public total: number | null, public resetAt: number | null) {
+    super("Vercel deployment limit reached");
+  }
+}
+
 export class Vercel {
   constructor(private token: string) {}
   private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, p, i); }
@@ -82,6 +88,30 @@ export class Vercel {
     const next = gateUpdate(p.commandForIgnoringBuildStep);
     if (next) await this.req(`/v9/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ commandForIgnoringBuildStep: next }) });
     return (next ?? p.commandForIgnoringBuildStep) === BUILD_GATE_COMMAND;
+  }
+  /** Root directory configured on the Vercel project ("" for the repo root). */
+  async rootDirectory(projectId: string) {
+    const p = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}`);
+    return String(p.rootDirectory ?? "").replace(/^\/+|\/+$/g, "");
+  }
+  /** Starts one build of an exact GitHub commit. Throws DeployLimitError when Vercel's deployment quota is used up. */
+  async createGitDeployment(projectId: string, repo: string, ref: string, sha: string) {
+    const [org, name] = repo.split("/");
+    const project = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}`);
+    const res = await fetch("https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: project.name, project: projectId, gitSource: { type: "github", org, repo: name, ref, sha } }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const { deployLimit } = await import("./vercel-build-gate");
+      const limit = deployLimit(res.status, body);
+      if (limit) throw new DeployLimitError(limit.total, limit.resetAt);
+      const msg = body?.error?.message ?? body?.message ?? `status ${res.status}`;
+      throw new Error(`Vercel ${res.status}: ${String(msg).slice(0, 300)}`);
+    }
+    return { id: body.id as string, url: `https://${body.url}` };
   }
   async buildLog(id: string) {
     const ev = await this.req<any[]>(`/v3/deployments/${id}/events?builds=1&limit=-1`);
@@ -128,4 +158,29 @@ export async function waitForDeployment(v: Pick<Vercel, "deployments">, projectI
       if (signal?.aborted) abort();
     });
   }
+}
+
+type BranchWriter = {
+  getFile(repo: string, branch: string, path: string): Promise<{ content: string } | null>;
+  putFile(repo: string, branch: string, path: string, content: string, message: string): Promise<string>;
+  emptyCommit(repo: string, branch: string, message: string): Promise<string>;
+};
+
+/**
+ * Builds the work branch's current code exactly once: stops pushes to agent/* from spending Vercel's
+ * deployment quota (vercel.json), adds one marked commit and asks Vercel to build that commit.
+ * Throws DeployLimitError when Vercel refuses because the quota is used up.
+ */
+export async function startForgeDeploy(v: Vercel, gh: BranchWriter, projectId: string, repo: string, branch: string) {
+  const { DEPLOY_MARKER, withAgentDeploysDisabled } = await import("./vercel-build-gate");
+  await v.ensureBuildGate(projectId).catch(() => false);
+  try {
+    const root = await v.rootDirectory(projectId);
+    const path = root ? `${root}/vercel.json` : "vercel.json";
+    const next = withAgentDeploysDisabled((await gh.getFile(repo, branch, path))?.content ?? null);
+    if (next) await gh.putFile(repo, branch, path, next, "chore: stop per-save Vercel builds on Forge work branches");
+  } catch { /* optional quota saver; the deploy below still works without it */ }
+  const sha = await gh.emptyCommit(repo, branch, `chore: deploy ${DEPLOY_MARKER}`);
+  const d = await v.createGitDeployment(projectId, repo, branch, sha);
+  return { commitSha: sha, deploymentId: d.id, url: d.url };
 }
