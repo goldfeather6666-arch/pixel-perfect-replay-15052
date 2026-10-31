@@ -5,8 +5,8 @@ import { ArrowDown, ArrowUp, Copy, Sparkles, Eraser, Loader2, Minus, Play, Plus,
 import { startTerminal, pollTerminal, suggestCommand } from "@/lib/app.functions";
 import { extractCwd, isRisky, looksLikeRequest, parseAnsi, wrapCommand } from "@/lib/terminal";
 
-type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number };
-type Tab = { id: number; name: string; cwd: string | null; log: Entry[]; busy: boolean };
+export type Entry = { cmd: string; cwd: string; out?: string; code?: number; err?: string; ms?: number; job?: string | undefined; at?: number };
+export type Tab = { id: number; name: string; cwd: string | null; log: Entry[]; busy: boolean };
 
 const SNIPPETS = ["git status", "ls -la", "npm install", "npm run build", "npm test", "git log --oneline -10", "cat package.json", "npx tsc --noEmit"];
 const KEYS = ["Tab", "↑", "↓", "|", "/", "-", "~", "&&", ">", "$", "*", "Esc"];
@@ -18,10 +18,33 @@ function Ansi({ text }: { text: string }) {
 
 const short = (cwd: string | null) => (!cwd ? "~" : cwd.replace(/^\/home\/user\/[^/]+/, "~").replace(/^\/home\/user/, "~"));
 
-export function TerminalView({ id }: { id: string }) {
+const MAX_SAVED_OUT = 40_000;
+const MAX_SAVED_ENTRIES = 150;
+
+/** Saved terminal tabs; trims old entries/huge outputs to stay within storage limits. */
+export function saveSession(key: string, tabs: Tab[], active: number) {
+  const slim = tabs.map((t) => ({
+    ...t, busy: !!t.log.at(-1)?.job,
+    log: t.log.slice(-MAX_SAVED_ENTRIES).map((e) => (e.out && e.out.length > MAX_SAVED_OUT ? { ...e, out: "…[earlier output trimmed]\n" + e.out.slice(-MAX_SAVED_OUT) } : e)),
+  }));
+  try { localStorage.setItem(key, JSON.stringify({ tabs: slim, active })); }
+  catch { try { localStorage.setItem(key, JSON.stringify({ tabs: slim.map((t) => ({ ...t, log: t.log.slice(-20) })), active })); } catch { /* storage full */ } }
+}
+
+export function loadSession(key: string): { tabs: Tab[]; active: number } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? "null");
+    if (!v || !Array.isArray(v.tabs) || !v.tabs.length) return null;
+    return { tabs: v.tabs, active: typeof v.active === "number" ? v.active : v.tabs[0].id };
+  } catch { return null; }
+}
+
+export function TerminalView({ id, pane = 1 }: { id: string; pane?: number }) {
   const start = useServerFn(startTerminal);
   const poll = useServerFn(pollTerminal);
   const jobs = useRef(new Map<number, { job: string; kill: boolean }>());
+  const mounted = useRef(true);
+  const loaded = useRef(false);
   const interrupt = (tid: number) => { const j = jobs.current.get(tid); if (j) j.kill = true; };
   const suggest = useServerFn(suggestCommand);
   const [ai, setAi] = useState(false);
@@ -29,6 +52,7 @@ export function TerminalView({ id }: { id: string }) {
   const [autoRun, setAutoRun] = useState(false);
   const [aiNote, setAiNote] = useState<{ text: string; risky: boolean } | null>(null);
   const histKey = `forge:term-history:${id}`;
+  const sessKey = `forge:term-session:${id}:${pane}`;
   const [tabs, setTabs] = useState<Tab[]>([{ id: 1, name: "shell 1", cwd: null, log: [], busy: false }]);
   const [active, setActive] = useState(1);
   const [cmd, setCmd] = useState("");
@@ -41,6 +65,26 @@ export function TerminalView({ id }: { id: string }) {
   const tab = tabs.find((t) => t.id === active) ?? tabs[0]!;
 
   useEffect(() => { try { setHistory(JSON.parse(localStorage.getItem(histKey) ?? "[]")); } catch { /* ignore */ } }, [histKey]);
+  // Restore saved tabs/output for this task and reattach to commands that were still running.
+  useEffect(() => {
+    mounted.current = true;
+    const saved = loadSession(sessKey);
+    if (saved) {
+      setTabs(saved.tabs); setActive(saved.active);
+      for (const t of saved.tabs) {
+        const e = [...t.log].reverse().find((x: Entry) => x.job);
+        if (e?.job) void follow(t.id, e.job, e.at ?? Date.now());
+      }
+    }
+    loaded.current = true;
+    return () => { mounted.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessKey]);
+  useEffect(() => {
+    if (!loaded.current) return;
+    const h = setTimeout(() => saveSession(sessKey, tabs, active), 400);
+    return () => clearTimeout(h);
+  }, [tabs, active, sessKey]);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [tab.log]);
 
   const patch = (tid: number, fn: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.id === tid ? fn(t) : t)));
@@ -53,18 +97,29 @@ export function TerminalView({ id }: { id: string }) {
     const nextHist = [command, ...history.filter((h) => h !== command)].slice(0, 200);
     setHistory(nextHist); localStorage.setItem(histKey, JSON.stringify(nextHist)); setHIdx(-1); setCmd("");
     const startCwd = short(tab.cwd);
-    patch(tid, (t) => ({ ...t, busy: true, log: [...t.log, { cmd: command, cwd: startCwd }] }));
-    const t0 = performance.now();
-    const finish = (e: Partial<Entry>, cwd?: string | null) =>
-      patch(tid, (t) => ({ ...t, busy: false, cwd: cwd ?? t.cwd, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, ...e, ms: Math.round(performance.now() - t0) } : x)) }));
-    const live = (out: string) =>
-      patch(tid, (t) => ({ ...t, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, out: extractCwd(out).out } : x)) }));
+    patch(tid, (t) => ({ ...t, busy: true, log: [...t.log, { cmd: command, cwd: startCwd, at: Date.now() }] }));
     try {
       const { job } = await start({ data: { id, command: wrapCommand(command, tab.cwd) } });
-      jobs.current.set(tid, { job, kill: false });
+      patch(tid, (t) => ({ ...t, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, job } : x)) }));
+      await follow(tid, job, Date.now());
+    } catch (err) {
+      patch(tid, (t) => ({ ...t, busy: false, log: t.log.map((x, i) => (i === t.log.length - 1 ? { ...x, err: String((err as Error)?.message ?? err) } : x)) }));
+    }
+    input.current?.focus();
+  }
+
+  /** Polls a detached job until it ends; also used to reattach to jobs after a reload. */
+  async function follow(tid: number, job: string, startedAt: number) {
+    const finish = (e: Partial<Entry>, cwd?: string | null) =>
+      patch(tid, (t) => ({ ...t, busy: false, cwd: cwd ?? t.cwd, log: t.log.map((x) => (x.job === job ? { ...x, ...e, job: undefined, ms: Date.now() - startedAt } : x)) }));
+    const live = (out: string) =>
+      patch(tid, (t) => ({ ...t, log: t.log.map((x) => (x.job === job ? { ...x, out: extractCwd(out).out } : x)) }));
+    jobs.current.set(tid, { job, kill: false });
+    try {
       let offset = 0, out = "", misses = 0;
       for (;;) {
         await new Promise((r) => setTimeout(r, out ? 1200 : 700));
+        if (!mounted.current) return;
         const kill = jobs.current.get(tid)?.kill ?? false;
         let r;
         try { r = await poll({ data: { id, job, offset, kill } }); misses = 0; }
@@ -83,7 +138,6 @@ export function TerminalView({ id }: { id: string }) {
     } finally {
       jobs.current.delete(tid);
     }
-    input.current?.focus();
   }
 
   async function askAi(request: string) {

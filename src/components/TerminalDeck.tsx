@@ -16,7 +16,7 @@ export function TerminalDeck({ id }: { id: string }) {
       </div>
       <div className={`grid min-h-0 flex-1 ${split ? "grid-rows-2 xl:grid-cols-2 xl:grid-rows-1" : ""}`}>
         <div className="min-h-0 overflow-hidden"><TerminalView id={id} /></div>
-        {split && <div className="min-h-0 overflow-hidden border-t xl:border-l xl:border-t-0"><TerminalView id={id} /></div>}
+        {split && <div className="min-h-0 overflow-hidden border-t xl:border-l xl:border-t-0"><TerminalView id={id} pane={2} /></div>}
       </div>
     </div>
   );
