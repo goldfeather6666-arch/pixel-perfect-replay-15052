@@ -30,7 +30,7 @@ export const beginMcpOAuth = createServerFn({ method: "POST" }).middleware([requ
       client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider, saved.fetch);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
-      await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_names: definitions.map((t) => t.name) }).eq("id", row.id).eq("user_id", context.userId);
+      await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_cache: null, tool_cache_at: null, tool_names: definitions.map((t) => t.name) }).eq("id", row.id).eq("user_id", context.userId);
       // Public endpoints do not trigger OAuth; keep a durable empty provider for later challenges.
       await saved.persist();
       return { ok: true, authUrl: "", message: "Connection verified and saved" };
@@ -65,7 +65,7 @@ export const completeMcpOAuth = createServerFn({ method: "POST" }).middleware([r
       client = await openMcp(row.url, undefined, row.transport_mode === "sse" ? "sse" : "http", saved.provider, saved.fetch);
       const { definitions } = await inspectMcp(client, row.url, row.allow_actions);
       if (!definitions.length) throw new Error("No eligible tools");
-      const { error: saveError } = await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", context.userId);
+      const { error: saveError } = await context.supabase.from("mcp_connections").update({ state: "ready", oauth_status: "ready", tool_cache: null, tool_cache_at: null, tool_names: definitions.map((t) => t.name), updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", context.userId);
       if (saveError) throw saveError;
       return { ok: true, message: "External service connected" };
     } catch {
