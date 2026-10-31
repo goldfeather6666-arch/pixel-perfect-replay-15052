@@ -128,7 +128,7 @@ export const Route = createFileRoute("/api/agent")({
           const { abortable } = await import("@/lib/abortable");
           return abortable(serializeBy(`sandbox:${sessionId}`, () => {
             runAbort.signal.throwIfAborted();
-            return runInSandbox(sb, sbxSession, ghToken, command, pending, preview);
+            return runInSandbox(sb, sbxSession, ghToken, command, pending, preview, runAbort.signal);
           }), runAbort.signal);
         };
         if (process.env["E2B_API_KEY"]) warm = sbxRun("true").catch(() => null);
