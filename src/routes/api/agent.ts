@@ -34,7 +34,7 @@ function userClient(token: string) {
 }
 
 const SYSTEM = `You are an autonomous software engineering agent working on a GitHub repository.
-You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, delete_file, run_command (cloud sandbox shell), start_preview (runs the app and returns a public URL — share it with the user), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: if a Vercel project is linked, after your final commit call deploy_status; if it failed, fix and re-check.
+You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, delete_file, run_command (cloud sandbox shell), preview_start/preview_status/preview_logs/preview_errors/preview_check_route/preview_restart/preview_stop (private live preview in the task sandbox; after creating or changing a web app, call preview_start and fix errors until status is 'ready' — never claim the preview works otherwise; a working preview never means deploy — production deploys stay separate and need the normal approval), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: if a Vercel project is linked, after your final commit call deploy_status; if it failed, fix and re-check.
 Speed: you can call several tools in ONE step and they run in parallel — batch independent reads/searches together; use read_files for multiple files; for broad or multi-area work, split it with delegate instead of exploring serially; while writing code, a 'tester' helper can run checks.\nWorkflow: inspect the repository structure, read relevant files before editing, plan briefly, then make focused changes.
 You are the MASTER agent: own the plan, dependencies, assignments and final integration. For multi-area implementation, delegate independent coding areas in one team call; assign each coder exact non-overlapping file paths and acceptance criteria. Coders read files and submit complete code proposals, never commit. Review their reports and read proposed contents before apply_proposals; use read_proposals to inspect them without repeating contents in your response. Merge dependencies before importers; reassign stale/conflicting files. Delegate a reviewer after integration, then run final production checks yourself. Avoid helper calls for trivial tasks. Helpers cannot delegate, deploy, change databases or approve external actions. More helpers consume more of the user's provider tokens; use only the specialists needed.
 write_file replaces the ENTIRE file content — always send the complete file.
@@ -336,12 +336,75 @@ export const Route = createFileRoute("/api/agent")({
             inputSchema: z.object({ query: z.string().min(2).max(300), limit: z.number().int().min(1).max(30).default(10) }),
             execute: async ({ query, limit }) => ({ matches: rankMemories(allMem ?? [], query, limit).map((m) => ({ category: m.category, content: m.content, updated: m.updated_at })) }),
           }),
-          start_preview: tool({
-            description: "Start the app's dev server in the sandbox in the background and return a public preview URL the user can open. Give the start command (e.g. 'npm install && npm run dev -- --host 0.0.0.0 --port 3000') and the port it listens on. Servers must bind 0.0.0.0.",
-            inputSchema: z.object({ command: z.string().min(1).max(2000), port: z.number().int().min(1024).max(65535) }),
+          preview_start: tool({
+            description: "Start (or reuse) the live preview of this task's branch inside the task sandbox. Framework, package manager, install, dev command and port are detected automatically; pass `command`/`port` only to override. Waits for readiness (up to ~2.5 min) and returns the real status. Never tell the user a preview works unless status is 'ready'. The user sees it in Forge's Preview tab (private by default). This is NOT production.",
+            inputSchema: z.object({ command: z.string().max(2000).optional(), port: z.number().int().min(1024).max(65535).optional() }),
             execute: async ({ command, port }) => {
-              if (!process.env["E2B_API_KEY"]) return { error: "Terminal not configured" };
-              return sbxRun(command, { port });
+              if (!process.env["E2B_API_KEY"]) return { error: "Sandbox not configured" };
+              await warm?.catch(() => {});
+              const m = await import("@/lib/preview-manager.server");
+              const started = await serializeBy(`sandbox:${sessionId}`, () => m.startPreview(sb, sbxSession, ghToken, { ...(command ? { command } : {}), ...(port ? { port } : {}), runId: rec?.runId ?? null }));
+              const st = await m.waitReady(sb, started as never);
+              return { status: st.status, framework: st.framework, port: st.port, command: st.command, http: (st.process as { last_http?: number })?.last_http ?? null, log_tail: st.status === "ready" ? undefined : st.logTail?.slice(-2500), note: st.status === "ready" ? "Ready and HTTP health check passed. The user can open it in the Preview tab." : "Not ready. Read the log tail, fix the cause, then call preview_restart or preview_start." };
+            },
+          }),
+          preview_status: tool({
+            description: "Current live-preview status with a fresh process + HTTP health check (auto-restarts a crashed server at most 3 times).",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              if (!row) return { status: "none" };
+              const st = await m.previewStatus(sb, row, { autoRestart: true });
+              return { status: st.status, framework: st.framework, port: st.port, http: (st.process as { last_http?: number })?.last_http ?? null, restarts: (st.process as { restarts?: number })?.restarts ?? 0 };
+            },
+          }),
+          preview_logs: tool({
+            description: "Read the dev server's recent stdout/stderr (build errors, compile errors, crashes).",
+            inputSchema: z.object({ bytes: z.number().int().min(500).max(30000).default(8000) }),
+            execute: async ({ bytes }) => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              return row ? { logs: await m.previewLogs(row, bytes) } : { error: "No preview started" };
+            },
+          }),
+          preview_errors: tool({
+            description: "Error lines from the dev server log plus browser runtime errors (window errors, unhandled rejections, console.error) reported from the user's Preview tab.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              return row ? await m.previewErrors(row) : { error: "No preview started" };
+            },
+          }),
+          preview_check_route: tool({
+            description: "Verify a route of the running preview is reachable (HTTP request from inside the sandbox). Returns status code and the first bytes of the body.",
+            inputSchema: z.object({ path: z.string().max(300).default("/") }),
+            execute: async ({ path }) => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              return row ? await m.checkRoute(row, path) : { error: "No preview started" };
+            },
+          }),
+          preview_restart: tool({
+            description: "Restart the preview dev server (after config/dependency changes or a crash) and wait for readiness.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              if (!row) return { error: "No preview started" };
+              await m.restartPreview(sb, row);
+              const st = await m.waitReady(sb, { ...row, status: "starting" } as never);
+              return { status: st.status, log_tail: st.status === "ready" ? undefined : st.logTail?.slice(-2500) };
+            },
+          }),
+          preview_stop: tool({
+            description: "Stop the preview dev server and revoke all preview links.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              return row ? await m.stopPreview(sb, row) : { ok: true };
             },
           }),
           apply_migrations: tool({
@@ -586,7 +649,7 @@ export const Route = createFileRoute("/api/agent")({
 
         testerTools = () => ({ ...readOnly(), run_command: tools.run_command }) as import("ai").ToolSet;
         readOnly = () => ({ list_files: tools.list_files, read_file: tools.read_file, read_files: tools.read_files, search_files: tools.search_files }) as import("ai").ToolSet;
-        if (plan) { delete (tools as Partial<typeof tools>).start_preview; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).delete_file; }
+        if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).delete_file; }
 
         // Project instructions from the repo + the user's enabled skills.
         const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions").eq("user_id", u.user.id).eq("enabled", true);
