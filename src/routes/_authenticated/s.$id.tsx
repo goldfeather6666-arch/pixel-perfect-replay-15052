@@ -271,22 +271,33 @@ function Workspace() {
           </div>
         )}
       </AppHeader>
-      <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="border-b px-3 py-2">
-          <TabsList className="h-10 w-full justify-start overflow-x-auto rounded-lg bg-card/70 p-1 sm:w-auto">
-            {([
-              ["chat", "Chat", MessageSquare], ["run", "Run", Activity], ["files", "Files", FolderTree],
-              ["terminal", "Terminal", TerminalSquare], ["deploy", "Deploy", Rocket], ["changes", "Changes", GitCompare],
-            ] as const).map(([v, label, Icon]) => (
-              <TabsTrigger key={v} value={v} className="gap-1.5 px-3 text-xs data-[state=active]:text-primary">
-                <Icon className="h-3.5 w-3.5" />{label}
-                {v === "changes" && pending.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{pending.length}</span>}
-                {v === "run" && (running || bgRunning) && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
-              </TabsTrigger>
+      <div className="flex min-h-0 flex-1">
+        {desktop && (
+          <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r bg-card/40 py-2" aria-label="Navigator">
+            {LEFT.map(([k, label, Icon]) => (
+              <button key={k} type="button" title={label} aria-label={label} aria-pressed={left === k} onClick={() => setLeft(left === k ? null : k)}
+                className={`relative grid h-10 w-10 place-items-center rounded-lg transition-colors ${left === k ? "bg-accent text-primary shadow-glow" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}>
+                <Icon className="h-4 w-4" />
+                {k === "changes" && pending.length > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+                {k === "swarm" && (running || bgRunning) && <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+              </button>
             ))}
-          </TabsList>
-        </div>
-        <TabsContent value="chat" className="flex min-h-0 flex-1 flex-col">
+            <div className="mt-auto flex flex-col gap-1">
+              {RIGHT.map(([k, label, Icon]) => (
+                <button key={k} type="button" title={label} aria-label={`${label} dock`} onClick={() => setRight(right === k ? null : k)}
+                  className={`grid h-10 w-10 place-items-center rounded-lg ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-4 w-4" /></button>
+              ))}
+            </div>
+          </nav>
+        )}
+        {desktop && left && (
+          <aside className="flex min-h-0 w-[360px] shrink-0 flex-col border-r bg-card/20">
+            <div className="flex items-center border-b px-3 py-2"><span className="hud-label">{LEFT.find((l) => l[0] === left)?.[1]}</span>
+              <button type="button" aria-label="Close panel" onClick={() => setLeft(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelLeftClose className="h-4 w-4" /></button></div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(left)}</div>
+          </aside>
+        )}
+        <section className={`${!desktop && view !== "chat" ? "hidden" : "flex"} min-w-0 flex-1 flex-col`}>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mx-auto max-w-3xl space-y-5">
               {messages.length === 0 && (
@@ -382,29 +393,31 @@ function Workspace() {
               <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
             </div>
           </form>
-        </TabsContent>
-        <TabsContent value="run" className="min-h-0 flex-1 overflow-y-auto">
-          {s && <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />}
-        </TabsContent>
-        <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden">
-          <FilesView id={id} />
-        </TabsContent>
-        <TabsContent value="terminal" className="min-h-0 flex-1 overflow-hidden">
-          <TerminalView id={id} />
-        </TabsContent>
-        <TabsContent value="deploy" className="min-h-0 flex-1 overflow-y-auto">
-          <DeployPanel id={id} />
-        </TabsContent>
-        <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto">
-          <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
-          {s && <MemoryView repo={s.repo} />}
-          <div className="mx-auto max-w-3xl px-3 pb-8">
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => { await remove({ data: { id } }); nav({ to: "/app" }); }}>
-              <Trash2 /> Delete task (branch stays on GitHub)
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </section>
+        {desktop && right && (
+          <aside className="flex min-h-0 w-[46%] max-w-[860px] flex-col border-l bg-card/30">
+            <div className="flex items-center gap-1 border-b px-2 py-1.5">
+              {RIGHT.map(([k, label, Icon]) => (
+                <button key={k} type="button" onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-3.5 w-3.5" />{label}</button>
+              ))}
+              <button type="button" aria-label="Close dock" onClick={() => setRight(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelRightClose className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">{renderPanel(right)}</div>
+          </aside>
+        )}
+        {!desktop && view !== "chat" && <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(view)}</div>}
+      </div>
+      {!desktop && (
+        <nav className="glass flex shrink-0 overflow-x-auto border-t px-1 pb-[env(safe-area-inset-bottom)]" aria-label="Workspace panels">
+          {([["chat", "Chat", MessageSquare] as const, ...LEFT, ...RIGHT]).map(([k, label, Icon]) => (
+            <button key={k} type="button" onClick={() => setView(k)} className={`relative flex min-w-[4.25rem] flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${view === k ? "text-primary" : "text-muted-foreground"}`}>
+              <Icon className="h-4 w-4" />{label}
+              {k === "changes" && pending.length > 0 && <span className="absolute right-3 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+              {k === "swarm" && (running || bgRunning) && <span className="absolute right-4 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
