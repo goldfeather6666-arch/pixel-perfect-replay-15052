@@ -358,6 +358,9 @@ export type Database = {
           name: string
           oauth_status: string
           state: string
+          tool_cache: Json | null
+          tool_cache_at: string | null
+          tool_cache_url: string | null
           tool_names: Json
           tool_policies: Json
           transport: string
@@ -377,6 +380,9 @@ export type Database = {
           name: string
           oauth_status?: string
           state?: string
+          tool_cache?: Json | null
+          tool_cache_at?: string | null
+          tool_cache_url?: string | null
           tool_names?: Json
           tool_policies?: Json
           transport?: string
@@ -396,6 +402,9 @@ export type Database = {
           name?: string
           oauth_status?: string
           state?: string
+          tool_cache?: Json | null
+          tool_cache_at?: string | null
+          tool_cache_url?: string | null
           tool_names?: Json
           tool_policies?: Json
           transport?: string
