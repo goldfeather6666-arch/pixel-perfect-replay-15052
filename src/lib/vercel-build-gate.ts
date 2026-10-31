@@ -29,9 +29,9 @@ export function withAgentDeploysDisabled(current: string | null | undefined): st
     try { cfg = JSON.parse(current); } catch { return null; } // never rewrite a file we can't parse
     if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) return null;
   }
-  const git = (cfg.git ?? {}) as Record<string, unknown>;
+  const git = (cfg["git"] ?? {}) as Record<string, unknown>;
   if (typeof git !== "object" || Array.isArray(git)) return null;
-  const enabled = git.deploymentEnabled;
+  const enabled = git["deploymentEnabled"];
   if (enabled === false) return null;
   const map = enabled && typeof enabled === "object" ? (enabled as Record<string, unknown>) : {};
   if (map[AGENT_BRANCH_GLOB] === false) return null;
