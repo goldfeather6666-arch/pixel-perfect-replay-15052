@@ -8,6 +8,8 @@ async function call<T>(base: string, token: string, path: string, init: RequestI
   });
   const text = await res.text();
   if (!res.ok) {
+    // Credential-bearing requests must never echo a provider response to the caller.
+    if (path.includes("/env")) throw new Error(`Vercel settings sync failed (${res.status}). Check project access and retry.`);
     let msg = text.slice(0, 400);
     try { const j = JSON.parse(text); msg = j.message || j.error?.message || j.error || msg; } catch {}
     throw new Error(`${base.includes("vercel") ? "Vercel" : "Supabase"} ${res.status}: ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
@@ -133,11 +135,8 @@ export async function syncSupabaseToVercel(supabaseToken: string, vercelToken: s
   const anon = await new SupabaseMgmt(supabaseToken).anonKey(ref);
   if (!anon) throw new Error("Couldn't read the Supabase public key (project may still be starting up).");
   const url = `https://${ref}.supabase.co`;
-  await new Vercel(vercelToken).setEnv(vercelId, {
-    SUPABASE_URL: url, SUPABASE_ANON_KEY: anon, SUPABASE_PUBLISHABLE_KEY: anon,
-    NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_ANON_KEY: anon,
-    VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: anon, VITE_SUPABASE_PUBLISHABLE_KEY: anon,
-  });
+  const { deploymentEnv } = await import("./deployment-env");
+  await new Vercel(vercelToken).setEnv(vercelId, deploymentEnv(url, anon));
   return url;
 }
 

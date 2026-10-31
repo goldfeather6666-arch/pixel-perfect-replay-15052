@@ -34,6 +34,11 @@ export const getIntegrations = createServerFn({ method: "POST" })
       supabase_ref: s.supabase_ref as string | null,
       vercel_project_id: s.vercel_project_id as string | null,
       applied: (s.applied_migrations ?? []) as string[],
+      ...(await (async () => {
+        const { loadDatabaseSettings } = await import("./deployment-settings.server");
+        const saved = s.supabase_ref ? await loadDatabaseSettings(context.userId, data.id, s.supabase_ref) : null;
+        return { hasDatabaseSettings: !!saved, hasServiceRoleKey: !!saved?.serviceRoleKey };
+      })()),
     };
   });
 
@@ -54,14 +59,34 @@ export const listVercelProjects = createServerFn({ method: "GET" })
   });
 
 /** Copies the linked Supabase project's public URL and anon key into the linked Vercel project. */
-async function wireEnv(ctx: Ctx, ref: string | null, vercelId: string | null) {
+async function wireEnv(ctx: Ctx, id: string, ref: string | null, vercelId: string | null) {
   if (!ref || !vercelId) return;
   const st = await token(ctx, "supabase");
   const vt = await token(ctx, "vercel");
-  if (!st || !vt) return;
-  const { syncSupabaseToVercel } = await import("./integrations.server");
-  await syncSupabaseToVercel(st, vt, ref, vercelId);
+  if (!st || !vt) throw new Error("Connect both accounts before syncing database settings");
+  const { syncTaskDatabase } = await import("./deployment-settings.server");
+  await syncTaskDatabase(ctx.userId, id, ref, vercelId, st, vt);
 }
+
+export const saveDatabaseSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), url: z.string().url(), publicKey: z.string().trim().min(1).max(4000), serviceRoleKey: z.string().trim().max(4000).optional(), removeServiceRole: z.boolean().default(false) }))
+  .handler(async ({ data, context }) => {
+    const s = await sessionRow(context, data.id);
+    if (!s.supabase_ref) throw new Error("Choose your database project first");
+    const url = new URL(data.url);
+    if (url.origin !== `https://${s.supabase_ref}.supabase.co` || url.pathname !== "/" || url.search || url.hash || url.username || url.password) throw new Error("Use the public URL of the database linked to this task");
+    const { loadDatabaseSettings } = await import("./deployment-settings.server");
+    const old = await loadDatabaseSettings(context.userId, data.id, s.supabase_ref);
+    const settings = { url: url.origin, publicKey: data.publicKey, serviceRoleKey: data.removeServiceRole ? undefined : data.serviceRoleKey || old?.serviceRoleKey };
+    const { encryptSecret } = await import("./crypto.server");
+    const enc = await encryptSecret(JSON.stringify(settings));
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("task_deployment_settings").upsert({ task_id: data.id, user_id: context.userId, project_ref: s.supabase_ref, ...enc, updated_at: new Date().toISOString() });
+    if (error) throw new Error("Database settings could not be saved");
+    await wireEnv(context, data.id, s.supabase_ref, s.vercel_project_id);
+    return { saved: true, synced: !!s.vercel_project_id };
+  });
 
 /** Re-syncs Supabase keys into Vercel and rebuilds the branch's latest deployment so they apply. */
 export const syncDeployEnv = createServerFn({ method: "POST" })
@@ -70,9 +95,23 @@ export const syncDeployEnv = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
     if (!s.supabase_ref || !s.vercel_project_id) throw new Error("Link both Supabase and Vercel first");
-    const { syncSupabaseToVercel, Vercel, DeployLimitError, startForgeDeploy } = await import("./integrations.server");
+    const { Vercel, DeployLimitError, startForgeDeploy } = await import("./integrations.server");
     const vt = await need(context, "vercel");
-    await syncSupabaseToVercel(await need(context, "supabase"), vt, s.supabase_ref, s.vercel_project_id);
+    await wireEnv(context, data.id, s.supabase_ref, s.vercel_project_id);
+    const gt = await token(context, "github");
+    if (!gt) throw new Error("Settings synced to Vercel; connect GitHub to sync the configuration template");
+    const { GitHub } = await import("./github.server");
+    const { deploymentTemplate } = await import("./deployment-env");
+    const gh = new GitHub(gt);
+    const path = ".forge/deployment.env.example";
+    const content = deploymentTemplate();
+    if ((await gh.getFile(s.repo, s.work_branch, path))?.content !== content) {
+      if (s.mode === "supervised") {
+        const pending = [...(s.pending ?? []).filter((p: { path: string }) => p.path !== path), { path, content, action: "write" }];
+        const { error } = await context.supabase.from("agent_sessions").update({ pending }).eq("id", data.id).eq("user_id", context.userId).eq("updated_at", s.updated_at);
+        if (error) throw new Error("Settings synced; configuration staging failed");
+      } else await gh.putFile(s.repo, s.work_branch, path, content, "chore: document deployment environment names without secrets");
+    }
     let redeployed: string | null = null;
     if (data.redeploy) {
       // Build the branch's CURRENT code once (rebuilding the last deployment would rebuild an old commit).
@@ -116,8 +155,9 @@ export const linkSupabase = createServerFn({ method: "POST" })
     }
     const { error } = await context.supabase.from("agent_sessions").update({ supabase_ref: ref, applied_migrations: [] }).eq("id", data.id);
     if (error) throw new Error(error.message);
-    await wireEnv(context, ref, s.vercel_project_id).catch(() => {});
-    return { ref };
+    let syncError: string | null = null;
+    try { await wireEnv(context, data.id, ref, s.vercel_project_id); } catch { syncError = "Database linked, but Vercel settings did not sync. Use Sync to retry."; }
+    return { ref, syncError };
   });
 
 export const linkVercel = createServerFn({ method: "POST" })
@@ -144,9 +184,10 @@ export const linkVercel = createServerFn({ method: "POST" })
     }
     const { error } = await context.supabase.from("agent_sessions").update({ vercel_project_id: pid }).eq("id", data.id);
     if (error) throw new Error(error.message);
-    await wireEnv(context, s.supabase_ref, pid).catch(() => {});
+    let syncError: string | null = null;
+    try { await wireEnv(context, data.id, s.supabase_ref, pid); } catch { syncError = "Website linked, but database settings did not sync. Use Sync to retry."; }
     if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel")).ensureBuildGate(pid).catch(() => {}); }
-    return { projectId: pid };
+    return { projectId: pid, syncError };
   });
 
 export const getDeployments = createServerFn({ method: "POST" })
