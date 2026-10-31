@@ -1,4 +1,5 @@
 import type { PendingChange } from "./providers";
+import { sandboxSyncCommand } from "./sandbox-sync";
 
 const REPO_DIR = "/home/user/repo";
 const MAX_OUT = 20000;
@@ -50,7 +51,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   } else {
     await box.setTimeout(15 * 60_000).catch(() => {});
     const synced = await box.commands.run(
-      `${SWAP_CMD}; cd ${REPO_DIR} && git -c http.extraHeader="$GH_AUTH" fetch -q origin ${JSON.stringify(session.work_branch)} && git reset -q --hard FETCH_HEAD`,
+      sandboxSyncCommand(REPO_DIR, session.work_branch),
       { envs, timeoutMs: 120_000 },
     ).catch(() => null);
     if (synced?.exitCode !== 0) throw new Error("Sandbox could not sync the current work branch. Checks were not run on stale code; retry the command.");

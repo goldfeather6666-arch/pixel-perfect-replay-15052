@@ -10,6 +10,7 @@ import { watchForStop } from "@/lib/agent-stop";
 import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
 import { ACTIVE_TEAM_WORKERS, parallelMap, ownsPath, proposalConflict, sleep, teamSchema, type CodeProposal } from "@/lib/agent-team";
 import { serializeBy } from "@/lib/branch-write-queue";
+import { sharedReads } from "@/lib/shared-reads";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -89,12 +90,22 @@ export const Route = createFileRoute("/api/agent")({
         const supervised = s.mode === "supervised";
         const pending: PendingChange[] = [...((s.pending as PendingChange[]) ?? [])];
         let treeCache: string[] | null = null;
-        const tree = async () => (treeCache ??= await gh.tree(repo, branch));
+        let treeLoading: Promise<string[]> | null = null;
+        const tree = async () => {
+          if (treeCache) return treeCache;
+          if (!treeLoading) {
+            const loading = gh.tree(repo, branch);
+            treeLoading = loading;
+            void loading.then((files) => { if (treeLoading === loading) treeCache = files; }, () => { if (treeLoading === loading) treeLoading = null; });
+          }
+          return treeLoading;
+        };
+        const fileReads = sharedReads(async (path) => (await gh.getFile(repo, branch, path))?.content ?? null);
 
-        const readCurrent = async (path: string) => {
+        const readCurrent = async (path: string, fresh = false) => {
           const p = [...pending].reverse().find((c) => c.path === path);
           if (p) return p.action === "delete" ? null : (p.content ?? "");
-          return (await gh.getFile(repo, branch, path))?.content ?? null;
+          return fresh ? (await gh.getFile(repo, branch, path))?.content ?? null : fileReads.read(path);
         };
 
         let usage = { input: 0, output: 0 };
@@ -117,7 +128,7 @@ export const Route = createFileRoute("/api/agent")({
         const quality: QualityState = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, localAttempted: false, linked: !!s.vercel_project_id, supervised };
         let checkRoot = ".";
         let revision = 0;
-        const invalidateChecks = () => { revision++; quality.changed = true; quality.localPassed = false; quality.localAttempted = false; quality.localIssue = undefined; quality.deploymentState = undefined; };
+        const invalidateChecks = () => { revision++; fileReads.clear(); treeCache = null; treeLoading = null; quality.changed = true; quality.localPassed = false; quality.localAttempted = false; quality.localIssue = undefined; quality.deploymentState = undefined; };
         // One sandbox per task, shared by every tool call in this run (warmed in the background).
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
@@ -148,7 +159,7 @@ export const Route = createFileRoute("/api/agent")({
             inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
             execute: async ({ paths }) => {
               let budget = 120000;
-              const out = await parallelMap(paths, 2, async (path) => ({ path, c: await readCurrent(path).catch(() => null) }), runAbort.signal);
+              const out = await parallelMap(paths, 6, async (path) => ({ path, c: await readCurrent(path).catch(() => null) }), runAbort.signal);
               return out.map(({ path, c }) => {
                 if (c === null) return { path, error: "not found" };
                 const take = Math.max(2000, Math.min(c.length, budget));
@@ -370,7 +381,7 @@ export const Route = createFileRoute("/api/agent")({
                 runAbort.signal.throwIfAborted();
                 const proposal = proposals.get(id);
                 if (!proposal) { results.push({ id, error: "Proposal not found" }); break; }
-                const error = proposalConflict(proposal, await readCurrent(proposal.path));
+                const error = proposalConflict(proposal, await readCurrent(proposal.path, true));
                 if (error) { results.push({ id, error }); break; }
                 let result: { staged: boolean } | { committed: string };
                 if (supervised) {
@@ -445,7 +456,7 @@ export const Route = createFileRoute("/api/agent")({
                   const coderTools = { ...base, read_files: tool({
                     description: "Read complete files before proposing edits.",
                     inputSchema: z.object({ paths: z.array(z.string()).min(1).max(60) }),
-                    execute: async ({ paths }) => parallelMap(paths, 2, async (path) => {
+                    execute: async ({ paths }) => parallelMap(paths, 6, async (path) => {
                       const content = await readCurrent(path); originals.set(path, content); return { path, content };
                     }, runAbort.signal),
                   }), propose_file: tool({
