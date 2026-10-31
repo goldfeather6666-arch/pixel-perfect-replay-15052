@@ -293,7 +293,15 @@ export const Route = createFileRoute("/api/agent")({
               const { Vercel, syncSupabaseToVercel, waitForDeployment } = await import("@/lib/integrations.server");
               const vToken = await decryptSecret(vercelCred.ciphertext, vercelCred.iv);
               const v = new Vercel(vToken);
-              const commitSha = await gh.headSha(repo, branch);
+              // Builds only run for commits marked for deploy, so trigger exactly one for the current code.
+              let gated = false;
+              try { gated = await v.ensureBuildGate(fresh.vercel_project_id); } catch { /* keep auto-deploy behaviour */ }
+              let commitSha = await gh.headSha(repo, branch);
+              if (gated) {
+                const { DEPLOY_MARKER } = await import("@/lib/vercel-build-gate");
+                const existing = (await v.deployments(fresh.vercel_project_id, branch)).find((d) => d.commitSha === commitSha);
+                if (!existing || existing.state === "CANCELED") commitSha = await gh.emptyCommit(repo, branch, `chore: deploy ${DEPLOY_MARKER}`);
+              }
               const deployedRevision = revision;
               quality.deploymentState = undefined;
               let deploymentId: string | undefined;

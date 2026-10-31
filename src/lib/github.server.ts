@@ -102,6 +102,16 @@ export class GitHub {
       body: JSON.stringify({ sha, force: true }),
     });
   }
+  /** Adds an empty commit (same tree) on top of the branch, e.g. to trigger exactly one deploy. */
+  async emptyCommit(repo: string, branch: string, message: string) {
+    return commitSafely(repo, branch, async () => {
+      const head = await this.headSha(repo, branch);
+      const c = await this.req<any>(`repos/${repo}/git/commits/${head}`);
+      const n = await this.req<any>(`repos/${repo}/git/commits`, { method: "POST", body: JSON.stringify({ message, tree: c.tree.sha, parents: [head] }) });
+      await this.req(`repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { method: "PATCH", body: JSON.stringify({ sha: n.sha }) });
+      return n.sha as string;
+    });
+  }
   async openPr(repo: string, base: string, head: string, title: string, body: string) {
     const p = await this.req<any>(`repos/${repo}/pulls`, { method: "POST", body: JSON.stringify({ title, body, head, base }) });
     return p.html_url as string;
