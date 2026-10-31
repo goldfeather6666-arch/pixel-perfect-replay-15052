@@ -838,7 +838,7 @@ export const Route = createFileRoute("/api/agent")({
                 .eq("id", sessionId).eq("user_id", u.user.id);
               {
                 const { data: staged } = await sb.from("mcp_action_requests").select("id").eq("user_id", u.user.id).eq("session_id", sessionId).eq("state", "pending");
-                const fin = finalStage({ aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
+                const fin = finalStage({ aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan: !!plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 await rec.finish({ steps: stepsDone, usage, costUsd: costUsd(modelCaps(s.model), usage), model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
