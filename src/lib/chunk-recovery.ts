@@ -1,0 +1,24 @@
+export function isChunkLoadError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /dynamically imported module|Importing a module script failed|error loading dynamically|ChunkLoadError|Loading chunk .* failed/i.test(message);
+}
+
+/** Replace a stale manifest with a cache-busted document, with bounded retries. */
+export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number) {
+  const url = new URL(href);
+  const previous = Math.max(lastAttempt || 0, Number(url.searchParams.get("_forge_refresh")) || 0);
+  if (now - previous < 60_000) return null;
+  url.searchParams.set("_forge_refresh", String(now));
+  return url.href;
+}
+
+export function recoverChunkLoad() {
+  let previous = 0;
+  try { previous = Number(window.sessionStorage.getItem("forge-chunk-reload")) || 0; } catch { /* storage may be blocked */ }
+  const now = Date.now();
+  const target = chunkRecoveryUrl(window.location.href, now, previous);
+  if (!target) return false;
+  try { window.sessionStorage.setItem("forge-chunk-reload", String(now)); } catch { /* URL also bounds retries */ }
+  window.location.replace(target);
+  return true;
+}

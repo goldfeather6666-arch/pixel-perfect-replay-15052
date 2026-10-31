@@ -7,9 +7,10 @@ import { Check, Database, ExternalLink, Rocket } from "lucide-react";
 import { saveCredential } from "@/lib/app.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv,
+  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv, saveDatabaseSettings,
 } from "@/lib/integrations.functions";
 
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
@@ -34,6 +35,7 @@ export function DeployPanel({ id }: { id: string }) {
         </ul>
       </section>
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
+      {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
       <VercelCard dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
@@ -109,7 +111,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
   const applyFn = useServerFn(applyMigrations);
   const linkM = useMutation({
     mutationFn: (v: Parameters<typeof link>[0]["data"]) => link({ data: v }),
-    onSuccess: () => { onChange(); toast.success("Database updated"); },
+    onSuccess: (r) => { onChange(); if (r.syncError) toast.error(r.syncError); else toast.success("Database updated"); },
     onError: (e: Error) => toast.error(e.message),
   });
   const applyM = useMutation({
@@ -185,12 +187,12 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
   const deps = useQuery({ queryKey: ["deps", id, linked], queryFn: useServerFn(getDeployments).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 10000 });
   const linkM = useMutation({
     mutationFn: (v: Parameters<typeof link>[0]["data"]) => link({ data: v }),
-    onSuccess: () => { onChange(); toast.success("Website updated"); },
+    onSuccess: (r) => { onChange(); if (r.syncError) toast.error(r.syncError); else toast.success("Website updated"); },
     onError: (e: Error) => toast.error(e.message),
   });
   const sync = useServerFn(syncDeployEnv);
   const syncM = useMutation({
-    mutationFn: () => sync({ data: { id, redeploy: true } }),
+    mutationFn: (redeploy: boolean) => sync({ data: { id, redeploy } }),
     onSuccess: (r) => { toast.success(r.redeployed ? "Database keys sent to Vercel — rebuilding now" : "Database keys sent to Vercel"); deps.refetch(); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -214,9 +216,10 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
           {deps.data?.log && <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-2 font-mono text-[11px]">{deps.data.log}</pre>}
           {runtime && runtime.state !== "PASSED" && <p className={`text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}>{runtime.note}</p>}
           {dbLinked && (
-            <Button variant="outline" className="h-11 w-full" disabled={syncM.isPending} onClick={() => syncM.mutate()}>
-              {syncM.isPending ? "Syncing…" : "Sync database keys to website & rebuild"}
-            </Button>
+            <div className="space-y-2">
+              <Button variant="outline" className="h-11 w-full" disabled={syncM.isPending} onClick={() => syncM.mutate(false)}>Sync production settings & GitHub template</Button>
+              <Button variant="outline" className="h-11 w-full" disabled={syncM.isPending} onClick={() => syncM.mutate(true)}>{syncM.isPending ? "Syncing…" : "Sync & rebuild work-branch preview"}</Button>
+            </div>
           )}
           {failed && (
             <p className="text-xs text-muted-foreground">To have the agent fix it, go to Chat and send: <span className="font-medium text-foreground">"Fix the failed Vercel deploy"</span>.</p>
@@ -248,6 +251,28 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
       )}
     </Card>
   );
+}
+
+function DatabaseKeys({ id, saved, privileged, onChange }: { id: string; saved: boolean; privileged: boolean; onChange: () => void }) {
+  const [url, setUrl] = useState("");
+  const [publicKey, setPublicKey] = useState("");
+  const [serviceRoleKey, setServiceRoleKey] = useState("");
+  const save = useServerFn(saveDatabaseSettings);
+  const m = useMutation({
+    mutationFn: () => save({ data: { id, url: url.trim(), publicKey: publicKey.trim(), serviceRoleKey: serviceRoleKey.trim() || undefined, removeServiceRole: false } }),
+    onSuccess: (r) => { setUrl(""); setPublicKey(""); setServiceRoleKey(""); onChange(); toast.success(r.synced ? "Saved securely and synced to Vercel" : "Saved securely; connect Vercel next"); },
+    onError: () => { setServiceRoleKey(""); toast.error("Settings could not finish saving or syncing. Check the linked project and retry."); },
+  });
+  return <details className="border-y py-3 text-sm">
+    <summary className="cursor-pointer font-medium">Database URL & keys · {saved ? "saved securely" : "public settings fetched automatically"}</summary>
+    <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+      <div className="space-y-1"><Label htmlFor={`db-url-${id}`}>Public project URL</Label><Input id={`db-url-${id}`} type="url" value={url} onChange={(e) => setUrl(e.target.value)} required autoComplete="off" /></div>
+      <div className="space-y-1"><Label htmlFor={`db-key-${id}`}>Publishable or legacy anon key</Label><Input id={`db-key-${id}`} type="password" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} required autoComplete="off" /></div>
+      <div className="space-y-1"><Label htmlFor={`db-service-${id}`}>Service role key (optional, server-only)</Label><Input id={`db-service-${id}`} type="password" value={serviceRoleKey} onChange={(e) => setServiceRoleKey(e.target.value)} autoComplete="off" placeholder={privileged ? "Already saved; leave blank to keep" : "Only if your app needs privileged server operations"} /></div>
+      <p className="text-xs text-muted-foreground">Private keys stay encrypted and are sent only to Vercel’s server settings, never to GitHub or public website settings.</p>
+      <Button type="submit" className="h-11 w-full" disabled={m.isPending}>{m.isPending ? "Saving…" : "Save & sync settings"}</Button>
+    </form>
+  </details>;
 }
 
 function ModeSwitch({ mode, setMode }: { mode: "existing" | "new"; setMode: (m: "existing" | "new") => void }) {

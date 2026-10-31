@@ -321,7 +321,8 @@ export const Route = createFileRoute("/api/agent")({
               const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
               const vercelCred = vt?.[0];
               if (!vercelCred) return { error: "No Vercel token saved in Settings." };
-              const { Vercel, DeployLimitError, startForgeDeploy, syncSupabaseToVercel, waitForDeployment } = await import("@/lib/integrations.server");
+              const { Vercel, DeployLimitError, startForgeDeploy, waitForDeployment } = await import("@/lib/integrations.server");
+              const { syncTaskDatabase } = await import("@/lib/deployment-settings.server");
               const vToken = await decryptSecret(vercelCred.ciphertext, vercelCred.iv);
               const v = new Vercel(vToken);
               const deployedRevision = revision;
@@ -331,7 +332,7 @@ export const Route = createFileRoute("/api/agent")({
                 const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
                 const databaseCred = st?.[0];
                 if (databaseCred) {
-                  try { await syncSupabaseToVercel(await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken, fresh.supabase_ref, fresh.vercel_project_id); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Public database settings synced into Vercel; this build includes them."; }
+                  try { await syncTaskDatabase(s.user_id, sessionId, fresh.supabase_ref, fresh.vercel_project_id, await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Database settings synced into Vercel production and preview; this build includes them."; }
                   catch { return { error: "Database settings could not sync to Vercel. Reconnect the service or retry; deployment is not verified." }; }
                 } else {
                   return { error: "Database token missing. Connect it before verifying the linked deployment." };

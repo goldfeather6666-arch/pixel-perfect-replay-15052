@@ -99,6 +99,13 @@
       "when": 1793416877194,
       "tag": "0013_agent_session_keeper",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793444536940,
+      "tag": "0014_task_deployment_settings",
+      "breakpoints": true
     }
   ]
 }

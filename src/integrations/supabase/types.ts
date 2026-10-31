@@ -352,6 +352,41 @@ export type Database = {
         }
         Relationships: []
       }
+      task_deployment_settings: {
+        Row: {
+          ciphertext: string
+          iv: string
+          project_ref: string
+          task_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ciphertext: string
+          iv: string
+          project_ref: string
+          task_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ciphertext?: string
+          iv?: string
+          project_ref?: string
+          task_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_deployment_settings_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
