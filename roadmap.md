@@ -57,3 +57,6 @@
 - [x] Phase C: typed memory (project/preference/decision/error) with remember tool and Run-tab list; 13 specialist roles with dependency waves and structured reports; four autonomy levels enforced server-side.
 - [ ] Live end-to-end run with a real key — needs your sign-in in the preview (several accounts exist, I can't pick one).
 - [x] Resume checkpoints, MCP tool-list cache (6h, per URL), MCP resources/prompts (read-only), relevance-ranked memory + recall_memory
+
+- [ ] Multi-project parallel work: 3-4 tasks at once, each with its own repo/database/Vercel, no re-setup per project
+- [ ] Live preview: confirm Next.js preview reaches ready end-to-end
