@@ -20,6 +20,7 @@ import { Route as ApiAgentRouteImport } from './routes/api/agent'
 import { Route as ApiAgentBackgroundRouteImport } from './routes/api/agent-background'
 import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
+import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
 
 const IndexRoute = IndexRouteImport.update({
@@ -76,6 +77,11 @@ const AuthenticatedSIdRoute = AuthenticatedSIdRouteImport.update({
   path: '/s/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPreviewSplatRoute = ApiPreviewSplatRouteImport.update({
+  id: '/api/preview/$',
+  path: '/api/preview/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicOauthClientRoute = ApiPublicOauthClientRouteImport.update({
   id: '/api/public/oauth-client',
   path: '/api/public/oauth-client',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
+  '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRoutesByTo {
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
+  '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRoutesById {
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
+  '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
 }
 export interface FileRouteTypes {
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/api/agent-background'
     | '/mcp/callback'
     | '/s/$id'
+    | '/api/preview/$'
     | '/api/public/oauth-client'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/api/agent-background'
     | '/mcp/callback'
     | '/s/$id'
+    | '/api/preview/$'
     | '/api/public/oauth-client'
   id:
     | '__root__'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/api/agent-background'
     | '/mcp/callback'
     | '/_authenticated/s/$id'
+    | '/api/preview/$'
     | '/api/public/oauth-client'
   fileRoutesById: FileRoutesById
 }
@@ -174,6 +186,7 @@ export interface RootRouteChildren {
   ApiAgentRoute: typeof ApiAgentRoute
   ApiAgentBackgroundRoute: typeof ApiAgentBackgroundRoute
   McpCallbackRoute: typeof McpCallbackRoute
+  ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
 }
 
@@ -256,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/preview/$': {
+      id: '/api/preview/$'
+      path: '/api/preview/$'
+      fullPath: '/api/preview/$'
+      preLoaderRoute: typeof ApiPreviewSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/oauth-client': {
       id: '/api/public/oauth-client'
       path: '/api/public/oauth-client'
@@ -291,6 +311,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentRoute: ApiAgentRoute,
   ApiAgentBackgroundRoute: ApiAgentBackgroundRoute,
   McpCallbackRoute: McpCallbackRoute,
+  ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
 }
 export const routeTree = rootRouteImport

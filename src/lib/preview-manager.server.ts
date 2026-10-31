@@ -124,7 +124,7 @@ export async function previewStatus(sb: any, row: PreviewRow, opts: { autoRestar
   }
   await box.setTimeout(TTL_MS).catch(() => {});
   const dir = dirOf(row.id);
-  const r = await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); alive=0; [ -n "$p" ] && kill -0 $p 2>/dev/null && alive=1; [ -f ${dir}/exit ] && alive=0; code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:${row.port}${row.preview_url && row.framework === "vite" ? row.preview_url : "/"}); echo "$alive|$code|$(cat ${dir}/exit 2>/dev/null)"; tail -c 4000 ${dir}/out.log 2>/dev/null`);
+  const r = await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); alive=0; [ -n "$p" ] && kill -0 $p 2>/dev/null && alive=1; [ -f ${dir}/exit ] && alive=0; code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:${row.port}${row.preview_url && (row.framework === "vite" || row.framework === "astro") ? row.preview_url : "/"}); echo "$alive|$code|$(cat ${dir}/exit 2>/dev/null)"; tail -c 4000 ${dir}/out.log 2>/dev/null`);
   const [head = "", ...rest] = r.out.split("\n");
   const [alive, codeStr, exitStr] = head.split("|");
   const code = Number(codeStr) || 0;
