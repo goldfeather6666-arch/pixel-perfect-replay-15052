@@ -5,7 +5,7 @@ import { injectBridge, parsePreviewPath, rewriteLocation, rewriteRootUrls } from
 // scoped to this preview's path), then proxies to the ONE recorded sandbox port with E2B's traffic
 // token. Sandbox hosts and tokens never reach the browser. Other ports are unreachable by design.
 
-const ACTIVE = ["starting", "ready", "unhealthy"];
+const ACTIVE = ["starting", "ready", "unhealthy", "error"];
 const HOP = ["connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade", "proxy-authorization", "host", "cookie", "content-length", "accept-encoding"];
 
 const cookieName = (id: string) => `forge_pv_${id.slice(0, 8)}`;

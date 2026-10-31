@@ -34,7 +34,7 @@ export function PreviewPanel({ id }: { id: string }) {
     refetchInterval: (query) => { const s = query.state.data?.status; return s === "starting" || s === "unhealthy" ? 3000 : s === "ready" ? 20000 : false; },
   });
   const p = q.data;
-  const running = !!p && ["starting", "ready", "unhealthy"].includes(p.status);
+  const running = !!p && ["starting", "ready", "unhealthy", "error"].includes(p.status);
 
   // Get a signed gateway URL once the server is running; refresh before the 30-min token expires.
   useEffect(() => {

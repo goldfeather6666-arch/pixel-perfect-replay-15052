@@ -72,7 +72,7 @@ export const previewAccessFn = createServerFn({ method: "POST" }).middleware([re
   .inputValidator(Task.extend({ kind: z.enum(["own", "share"]).default("own"), minutes: z.number().int().min(5).max(240).default(60) }))
   .handler(async ({ data, context }) => {
     const row = await ownedPreview(context, data.id);
-    if (!row || !["starting", "ready", "unhealthy"].includes(row.status)) throw new Error("Preview is not running");
+    if (!row || !["starting", "ready", "unhealthy", "error"].includes(row.status)) throw new Error("Preview is not running");
     const { signPreviewToken, previewSecret } = await import("./preview-token.server");
     const mins = data.kind === "own" ? 30 : data.minutes;
     const exp = Date.now() + mins * 60_000;

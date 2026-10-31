@@ -19,7 +19,7 @@ export type PreviewRow = {
 };
 
 const dirOf = (id: string) => `/tmp/forge-previews/${id}`;
-const ACTIVE = ["starting", "ready", "unhealthy"];
+const ACTIVE = ["starting", "ready", "unhealthy", "error"];
 
 async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin;
@@ -55,6 +55,7 @@ async function launch(box: import("e2b").Sandbox, row: { id: string; port: numbe
   const script = [
     "set -o pipefail",
     `cd ${REPO_DIR}`,
+    `[ -f ${dir}/env ] && . ${dir}/env`,
     install ? `echo "[forge] installing dependencies…"; ${install} || { echo "[forge] install failed"; exit 90; }` : "",
     `echo "[forge] starting ${framework} dev server on port ${row.port}"`,
     `exec env ${RUN_ENV} ${command}`,
@@ -70,6 +71,21 @@ async function launch(box: import("e2b").Sandbox, row: { id: string; port: numbe
 async function killTree(box: import("e2b").Sandbox, id: string, port: number) {
   const dir = dirOf(id);
   await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && { kill -TERM -- -$p 2>/dev/null; pkill -TERM -P $p 2>/dev/null; kill $p 2>/dev/null; }; sleep 1; fuser -k ${port}/tcp 2>/dev/null; true`);
+}
+
+/** Gives the dev server the task's PUBLIC database settings (never the service key), kept outside the repo. */
+async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: Session & { supabase_ref?: string | null }) {
+  if (!session.supabase_ref) return;
+  try {
+    const { loadDatabaseSettings } = await import("./deployment-settings.server");
+    const { deploymentEnv, isPublicDatabaseKey } = await import("./deployment-env");
+    const saved = await loadDatabaseSettings(session.user_id, session.id, session.supabase_ref);
+    if (!saved?.publicKey || !isPublicDatabaseKey(saved.publicKey)) return;
+    const env = deploymentEnv(saved.url || `https://${session.supabase_ref}.supabase.co`, saved.publicKey) as Record<string, string>;
+    const lines = Object.entries(env).filter(([k]) => !/SERVICE|SECRET/i.test(k)).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
+    await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
+    await sh(box, `chmod 600 ${dirOf(id)}/env`);
+  } catch { /* preview still starts; app may show its own missing-config error */ }
 }
 
 /** Starts (or returns the existing) preview for a task. Never starts a duplicate server for an active preview. */
@@ -104,6 +120,7 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const base = gatewayBase(row.id);
   const command = opts.command?.trim() || devCommand(framework, pm, port, base);
   const install = opts.command ? "" : installCommand(pm, framework);
+  await writePublicEnv(box, row.id, session);
   const pid = await launch(box, row, framework, install, command);
 
   const host = box.getHost(port);
@@ -129,7 +146,7 @@ export async function previewStatus(sb: any, row: PreviewRow, opts: { autoRestar
   const [alive, codeStr, exitStr] = head.split("|");
   const code = Number(codeStr) || 0;
   const logTail = rest.join("\n");
-  let status = alive === "1" ? (isHealthy(code) ? "ready" : row.status === "ready" ? "unhealthy" : "starting") : "crashed";
+  let status = alive === "1" ? (isHealthy(code) ? "ready" : code >= 500 ? "error" : row.status === "ready" ? "unhealthy" : "starting") : "crashed";
   const proc = { ...row.process, last_http: code, exit_code: exitStr ? Number(exitStr) : null };
   if (status === "crashed" && opts.autoRestart && Number(row.process["restarts"] ?? 0) < MAX_AUTO_RESTARTS && exitStr !== "90") {
     const pid = await launch(box, row, row.framework as Framework, "", row.command);
