@@ -112,6 +112,7 @@ function Dashboard() {
     };
   }, [sessions.data]);
   const [preset, setPreset] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   return (
     <div className="bg-aurora min-h-screen">
