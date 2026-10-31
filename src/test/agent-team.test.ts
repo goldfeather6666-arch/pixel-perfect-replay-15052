@@ -38,7 +38,7 @@ describe("master-controlled agent team", () => {
     const job = { label: "UI", role: "coder", task: "Implement UI", paths: ["src/ui.tsx"] };
     const packed = teamSchema.safeParse({ jobs: JSON.stringify([job]) });
     expect(packed.success).toBe(true);
-    expect((packed as { data?: { jobs?: typeof [job] } }).data?.jobs?.[0]?.label).toBe("UI");
+    if (packed.success) expect(packed.data.jobs[0]?.label).toBe("UI");
     expect(teamSchema.safeParse({ jobs: "not json" }).success).toBe(false);
   });
 });
