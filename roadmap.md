@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Stop repeated generic verification notices: run omitted final checks automatically and retain actionable timeout/environment failures.
+- [x] Stop repeated generic verification notices: run omitted final checks automatically and retain sanitized timeout/environment failures; 21 focused tests passed. Saved Artelie3d activity confirms command timeouts and missing database settings; no paid task or external deployment started.
 
 - [x] Prevent Vercel READY from masking runtime crashes: live Artelie3d HTTP 500 reproduced; Deploy panel and agent now check entry-page health; 16 focused tests passed.
 - [ ] Repair Artelie3d's server-page crash — blocked: external project runtime logs / required environment presence must confirm the cause; public catalog currently requires an admin key. No external code edits, paid task or deployment triggered.
