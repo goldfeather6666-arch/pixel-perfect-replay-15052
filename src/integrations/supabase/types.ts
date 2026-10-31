@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           credential_id: string | null
           id: string
+          keeper_id: string | null
           messages: Json
           mode: string
           model: string
@@ -45,6 +46,7 @@ export type Database = {
           created_at?: string
           credential_id?: string | null
           id?: string
+          keeper_id?: string | null
           messages?: Json
           mode?: string
           model?: string
@@ -69,6 +71,7 @@ export type Database = {
           created_at?: string
           credential_id?: string | null
           id?: string
+          keeper_id?: string | null
           messages?: Json
           mode?: string
           model?: string
