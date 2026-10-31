@@ -4,7 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { GitBranch, Plus } from "lucide-react";
+import { Activity, Bug, Cloud, FolderGit2, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+
+const PRESETS = [
+  { title: "Landing page", hint: "Modern, animated", icon: LayoutTemplate, prompt: "Build a modern, responsive, animated landing page for this project. Match the existing stack, keep it mobile-friendly, then run deployment_preflight." },
+  { title: "Fix the build", hint: "Repair failures", icon: Bug, prompt: "Run the project's typecheck, tests and build in the sandbox. Fix every failure at its root cause and re-run until all pass. Report what was broken." },
+  { title: "Security review", hint: "Find & fix risks", icon: ShieldCheck, prompt: "/review Audit this repository for security issues (secrets, auth, injection, unsafe data access). List findings by severity with file references." },
+  { title: "Full-stack app", hint: "Auth + database", icon: Layers, prompt: "/plan Plan a full-stack app in this repo with sign-in, a database with migrations under supabase/migrations, and deployable pages. Show the plan before building." },
+];
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -232,24 +239,27 @@ function Dashboard() {
           )}
         </section>
         <aside className="order-first min-w-0 lg:order-last">
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Your tasks</h2>
-          {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
-          <ul className="space-y-2">
-            {sessions.data?.map((s) => {
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="hud-label">Your tasks</h2>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter…" aria-label="Filter tasks"
+              className="h-8 w-32 rounded-md border bg-card/70 px-2 text-xs outline-none focus:border-primary" />
+          </div>
+          {sessions.data?.length === 0 && <div className="panel p-6 text-center text-sm text-muted-foreground">No tasks yet — start one with a quick preset.</div>}
+          <ul className="max-h-[28rem] space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-14rem)]">
+            {sessions.data?.filter((s) => `${s.title} ${s.repo}`.toLowerCase().includes(q.toLowerCase())).map((s) => {
               const status = taskRunStatus(s);
               const live = status === "cloud" || status === "browser";
               return (
                 <li key={s.id}>
-                  <Link to="/s/$id" params={{ id: s.id }} className="block rounded-md border bg-card p-3 hover:border-primary">
-                    <p className="truncate text-sm font-medium">{s.title}</p>
-                    <p className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3" />{s.repo}</p>
-                    {live && (
-                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-accent px-2 py-0.5 text-[11px] font-medium text-primary">
-                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
-                        {status === "cloud" ? "Running in the cloud" : "Running in browser"}
-                      </p>
-                    )}
-                    {!live && <p className={`mt-2 text-xs ${status === "stale" ? "text-destructive" : "text-muted-foreground"}`}>{status === "stale" ? "No recent update" : "Not running"}</p>}
+                  <Link to="/s/$id" params={{ id: s.id }} className={`panel grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 transition-colors hover:border-primary ${live ? "border-primary/50" : ""}`}>
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${live ? "animate-pulse bg-primary" : status === "stale" ? "bg-destructive" : "bg-muted-foreground/40"}`} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{s.title}</span>
+                      <span className="mt-1 flex items-center gap-1 truncate font-mono text-xs text-muted-foreground"><GitBranch className="h-3 w-3 shrink-0" /><span className="truncate">{s.repo}</span></span>
+                      <span className={`mt-1.5 block text-[11px] ${live ? "text-primary" : status === "stale" ? "text-destructive" : "text-muted-foreground"}`}>
+                        {status === "cloud" ? "Running in the cloud" : status === "browser" ? "Running in browser" : status === "stale" ? "No recent update" : "Idle"}
+                      </span>
+                    </span>
                   </Link>
                 </li>
               );
