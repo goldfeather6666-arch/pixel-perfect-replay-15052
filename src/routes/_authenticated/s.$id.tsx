@@ -93,6 +93,20 @@ function Workspace() {
     }
   }
 
+  // A run that dies silently (server cut off) is resumed automatically, at most 3 times per visit.
+  const autoResumes = useRef(0);
+  const resumedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!stale || running || stopping || !sd?.updated_at) return;
+    if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
+    resumedFor.current = sd.updated_at;
+    autoResumes.current++;
+    toast.info(`The run was cut off — resuming automatically (${autoResumes.current}/3)`);
+    void send("continue (the previous run was cut off; resume from saved progress, avoid repeating finished steps)");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stale, running, stopping, sd?.updated_at]);
+
+
   async function send(override?: string, forcePlan?: boolean) {
     let text = (override ?? input).trim();
     if (!text || running || bgRunning) return;
