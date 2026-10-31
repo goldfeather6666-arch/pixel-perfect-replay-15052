@@ -161,7 +161,11 @@ function Workspace() {
             patchLast((m) => ({ ...m, tools: m.tools?.map((t) => (t.id === e.id ? { ...t, summary: e.summary } : t)) }));
           else if (e.t === "pending") setPending([...e.pending]);
           else if (e.t === "usage") setUsage({ input: ((session.data as { usage?: { input: number } } | undefined)?.usage?.input ?? 0) + e.input, output: ((session.data as { usage?: { output: number } } | undefined)?.usage?.output ?? 0) + e.output });
-          else if (e.t === "error") toast.error(e.m);
+          else if (e.t === "error") {
+            setSendError(e.m);
+            patchLast((m) => ({ ...m, content: `${m.content}\n\n${e.m}` }));
+            toast.error(e.m);
+          }
         }
       }
     } catch (err) {
