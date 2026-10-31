@@ -27,4 +27,4 @@
 - [x] Deployment reliability: built-in coding skill, repeatable production checks, commit-matched Vercel results and bounded repair follow-ups (14 focused tests passed)
 - [ ] Real failing-project deployment verification — requires an authorized task run; do not trigger paid agent runs or external deployments during tests
 - [x] Stop button beside background status; independent stop polling during model waiting
-- [ ] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit
+- [x] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit (boundary tests and phone-sized composer verified)

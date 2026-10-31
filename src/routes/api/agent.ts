@@ -113,7 +113,9 @@ export const Route = createFileRoute("/api/agent")({
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
         const sbxRun = async (command: string, preview?: { port: number }) => {
+          runAbort.signal.throwIfAborted();
           await warm?.catch(() => {});
+          runAbort.signal.throwIfAborted();
           const { runInSandbox } = await import("@/lib/sandbox.server");
           return runInSandbox(sb, sbxSession, ghToken, command, pending, preview);
         };
@@ -307,7 +309,7 @@ export const Route = createFileRoute("/api/agent")({
                 deploymentId = (await v.redeploy(cur)).id;
                 envRebuildNeeded = false;
               }
-              const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) });
+              const latest = await waitForDeployment(v, fresh.vercel_project_id, branch, 180_000, { commitSha, ...(deploymentId ? { deploymentId } : {}) }, runAbort.signal);
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during deployment. Check the new commit." };
               if (!latest) return { state: "NONE", envNote, note: "No deployment for this branch yet. Check the Vercel project is connected to this GitHub repo, or commit a change." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
