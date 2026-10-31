@@ -4,9 +4,7 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
-
-const Img = z.object({ mediaType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]), data: z.string().max(7_000_000) });
-const Body = z.object({ sessionId: z.string().uuid(), message: z.string().min(1).max(20000), plan: z.boolean().optional(), images: z.array(Img).max(4).optional() });
+import { agentRequest, requestError } from "@/lib/agent-request";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -48,8 +46,9 @@ export const Route = createFileRoute("/api/agent")({
         const { data: u, error: ue } = await sb.auth.getUser(token);
         if (ue || !u.user) return new Response("Unauthorized", { status: 401 });
 
-        const parsed = Body.safeParse(await request.json().catch(() => null));
-        if (!parsed.success) return new Response("Bad request", { status: 400 });
+        const payload = await request.json().catch(() => null);
+        const parsed = agentRequest.safeParse(payload);
+        if (!parsed.success) return new Response(requestError(parsed.error.issues, payload?.message), { status: 400 });
         const { sessionId, message, plan, images } = parsed.data;
 
         const { data: s } = await sb.from("agent_sessions").select("*").eq("id", sessionId).eq("user_id", u.user.id).single();

@@ -16,6 +16,7 @@ import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
 import { TerminalView } from "@/components/TerminalView";
 import { DeployPanel } from "@/components/DeployPanel";
+import { promptError } from "@/lib/agent-request";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -58,6 +59,7 @@ function Workspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [input, setInput] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
   const abortRef = useRef<AbortController | null>(null);
@@ -90,6 +92,11 @@ function Workspace() {
       else if (name === "explain") text = `Explain how this part of the codebase works, citing files: ${rest || "overall architecture"}`;
       else if (name === "help") { toast.info("Commands: /plan, /test, /review, /explain"); setInput(""); return; }
     }
+    const validationError = promptError(text);
+    if (validationError) { setSendError(validationError); return; }
+    setSendError(null);
+    const sentImages = images;
+    let accepted = false;
     setInput("");
     setImages([]);
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
@@ -109,6 +116,7 @@ function Workspace() {
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(await res.text());
+      accepted = true;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
@@ -142,7 +150,16 @@ function Workspace() {
         }
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") toast.error((err as Error).message);
+      if ((err as Error).name !== "AbortError") {
+        const detail = (err as Error).message;
+        setSendError(detail);
+        toast.error(detail);
+        if (!accepted) {
+          setInput(text);
+          setImages(sentImages);
+          setMessages((ms) => ms.slice(0, -2));
+        }
+      }
     } finally {
       setRunning(false);
       abortRef.current = null;
@@ -222,6 +239,7 @@ function Workspace() {
               />
             )}
             {stale && !running && <p className="mx-auto mb-2 max-w-3xl text-xs text-destructive">The last run stopped without finishing (no sign of life for over 2 minutes). Its saved progress is above — send a message such as "continue" to pick up from there.</p>}
+            {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
                 {images.map((im, i) => (
