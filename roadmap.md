@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Guided new-project database/Vercel setup, encrypted optional credentials, production environment sync and secret-free GitHub configuration; verify without triggering external builds.
+- [x] Guided new-project database/Vercel setup, encrypted optional server-only credentials, production/preview environment sync and blank GitHub configuration template (supervised staging preserved). Signed-in screens verified; external setting changes, repository writes and builds not triggered during checks.
 
 - [x] Speed pass: master/helpers share bounded cached reads, repository scans coalesce, unchanged cloud branches skip fetches while tracked edits reset; 26 focused tests passed. No paid run started; whole-task speedup is unmeasured. Larger sandbox capacity remains a separate provider/template configuration, unchanged here.
 

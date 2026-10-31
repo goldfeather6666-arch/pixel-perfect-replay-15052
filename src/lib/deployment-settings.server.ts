@@ -1,4 +1,4 @@
-import { deploymentEnv } from "./deployment-env";
+import { deploymentEnv, isPublicDatabaseKey } from "./deployment-env";
 
 export type DatabaseSettings = { url: string; publicKey: string; serviceRoleKey?: string };
 
@@ -17,5 +17,6 @@ export async function syncTaskDatabase(userId: string, taskId: string, ref: stri
   const saved = await loadDatabaseSettings(userId, taskId, ref);
   const publicKey = saved?.publicKey || await new SupabaseMgmt(databaseToken).anonKey(ref);
   if (!publicKey) throw new Error("Database public settings are not available yet; retry when the project is ready");
+  if (!isPublicDatabaseKey(publicKey)) throw new Error("Database public key validation failed; privileged keys cannot be synced to public settings");
   await new Vercel(vercelToken).setEnv(vercelId, deploymentEnv(saved?.url || `https://${ref}.supabase.co`, publicKey, saved?.serviceRoleKey));
 }
