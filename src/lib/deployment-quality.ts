@@ -51,10 +51,28 @@ process.exit(failed ? 1 : 0);
   return `cd '${root}' && node -e '${script.replace(/'/g, "'\\''")}'`;
 }
 
-export type QualityState = { changed: boolean; localPassed: boolean; linked: boolean; supervised: boolean; deploymentState?: string | undefined };
+export type CheckResult = { exit_code?: number; stdout?: string; stderr?: string; error?: string; note?: string };
+
+// Return only fixed diagnostic categories, never arbitrary output that may contain credentials.
+export function checkFailure(result: CheckResult): string {
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error ?? ""}\n${result.note ?? ""}`;
+  if (/URL and Key are required|supabaseUrl is required|supabaseKey is required|missing.*(?:environment variable|SUPABASE.*KEY|SUPABASE.*URL)/i.test(output)) return "Required database URL/public-key settings are missing in the check environment. Connect the database in Deploy and verify the current commit on Vercel; never invent credentials.";
+  if (/deadline_exceeded|timed out|Command stopped after|ETIMEDOUT/i.test(output)) return "The sandbox command timed out; production checks did not finish. Verify the current commit on Vercel instead of repeating the same timed-out command.";
+  if (/out of memory|heap limit|ENOMEM|Killed/i.test(output)) return "The sandbox ran out of memory. Verify the current commit on Vercel instead of repeating the same resource-blocked check.";
+  if (/Terminal.*not configured/i.test(output)) return "The terminal is not configured. Connect it or verify the current commit on Vercel.";
+  if (/Production build script missing/i.test(output)) return "The repository has no production build script. Add the correct build command before verification.";
+  const checks = [...output.matchAll(/\[Forge check\] (?:npm|pnpm|yarn|bun) run (lint|typecheck|type-check|check-types|test|build)\b/g)];
+  const phase = checks.at(-1)?.[1];
+  return phase ? `The ${phase} check failed (exit ${result.exit_code ?? "unknown"}). Read its output in Background activity, fix the first error, and run production checks again.` : `Production checks failed (exit ${result.exit_code ?? "unknown"}). Read the check output in Background activity before retrying.`;
+}
+
+export type QualityState = { changed: boolean; localPassed: boolean; localAttempted?: boolean; localIssue?: string | undefined; linked: boolean; supervised: boolean; deploymentState?: string | undefined };
+export function needsFinalCheck(state: QualityState): boolean {
+  return state.changed && !state.localPassed && !state.localAttempted && state.deploymentState !== "READY";
+}
 export function qualityBlocker(state: QualityState): string | null {
   if (!state.changed) return null;
-  if (!state.localPassed && state.deploymentState !== "READY") return "Current changes have not passed production checks. Run deployment_preflight, fix the reported errors and re-check; if the sandbox is resource-blocked, verify the exact commit through Vercel instead.";
+  if (!state.localPassed && state.deploymentState !== "READY") return state.localIssue ?? "Current changes have not passed production checks. Run deployment_preflight, fix the reported errors and re-check; if the sandbox is resource-blocked, verify the exact commit through Vercel instead.";
   // LIMITED = Vercel refused to build because the account's deployment quota is used up; retrying can't help.
   if (state.linked && !state.supervised && state.deploymentState !== "READY" && state.deploymentState !== "LIMITED") return "The current commit is not verified READY on Vercel. Call deploy_status, read the actual build log and fix any failure. Do not report a completed deployment while it is failed, pending or missing.";
   return null;
