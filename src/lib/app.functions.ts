@@ -463,6 +463,29 @@ export const runTerminal = createServerFn({ method: "POST" })
     return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
   });
 
+export const suggestCommand = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), request: z.string().trim().min(2).max(2000), cwd: z.string().max(500).optional(), history: z.array(z.string().max(500)).max(10).optional() }))
+  .handler(async ({ data, context }) => {
+    const { data: s, error } = await context.supabase.from("agent_sessions").select("credential_id, model, repo").eq("id", data.id).eq("user_id", context.userId).single();
+    if (error || !s) throw new Error("Task not found");
+    const { row, key } = await loadSecret(context, s.credential_id);
+    const { createModel } = await import("./providers.server");
+    const { COMMAND_SYSTEM, parseCommandReply } = await import("./terminal");
+    const { streamText } = await import("ai");
+    try {
+      const result = streamText({
+        model: createModel(row.provider, key, row.base_url, s.model, row.extra_body),
+        system: COMMAND_SYSTEM,
+        prompt: `Repository: ${s.repo}\nWorking directory: ${data.cwd || "repo root"}\nRecent commands:\n${(data.history ?? []).join("\n") || "(none)"}\n\nRequest: ${data.request}`,
+        maxRetries: 1,
+      });
+      return parseCommandReply(await result.text);
+    } catch (e) {
+      throw new Error((e instanceof Error ? e.message : "Could not create a command").slice(0, 300));
+    }
+  });
+
 export const stopSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid() }))
