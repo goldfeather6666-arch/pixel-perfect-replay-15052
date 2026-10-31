@@ -1,5 +1,8 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [x] Prevent Vercel READY from masking runtime crashes: live Artelie3d HTTP 500 reproduced; Deploy panel and agent now check entry-page health; 16 focused tests passed.
+- [ ] Repair Artelie3d's server-page crash — blocked: external project runtime logs / required environment presence must confirm the cause; public catalog currently requires an admin key. No external code edits, paid task or deployment triggered.
+
 - [x] Repair Stop on stalled streams/cleanup, cancel actual shell work, retain stale-task Stop and suppress stopped-task auto-resume; focused tests passed. Current Artelie3d Deploy tab reads READY; task finished before a live Stop could be exercised.
 
 - [x] Master-controlled team: up to 12 specialist jobs, four active workers, parallel code proposals, stale-file rejection and serialized shared commands; 21 focused tests passed. Real provider speed/cost remains unmeasured (no paid task triggered).
