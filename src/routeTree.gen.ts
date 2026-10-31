@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
 import { Route as ApiAgentRouteImport } from './routes/api/agent'
+import { Route as ApiAgentBackgroundRouteImport } from './routes/api/agent-background'
 import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
@@ -60,6 +61,11 @@ const ApiAgentRoute = ApiAgentRouteImport.update({
   path: '/api/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentBackgroundRoute = ApiAgentBackgroundRouteImport.update({
+  id: '/api/agent-background',
+  path: '/api/agent-background',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const McpCallbackRoute = McpCallbackRouteImport.update({
   id: '/mcp/callback',
   path: '/mcp/callback',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/agent-background': typeof ApiAgentBackgroundRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/skills'
     | '/api/agent'
+    | '/api/agent-background'
     | '/mcp/callback'
     | '/s/$id'
     | '/api/public/oauth-client'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/skills'
     | '/api/agent'
+    | '/api/agent-background'
     | '/mcp/callback'
     | '/s/$id'
     | '/api/public/oauth-client'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/skills'
     | '/api/agent'
+    | '/api/agent-background'
     | '/mcp/callback'
     | '/_authenticated/s/$id'
     | '/api/public/oauth-client'
@@ -160,6 +172,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   DotwellKnownOauthClientRoute: typeof DotwellKnownOauthClientRoute
   ApiAgentRoute: typeof ApiAgentRoute
+  ApiAgentBackgroundRoute: typeof ApiAgentBackgroundRoute
   McpCallbackRoute: typeof McpCallbackRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
 }
@@ -222,6 +235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent-background': {
+      id: '/api/agent-background'
+      path: '/api/agent-background'
+      fullPath: '/api/agent-background'
+      preLoaderRoute: typeof ApiAgentBackgroundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mcp/callback': {
       id: '/mcp/callback'
       path: '/mcp/callback'
@@ -269,6 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   DotwellKnownOauthClientRoute: DotwellKnownOauthClientRoute,
   ApiAgentRoute: ApiAgentRoute,
+  ApiAgentBackgroundRoute: ApiAgentBackgroundRoute,
   McpCallbackRoute: McpCallbackRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
 }

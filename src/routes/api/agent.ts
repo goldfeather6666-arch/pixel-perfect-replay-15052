@@ -518,8 +518,16 @@ export const Route = createFileRoute("/api/agent")({
         ];
 
         const encoder = new TextEncoder();
-        if ((s as { running?: boolean }).running && Date.now() - new Date(s.updated_at).getTime() < 2 * 60_000) return new Response("This task is already running", { status: 409 });
-        await sb.from("agent_sessions").update({ running: true, stop_requested: false, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id);
+        // Atomic claim: only one run per task (a dead run counts as free after 2 min without a heartbeat).
+        // The user's message is saved immediately so a reopened page shows it before the first step finishes.
+        const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString();
+        const { data: claimed } = await sb.from("agent_sessions").update({
+          running: true, stop_requested: false, updated_at: new Date().toISOString(),
+          messages: [...history, { role: "user", content: message }, { role: "assistant", content: "", tools: [] }],
+        }).eq("id", sessionId).eq("user_id", u.user.id).or(`running.is.null,running.eq.false,updated_at.lt.${staleBefore}`).select("id");
+        if (!claimed?.length) return new Response("This task is already running", { status: 409 });
+        const keeperId = request.headers.get("x-forge-keeper");
+        const ownKeeper = !!keeperId && keeperId === (s as { keeper_id?: string | null }).keeper_id;
         let closeStream = () => {};
         const stream = new ReadableStream({
           cancel() { closeStream(); },
@@ -630,7 +638,8 @@ export const Route = createFileRoute("/api/agent")({
                 .eq("id", sessionId).eq("user_id", u.user.id);
               send({ t: "done" });
               if (open) try { controller.close(); } catch { /* client gone */ }
-              await sb.from("agent_sessions").update({ running: false, stop_requested: false }).eq("id", sessionId).eq("user_id", u.user.id);
+              await sb.from("agent_sessions").update({ running: false, stop_requested: false, ...(ownKeeper ? { keeper_id: null } : {}) }).eq("id", sessionId).eq("user_id", u.user.id);
+              if (ownKeeper && keeperId) { const { stopKeeper } = await import("@/lib/background-run.server"); await stopKeeper(keeperId); }
             }
           },
         });
