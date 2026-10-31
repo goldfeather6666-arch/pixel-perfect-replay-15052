@@ -31,3 +31,16 @@ describe("AI command helper", () => {
     expect(isRisky("ls -la")).toBe(false);
   });
 });
+
+import { looksLikeRequest } from "@/lib/terminal";
+describe("plain-language detection", () => {
+  it("sends English requests to the AI", () => {
+    expect(looksLikeRequest("install dependencies and build")).toBe(true);
+    expect(looksLikeRequest("type dependencies and build")).toBe(true);
+  });
+  it("runs real commands directly", () => {
+    expect(looksLikeRequest("npm test")).toBe(false);
+    expect(looksLikeRequest("git status")).toBe(false);
+    expect(looksLikeRequest("ls -la src")).toBe(false);
+  });
+});
