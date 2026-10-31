@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Speed pass: share bounded file reads across master/helpers, coalesce repository scans, and avoid fetching unchanged cloud branches; test without paid agent runs.
+- [x] Speed pass: master/helpers share bounded cached reads, repository scans coalesce, unchanged cloud branches skip fetches while tracked edits reset; 26 focused tests passed. No paid run started; whole-task speedup is unmeasured. Larger sandbox capacity remains a separate provider/template configuration, unchanged here.
 
 - [x] Stop repeated generic verification notices: run omitted final checks automatically and retain sanitized timeout/environment failures; 21 focused tests passed. Saved Artelie3d activity confirms command timeouts and missing database settings; no paid task or external deployment started.
 
