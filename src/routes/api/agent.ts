@@ -7,8 +7,8 @@ import type { ModelMessage } from "ai";
 import { deploymentSkill, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
 import { agentRequest, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
-import { modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
-import { ACTIVE_TEAM_WORKERS, parallelMap, ownsPath, proposalConflict, teamSchema, type CodeProposal } from "@/lib/agent-team";
+import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
+import { ACTIVE_TEAM_WORKERS, parallelMap, ownsPath, proposalConflict, sleep, teamSchema, type CodeProposal } from "@/lib/agent-team";
 import { serializeBy } from "@/lib/branch-write-queue";
 
 function userClient(token: string) {
@@ -411,6 +411,11 @@ export const Route = createFileRoute("/api/agent")({
                 let steps = 0;
                 const originals = new Map<string, string | null>();
                 const submitted: string[] = [];
+                // Stagger starts so a full team does not open every model call in the same second.
+                if (i > 0) await sleep(Math.min(i * 1500, 6000), runAbort.signal);
+                // Provider throttling needs a real pause: retry the whole step with backoff
+                // instead of burning instant retries on the same rate limit.
+                for (let attempt = 0; ; attempt++) {
                 try {
                   const base = { ...readOnly(), read_file: tool({
                     description: "Read full file before proposing its replacement.",
@@ -446,7 +451,7 @@ export const Route = createFileRoute("/api/agent")({
                     prompt: job.task,
                     tools: { ...(job.role === "tester" ? testerTools() : job.role === "coder" ? coderTools : base), ...savedSkillTools },
                     stopWhen: stepCountIs(job.role === "coder" ? 18 : job.role === "tester" ? 12 : 10),
-                    maxRetries: 2,
+                    maxRetries: 0,
                     abortSignal: runAbort.signal,
                     onStepFinish: (st) => {
                       steps++;
@@ -461,10 +466,18 @@ export const Route = createFileRoute("/api/agent")({
                   emit({ t: "tool-result", id, ok: true, summary: report.slice(0, 1500) });
                   return { label: job.label, role: job.role, report, proposalIds: submitted };
                 } catch (e) {
+                  if (isRateLimit(e) && attempt < 3) {
+                    const wait = Math.min(60_000, 8_000 * 2 ** attempt) + Math.floor(Math.random() * 2_000);
+                    log.summary = `provider rate limit — waiting ${Math.round(wait / 1000)}s`;
+                    emit({ t: "progress", id, summary: log.summary });
+                    await sleep(wait, runAbort.signal);
+                    continue;
+                  }
                   const m = String((e as Error)?.message ?? e).slice(0, 300);
                   Object.assign(log, { ok: false, summary: m });
                   emit({ t: "tool-result", id, ok: false, summary: m });
                   return { label: job.label, role: job.role, error: m };
+                }
                 }
               }, runAbort.signal));
               return { results, note: "Master: review code with read_proposals, then merge selected IDs in dependency order using apply_proposals. Verify the integrated result." };
