@@ -164,6 +164,7 @@ export type SessionRow = {
   pending: PendingChange[];
   updated_at: string;
   running?: boolean;
+  stop_requested?: boolean;
   keeper_id?: string | null;
 };
 

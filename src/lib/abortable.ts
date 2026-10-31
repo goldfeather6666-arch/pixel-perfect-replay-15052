@@ -1,5 +1,5 @@
 /** Resolve with `work`, or reject as soon as `signal` aborts (the work keeps running but is no longer awaited). */
-export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+export function abortable<T>(work: PromiseLike<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Stopped"));
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason ?? new Error("Stopped"));
