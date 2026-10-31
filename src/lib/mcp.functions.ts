@@ -9,7 +9,7 @@ export const diagnoseMcpAccess = createServerFn({ method: "POST" }).middleware([
 });
 
 export const listMcpConnections = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, auth_mode, oauth_status, state, enabled, tool_names, created_at").eq("user_id", context.userId).order("created_at");
+  const { data, error } = await context.supabase.from("mcp_connections").select("id, name, url, transport_mode, allow_actions, auth_mode, oauth_status, state, enabled, tool_names, tool_policies, created_at").eq("user_id", context.userId).order("created_at");
   if (error) throw new Error("Could not load connections. Please retry.");
   return { items: data ?? [] };
 });
@@ -58,3 +58,17 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
   }
   return { ok: true, message: "Connection updated" };
 });
+/** Per-tool permission: allow (default rules), ask (always stage for approval) or deny (never offered). */
+export const setMcpToolPolicy = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), tool: z.string().min(1).max(160), policy: z.enum(["allow", "ask", "deny"]) }))
+  .handler(async ({ data, context }) => {
+    const table = context.supabase.from("mcp_connections");
+    const { data: row, error } = await table.select("tool_policies, tool_names").eq("id", data.id).eq("user_id", context.userId).single();
+    if (error || !row) throw new Error("Connection not found");
+    if (!((row.tool_names as string[] | null) ?? []).includes(data.tool)) throw new Error("Unknown tool for this connection");
+    const policies = { ...((row.tool_policies as Record<string, string> | null) ?? {}) };
+    if (data.policy === "allow") delete policies[data.tool]; else policies[data.tool] = data.policy;
+    const { error: saveError } = await table.update({ tool_policies: policies }).eq("id", data.id).eq("user_id", context.userId);
+    if (saveError) throw new Error("Could not save permission");
+    return { ok: true };
+  });

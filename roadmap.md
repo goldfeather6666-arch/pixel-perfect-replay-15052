@@ -50,3 +50,10 @@
 - [x] Visible task status above the new-task form on mobile and beside the open-task composer; distinguish cloud, browser, idle and stale runs using saved execution state.
 - [x] Prompt composer: live character count, remaining-capacity warning, 300,000-character limit (boundary tests and phone-sized composer verified)
 - [x] Surface real build errors: preflight failures now include the first sanitized error lines (credentials redacted) in the activity log and final notice instead of "read its output in Background activity"; 149 tests passed.
+
+## Engine V2 (3 phases)
+- [x] Phase A: run stages + transition history, sequenced replayable events, Run tab timeline with honest progress, error taxonomy + redacted error history, timings (first response, setup, per-tool, total), cost estimate. Verified in database: valid/invalid transitions, event order, cross-user block.
+- [x] Phase B: model capability registry (context, vision, pricing), context trimmed to model window, vision guard, optional backup model; skill metadata/triggers/dependencies/version hash with per-run load records; MCP per-tool permissions (default/ask/deny) and execution audit.
+- [x] Phase C: typed memory (project/preference/decision/error) with remember tool and Run-tab list; 13 specialist roles with dependency waves and structured reports; four autonomy levels enforced server-side.
+- [ ] Live end-to-end run with a real key — needs your sign-in in the preview (several accounts exist, I can't pick one).
+- [ ] Not built: durable task leases/checkpoint resume beyond existing keeper + auto-resume; MCP resources/prompts; MCP tool-list caching between runs; semantic (embedding) retrieval.

@@ -1,3 +1,4 @@
+import { AUTONOMY, type Autonomy } from "@/lib/engine/autonomy";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -182,7 +183,8 @@ export type SessionRow = {
   work_branch: string;
   credential_id: string | null;
   model: string;
-  mode: "supervised" | "autonomous";
+  mode: Autonomy;
+  fallback_model?: string | null;
   messages: ChatMessage[];
   pending: PendingChange[];
   updated_at: string;
@@ -219,7 +221,7 @@ export const createSession = createServerFn({ method: "POST" })
       base_branch: z.string(),
       credential_id: z.string().uuid(),
       model: z.string().min(1),
-      mode: z.enum(["supervised", "autonomous"]),
+      mode: z.enum(AUTONOMY),
       title: z.string().max(120),
     }),
   )
@@ -243,11 +245,13 @@ export const updateSession = createServerFn({ method: "POST" })
       id: z.string().uuid(),
       credential_id: z.string().uuid().optional(),
       model: z.string().trim().min(1).max(200).optional(),
-      mode: z.enum(["supervised", "autonomous"]).optional(),
+      mode: z.enum(AUTONOMY).optional(),
+      fallback_model: z.string().trim().max(200).nullable().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    const patch: { model?: string; mode?: string; credential_id?: string } = {};
+    const patch: { model?: string; mode?: string; credential_id?: string; fallback_model?: string | null } = {};
+    if (data.fallback_model !== undefined) patch.fallback_model = data.fallback_model || null;
     if (data.credential_id) {
       if (!data.model) throw new Error("Choose a model for the new provider.");
       // Owner check: RLS only returns the caller's own saved keys.

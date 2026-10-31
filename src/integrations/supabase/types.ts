@@ -14,12 +14,198 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_error_logs: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          message: string
+          retryable: boolean
+          run_id: string | null
+          service: string
+          session_id: string
+          trace_id: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          message: string
+          retryable?: boolean
+          run_id?: string | null
+          service: string
+          session_id: string
+          trace_id?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          message?: string
+          retryable?: boolean
+          run_id?: string | null
+          service?: string
+          session_id?: string
+          trace_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_error_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_events: {
+        Row: {
+          created_at: string
+          payload: Json
+          run_id: string
+          seq: number
+          session_id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          payload?: Json
+          run_id: string
+          seq: number
+          session_id: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          payload?: Json
+          run_id?: string
+          seq?: number
+          session_id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_transitions: {
+        Row: {
+          actor: string
+          created_at: string
+          from_stage: string
+          id: number
+          reason: string
+          run_id: string
+          to_stage: string
+          user_id: string
+        }
+        Insert: {
+          actor?: string
+          created_at?: string
+          from_stage: string
+          id?: number
+          reason?: string
+          run_id: string
+          to_stage: string
+          user_id: string
+        }
+        Update: {
+          actor?: string
+          created_at?: string
+          from_stage?: string
+          id?: number
+          reason?: string
+          run_id?: string
+          to_stage?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_transitions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          autonomy: string
+          ended_at: string | null
+          id: string
+          metrics: Json
+          model: string
+          next_seq: number
+          objective: string
+          outcome: string | null
+          provider: string
+          session_id: string
+          stage: string
+          started_at: string
+          trace_id: string
+          user_id: string
+        }
+        Insert: {
+          autonomy?: string
+          ended_at?: string | null
+          id?: string
+          metrics?: Json
+          model?: string
+          next_seq?: number
+          objective?: string
+          outcome?: string | null
+          provider?: string
+          session_id: string
+          stage?: string
+          started_at?: string
+          trace_id?: string
+          user_id: string
+        }
+        Update: {
+          autonomy?: string
+          ended_at?: string | null
+          id?: string
+          metrics?: Json
+          model?: string
+          next_seq?: number
+          objective?: string
+          outcome?: string | null
+          provider?: string
+          session_id?: string
+          stage?: string
+          started_at?: string
+          trace_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_sessions: {
         Row: {
           applied_migrations: string[]
           base_branch: string
           created_at: string
           credential_id: string | null
+          fallback_model: string | null
           id: string
           keeper_id: string | null
           messages: Json
@@ -45,6 +231,7 @@ export type Database = {
           base_branch: string
           created_at?: string
           credential_id?: string | null
+          fallback_model?: string | null
           id?: string
           keeper_id?: string | null
           messages?: Json
@@ -70,6 +257,7 @@ export type Database = {
           base_branch?: string
           created_at?: string
           credential_id?: string | null
+          fallback_model?: string | null
           id?: string
           keeper_id?: string | null
           messages?: Json
@@ -171,6 +359,7 @@ export type Database = {
           oauth_status: string
           state: string
           tool_names: Json
+          tool_policies: Json
           transport: string
           transport_mode: string
           updated_at: string
@@ -189,6 +378,7 @@ export type Database = {
           oauth_status?: string
           state?: string
           tool_names?: Json
+          tool_policies?: Json
           transport?: string
           transport_mode?: string
           updated_at?: string
@@ -207,6 +397,7 @@ export type Database = {
           oauth_status?: string
           state?: string
           tool_names?: Json
+          tool_policies?: Json
           transport?: string
           transport_mode?: string
           updated_at?: string
@@ -214,6 +405,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_execution_logs: {
+        Row: {
+          created_at: string
+          decision: string
+          duration_ms: number | null
+          id: string
+          ok: boolean | null
+          run_id: string | null
+          server_name: string
+          session_id: string
+          tool_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          duration_ms?: number | null
+          id?: string
+          ok?: boolean | null
+          run_id?: string | null
+          server_name: string
+          session_id: string
+          tool_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          duration_ms?: number | null
+          id?: string
+          ok?: boolean | null
+          run_id?: string | null
+          server_name?: string
+          session_id?: string
+          tool_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_execution_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_oauth_credentials: {
         Row: {
@@ -255,6 +493,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_memories: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          repo: string
+          session_id: string | null
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          id?: string
+          repo: string
+          session_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          repo?: string
+          session_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       provider_credentials: {
         Row: {
@@ -321,6 +595,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      skill_executions: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string
+          run_id: string
+          skill_name: string
+          status: string
+          user_id: string
+          version_hash: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string
+          run_id: string
+          skill_name: string
+          status: string
+          user_id: string
+          version_hash: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string
+          run_id?: string
+          skill_name?: string
+          status?: string
+          user_id?: string
+          version_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_executions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       skills: {
         Row: {
@@ -392,7 +707,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      engine_event: {
+        Args: { _payload: Json; _run: string; _type: string }
+        Returns: number
+      }
+      engine_record: {
+        Args: { _kind: string; _row: Json; _run: string }
+        Returns: undefined
+      }
+      engine_stage_allowed: {
+        Args: { _from: string; _to: string }
+        Returns: boolean
+      }
+      engine_start_run: {
+        Args: {
+          _autonomy: string
+          _model: string
+          _objective: string
+          _provider: string
+          _session: string
+        }
+        Returns: {
+          autonomy: string
+          ended_at: string | null
+          id: string
+          metrics: Json
+          model: string
+          next_seq: number
+          objective: string
+          outcome: string | null
+          provider: string
+          session_id: string
+          stage: string
+          started_at: string
+          trace_id: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "agent_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      engine_transition: {
+        Args: { _reason: string; _run: string; _to: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

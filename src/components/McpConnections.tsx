@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { connectionInput } from "@/lib/mcp-policy";
-import { changeMcpConnection, connectMcp, listMcpConnections } from "@/lib/mcp.functions";
+import { changeMcpConnection, connectMcp, listMcpConnections, setMcpToolPolicy } from "@/lib/mcp.functions";
 import { beginMcpOAuth } from "@/lib/mcp-oauth.functions";
 import { McpDiagnostics } from "./McpDiagnostics";
 
@@ -85,11 +85,40 @@ export function McpConnections() {
             {item.auth_mode === "oauth" && <Button type="button" variant="outline" size="sm" disabled={reconnect.isPending} onClick={() => reconnect.mutate(item)}><LogIn /> Sign in</Button>}
             <Switch aria-label={`Enable ${item.name}`} disabled={update.isPending} checked={item.enabled} onCheckedChange={(enabled) => update.mutate({ id: item.id, enabled })} />
             <Button type="button" variant="ghost" size="icon" title="Recheck connection" aria-label={`Recheck ${item.name}`} disabled={update.isPending} onClick={() => update.mutate({ id: item.id, retry: true })}><RefreshCw /></Button>
+            {Array.isArray(item.tool_names) && item.tool_names.length > 0 && <ToolPermissions id={item.id} tools={item.tool_names as string[]} policies={(item.tool_policies ?? {}) as Record<string, string>} />}
             <Button type="button" variant="ghost" size="icon" title="Disconnect" aria-label={`Disconnect ${item.name}`} disabled={update.isPending} onClick={() => { if (window.confirm(`Disconnect ${item.name}?`)) update.mutate({ id: item.id, remove: true }); }}><Trash2 /></Button>
           </li>
         ))}
       </ul>
       <McpDiagnostics />
     </section>
+  );
+}
+function ToolPermissions({ id, tools, policies }: { id: string; tools: string[]; policies: Record<string, string> }) {
+  const qc = useQueryClient();
+  const save = useServerFn(setMcpToolPolicy);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="basis-full">
+      <button type="button" className="text-xs text-primary underline-offset-2 hover:underline" onClick={() => setOpen(!open)}>{open ? "Hide" : "Set"} per-tool permissions</button>
+      {open && (
+        <ul className="mt-2 space-y-1">
+          {tools.map((t) => (
+            <li key={t} className="flex items-center gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate font-mono">{t}</span>
+              <select aria-label={`Permission for ${t}`} className="h-9 rounded-md border bg-background px-2" value={policies[t] ?? "allow"}
+                onChange={async (e) => {
+                  try { await save({ data: { id, tool: t, policy: e.target.value as "allow" | "ask" | "deny" } }); await qc.invalidateQueries({ queryKey: ["mcp-connections"] }); }
+                  catch (err) { toast.error(err instanceof Error ? err.message : "Could not save"); }
+                }}>
+                <option value="allow">Default</option>
+                <option value="ask">Always ask</option>
+                <option value="deny">Never use</option>
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

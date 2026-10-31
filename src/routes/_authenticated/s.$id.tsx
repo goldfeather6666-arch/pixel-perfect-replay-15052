@@ -9,6 +9,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RunTimeline } from "@/components/RunTimeline";
+import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
 import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
@@ -248,17 +250,19 @@ function Workspace() {
         {s && (
           <div className="flex min-w-0 items-center gap-2 text-xs">
             <span className="truncate font-mono text-muted-foreground">{s.repo} · {s.work_branch}</span>
-            <button
-              className="shrink-0 rounded border px-2 py-0.5 font-mono capitalize hover:border-primary"
-              title="Toggle mode"
-              onClick={async () => {
-                await update({ data: { id, mode: s.mode === "supervised" ? "autonomous" : "supervised" } });
+            <select
+              aria-label="Autonomy level"
+              title={AUTONOMY_LABEL[asAutonomy(s.mode)].hint}
+              className="h-7 shrink-0 rounded border bg-background px-1 font-mono text-xs hover:border-primary"
+              value={asAutonomy(s.mode)}
+              onChange={async (e) => {
+                await update({ data: { id, mode: e.target.value as Autonomy } });
                 qc.invalidateQueries({ queryKey: ["session", id] });
               }}
             >
-              {s.mode}
-            </button>
-            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} disabled={running || bgRunning} />
+              {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
+            </select>
+            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} disabled={running || bgRunning} />
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
                 <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
@@ -270,6 +274,7 @@ function Workspace() {
       <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList className="mx-3 mt-2 max-w-[calc(100%-1.5rem)] justify-start self-start overflow-x-auto">
           <TabsTrigger value="chat">Chat</TabsTrigger>
+          <TabsTrigger value="run">Run</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="deploy">Deploy</TabsTrigger>
@@ -350,6 +355,9 @@ function Workspace() {
               <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
             </div>
           </form>
+        </TabsContent>
+        <TabsContent value="run" className="min-h-0 flex-1 overflow-y-auto">
+          {s && <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />}
         </TabsContent>
         <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden">
           <FilesView id={id} />
