@@ -32,7 +32,10 @@ export class SupabaseMgmt {
   /** Who this token belongs to: its organizations identify the account. */
   async identity(): Promise<AccountIdentity> {
     const orgs = (await this.orgs()).sort((a, b) => a.id.localeCompare(b.id));
-    return { key: orgs.map((o) => o.id).join(",") || "none", name: orgs.map((o) => o.name).join(", ") || "No organizations" };
+    if (orgs.length) return { key: `org:${orgs.map((o) => o.id).join(",")}`, name: orgs.map((o) => o.name).join(", ") };
+    // No visible organizations: fall back to the projects it can see; an empty account can't be compared.
+    const refs = (await this.projects()).map((p) => p.ref).sort();
+    return { key: refs.length ? `projects:${refs.join(",")}` : "", name: refs.length ? `${refs.length} project(s)` : "Supabase account" };
   }
   async createProject(name: string, orgId: string, region: string) {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
