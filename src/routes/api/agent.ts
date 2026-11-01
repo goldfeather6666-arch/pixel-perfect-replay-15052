@@ -296,7 +296,7 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           run_command: tool({
-            description: "Run a shell command (bash) in an isolated cloud sandbox containing a clone of the work branch plus any staged changes. Use for installing deps, running tests, linters and builds. Sandbox file edits are NOT saved; use write_file for real changes.",
+            description: "Run a shell command (bash) in an isolated cloud sandbox; commands start in the repo root /home/user/repo (never /repo) containing a clone of the work branch plus any staged changes. Use for installing deps, running tests, linters and builds. Sandbox file edits are NOT saved; use write_file for real changes.",
             inputSchema: z.object({ command: z.string().min(1).max(4000) }),
             execute: async ({ command }) => {
               if (!process.env["E2B_API_KEY"]) return { error: "Terminal not configured" };
