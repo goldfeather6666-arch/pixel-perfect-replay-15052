@@ -4,7 +4,7 @@
 import type { PendingChange } from "./providers";
 import { openTaskBox } from "./sandbox.server";
 import { encryptSecret } from "./crypto.server";
-import { detectFramework, detectPackageManager, devCommand, gatewayBase, installCommand, isHealthy, parseListening, pickPort, type Framework } from "./preview-detect";
+import { detectFramework, detectPackageManager, devCommand, gatewayBase, installCommand, isHealthy, nextMajor, parseListening, pickPort, type Framework } from "./preview-detect";
 
 const REPO_DIR = "/home/user/repo";
 const TTL_MS = 15 * 60_000;
@@ -130,7 +130,7 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   }).select("*").single();
   if (error || !row) throw new Error("Could not record the preview");
   const base = gatewayBase(row.id);
-  const command = opts.command?.trim() || devCommand(framework, pm, port, base);
+  const command = opts.command?.trim() || devCommand(framework, pm, port, base, { nextMajor: nextMajor(pkg) });
   const install = opts.command ? "" : installCommand(pm, framework);
   await writePublicEnv(box, row.id, session);
   const pid = await launch(box, row, framework, install, command);

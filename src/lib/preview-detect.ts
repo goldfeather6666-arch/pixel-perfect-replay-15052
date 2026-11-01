@@ -46,7 +46,19 @@ export function parseListening(ss: string): number[] {
 }
 
 const RUN: Record<PackageManager, string> = { npm: "npx", pnpm: "pnpm exec", yarn: "yarn", bun: "bunx" };
-const INSTALL: Record<PackageManager, string> = { npm: "npm install", pnpm: "pnpm install", yarn: "yarn install", bun: "bun install" };
+/** Fast installs: reuse the local cache, skip audit/funding/progress output and lifecycle noise. */
+const INSTALL: Record<PackageManager, string> = {
+  npm: "npm install --prefer-offline --no-audit --no-fund --progress=false --loglevel=error",
+  pnpm: "pnpm install --prefer-offline --reporter=silent",
+  yarn: "yarn install --prefer-offline --silent",
+  bun: "bun install",
+};
+/** Major Next.js version from package.json, or 0 when unknown. */
+export function nextMajor(pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } | null) {
+  const v = pkg?.dependencies?.["next"] ?? pkg?.devDependencies?.["next"] ?? "";
+  const m = /(\d+)/.exec(v);
+  return m ? Number(m[1]) : 0;
+}
 
 /**
  * Dev command bound to 0.0.0.0 on `port`. Vite-based servers get the gateway base path so assets and
@@ -61,10 +73,10 @@ export function viteServe(port: number, base: string | null) {
   return `node --input-type=module -e "const v=await import('vite');const s=await v.createServer({server:{host:'0.0.0.0',port:${Math.trunc(port)},strictPort:true,allowedHosts:true}${b}});await s.listen();s.printUrls()"`;
 }
 
-export function devCommand(fw: Framework, pm: PackageManager, port: number, base: string): string {
+export function devCommand(fw: Framework, pm: PackageManager, port: number, base: string, opts: { nextMajor?: number } = {}): string {
   const x = RUN[pm];
   switch (fw) {
-    case "next": return `${x} next dev -H 0.0.0.0 -p ${port}`;
+    case "next": return `${x} next dev${(opts.nextMajor ?? 0) >= 15 ? " --turbopack" : ""} -H 0.0.0.0 -p ${port}`; // Turbopack compiles pages several times faster
     case "vite": return viteServe(port, base);
     case "astro": return `${x} astro dev --host 0.0.0.0 --port ${port} --base ${base}`;
     case "sveltekit": return viteServe(port, null);
