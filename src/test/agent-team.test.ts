@@ -54,3 +54,18 @@ describe("team dispatch limits", () => {
     expect(r.success && r.data.jobs[0]?.label.length).toBe(60);
   });
 });
+
+import { DISPATCH_BY_STEP, dispatchToolChoice, mustDispatch } from "@/lib/agent-team";
+describe("parallel-first dispatch", () => {
+  it("requires a team for real tasks but not plan mode or short replies", () => {
+    expect(mustDispatch("Build a pricing page with checkout and tests", { plan: false })).toBe(true);
+    expect(mustDispatch("Build a pricing page with checkout and tests", { plan: true })).toBe(false);
+    expect(mustDispatch("thanks", { plan: false })).toBe(false);
+  });
+  it("forces delegate once at the dispatch step only while solo", () => {
+    expect(dispatchToolChoice(DISPATCH_BY_STEP, false, true)).toEqual({ type: "tool", toolName: "delegate" });
+    expect(dispatchToolChoice(DISPATCH_BY_STEP, true, true)).toBeUndefined();
+    expect(dispatchToolChoice(0, false, true)).toBeUndefined();
+    expect(dispatchToolChoice(DISPATCH_BY_STEP, false, false)).toBeUndefined();
+  });
+});

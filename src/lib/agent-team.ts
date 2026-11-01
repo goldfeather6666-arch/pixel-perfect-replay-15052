@@ -102,3 +102,19 @@ export async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 export function proposalConflict(proposal: CodeProposal, current: string | null): string | null {
   return proposal.original === current ? null : `File ${proposal.path} changed after the helper read it. Review and reassign instead of overwriting newer work.`;
 }
+/** Steps the master may spend mapping the repo before Forge requires a team dispatch. */
+export const DISPATCH_BY_STEP = 2;
+/**
+ * Parallel-first policy: every real implementation request is split into specialist groups.
+ * Only plan mode, automatic recovery notes and one-line chit-chat may stay solo.
+ */
+export function mustDispatch(message: string, opts: { plan: boolean }): boolean {
+  if (opts.plan) return false;
+  const text = message.trim();
+  if (text.length < 25) return false;
+  return !/^(thanks|thank you|ok|okay|hi|hello|yes|no|stop)\b[.!]?$/i.test(text);
+}
+/** Forces the delegate tool once, after the first exploration steps, if the master stayed solo. */
+export function dispatchToolChoice(stepNumber: number, delegated: boolean, required: boolean) {
+  return required && !delegated && stepNumber === DISPATCH_BY_STEP ? ({ type: "tool", toolName: "delegate" } as const) : undefined;
+}
