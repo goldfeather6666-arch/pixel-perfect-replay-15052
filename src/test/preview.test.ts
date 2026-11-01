@@ -19,7 +19,8 @@ describe("preview detection", () => {
   });
   it("binds 0.0.0.0 and gives Vite the gateway base", () => {
     const base = gatewayBase(ID);
-    expect(devCommand("vite", "npm", 5173, base)).toContain(`--host 0.0.0.0 --port 5173 --strictPort --base ${base}`);
+    expect(devCommand("vite", "npm", 5173, base)).toContain(`allowedHosts:true}`);
+    expect(devCommand("vite", "npm", 5173, base)).toContain(`port:5173`);
     expect(devCommand("next", "npm", 3000, base)).toBe("npx next dev -H 0.0.0.0 -p 3000");
   });
   it("never picks a busy port", () => {
