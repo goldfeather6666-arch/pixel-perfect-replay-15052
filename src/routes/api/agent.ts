@@ -135,7 +135,8 @@ export const Route = createFileRoute("/api/agent")({
         const tree = async () => {
           if (treeCache) return treeCache;
           if (!treeLoading) {
-            const loading = gh.tree(repo, branch);
+            const { cachedTree, treeKey } = await import("@/lib/tree-cache");
+            const loading = cachedTree(treeKey(u.user.id, repo, branch), () => gh.headSha(repo, branch), () => gh.tree(repo, branch)).then((r) => { rec?.event?.("repo.tree", { cacheHit: r.hit, files: r.files.length }); return r.files; });
             treeLoading = loading;
             void loading.then((files) => { if (treeLoading === loading) treeCache = files; }, () => { if (treeLoading === loading) treeLoading = null; });
           }
@@ -718,11 +719,13 @@ export const Route = createFileRoute("/api/agent")({
                     },
                   });
                   usage = { input: usage.input + (r.totalUsage?.inputTokens ?? 0), output: usage.output + (r.totalUsage?.outputTokens ?? 0) };
+                  const { parseWorkerReport } = await import("@/lib/engine/worker-report");
+                  const contract = parseWorkerReport(r.text, WRITER_ROLES.includes(job.role) ? job.paths : [], submitted.map((pid) => proposals.find((p) => p.id === pid)?.path ?? pid));
                   const report = r.text.slice(0, 8000);
                   Object.assign(log, { ok: true, summary: report.slice(0, 1500) });
                   emit({ t: "tool-result", id, ok: true, summary: report.slice(0, 1500) });
-                  rec.event("agent.completed", { label: job.label, role: job.role, ok: true, steps, ms: Date.now() - startedAt, proposals: submitted.length });
-                  return { label: job.label, role: job.role, report, proposalIds: submitted, filesInspected: [...originals.keys()].slice(0, 40), steps };
+                  rec.event("agent.completed", { label: job.label, role: job.role, ok: true, steps, ms: Date.now() - startedAt, proposals: submitted.length, structured: !!contract.report, contractIssues: contract.issues });
+                  return { label: job.label, role: job.role, report, structured: contract.report, contractIssues: contract.issues, proposalIds: submitted, filesInspected: [...originals.keys()].slice(0, 40), steps };
                 } catch (e) {
                   if (isRateLimit(e) && attempt < 3) {
                     const wait = Math.min(60_000, 8_000 * 2 ** attempt) + Math.floor(Math.random() * 2_000);
@@ -760,7 +763,9 @@ export const Route = createFileRoute("/api/agent")({
         if (skillsError) return new Response("Could not load your saved skills. Please retry.", { status: 503 });
         const allSkills = [deploymentSkill, ...(skills ?? []).filter((skill) => skill.name !== deploymentSkill.name)];
         const metas = allSkills.map((sk) => parseSkill(sk.name, sk.instructions));
-        const picked = selectSkills(message, metas);
+        const { data: skillHistory } = await sb.from("skill_executions").select("skill_name, agent_runs(outcome)").eq("user_id", u.user.id).eq("status", "loaded").order("created_at", { ascending: false }).limit(300);
+        const { skillStats } = await import("@/lib/engine/skill-stats");
+        const picked = selectSkills(message, metas, skillStats((skillHistory ?? []).map((r) => ({ skill_name: r.skill_name, outcome: (r.agent_runs as { outcome?: string | null } | null)?.outcome ?? null }))));
         // The built-in deployment skill is always loaded for code-changing runs.
         const loadedNames = new Set(picked.selected.map((p) => p.skill.name));
         if (!plan) loadedNames.add(deploymentSkill.name);
