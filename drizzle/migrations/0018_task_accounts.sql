@@ -1,0 +1,2 @@
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS accounts jsonb NOT NULL DEFAULT '{}'::jsonb;
+COMMENT ON COLUMN public.agent_sessions.accounts IS 'Per-task pinned credential ids: {github, supabase, vercel}; missing = newest saved account';
