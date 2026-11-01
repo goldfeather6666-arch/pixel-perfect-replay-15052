@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/agent-background")({
 
         const { data: s } = await sb.from("agent_sessions").select("id, running, updated_at").eq("id", parsed.data.sessionId).eq("user_id", u.user.id).single();
         if (!s) return new Response("Session not found", { status: 404 });
-        if (s.running && Date.now() - new Date(s.updated_at).getTime() < 2 * 60_000) return new Response("This task is already running", { status: 409 });
+        if (s.running && Date.now() - new Date(s.updated_at).getTime() < (await import("@/lib/task-run-status")).STALE_MS) return new Response("This task is already running", { status: 409 });
 
         const origin = agentOrigin(request);
         if (!origin) return Response.json({ mode: "direct" });

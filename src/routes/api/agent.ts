@@ -93,7 +93,7 @@ export const Route = createFileRoute("/api/agent")({
         // "supervised" (level 1) stages every write; other levels decide per action below.
         const supervised = autonomy === "supervised";
         const caps = modelCaps(s.model);
-        if (images?.length && caps.known && !caps.vision) return new Response(`${s.model} cannot read images. Remove the images or switch to a model with vision.`, { status: 400 });
+        if (images?.some((im) => im.mediaType.startsWith("image/")) && caps.known && !caps.vision) return new Response(`${s.model} cannot read images. Remove the images or switch to a model with vision.`, { status: 400 });
         // eslint-disable-next-line prefer-const
         let rec!: Recorder;
         const pending: PendingChange[] = [...((s.pending as PendingChange[]) ?? [])];
@@ -306,6 +306,11 @@ export const Route = createFileRoute("/api/agent")({
               }
               return { ...result, commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
             },
+          }),
+          share_file: tool({
+            description: "Send a file from the work branch to the user in chat (screenshot, image, PDF, report, CSV…). Write/commit the file first, then call this with its repo path. The user gets a preview and download button.",
+            inputSchema: z.object({ path: z.string().min(1).max(500), caption: z.string().max(300).optional() }),
+            execute: async ({ path, caption }) => ({ shared: path, ...(caption ? { caption } : {}) }),
           }),
           save_memory: tool({
             description: "Save your persistent notes about this repository so future tasks don't have to re-explore it. REPLACES the whole note — send the full updated text (max ~8000 chars). Include: purpose, stack, how to install/test/build, directory map with key files, conventions, gotchas. Never include secrets.",
@@ -696,14 +701,14 @@ export const Route = createFileRoute("/api/agent")({
           ...(summary ? [{ role: "user" as const, content: `<earlier_conversation_summary>\n${summary}\n</earlier_conversation_summary>` }, { role: "assistant" as const, content: "Understood." }] : []),
           ...recent.map((m) => ({ role: m.role, content: m.role === "assistant" ? toText(m).replace(/^assistant: /, "") || "(tool work only)" : m.content })),
           images?.length
-            ? { role: "user" as const, content: [{ type: "text" as const, text: message }, ...images.map((im) => ({ type: "image" as const, image: im.data, mediaType: im.mediaType }))] }
+            ? { role: "user" as const, content: [{ type: "text" as const, text: message }, ...images.map((im) => attachmentPart(im))] }
             : { role: "user" as const, content: message },
         ];
 
         const encoder = new TextEncoder();
-        // Atomic claim: only one run per task (a dead run counts as free after 2 min without a heartbeat).
+        // Atomic claim: only one run per task (a dead run counts as free only after STALE_MS without a heartbeat).
         // The user's message is saved immediately so a reopened page shows it before the first step finishes.
-        const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString();
+        const staleBefore = new Date(Date.now() - (await import("@/lib/task-run-status")).STALE_MS).toISOString();
         // Do not erase a Stop pressed while this request was preparing repository context.
         const { data: beforeClaim } = await sb.from("agent_sessions").select("stop_requested, updated_at").eq("id", sessionId).eq("user_id", u.user.id).single();
         if (beforeClaim?.stop_requested && beforeClaim.updated_at !== s.updated_at) return new Response("Task stopped", { status: 409 });
@@ -898,7 +903,7 @@ export const Route = createFileRoute("/api/agent")({
               if (runAbort.signal.aborted) send({ t: "text", d: "\n\n_(stopped)_" });
               const next: ChatMessage[] = [
                 ...history,
-                { role: "user", content: images?.length ? `${message}\n\n(${images.length} image${images.length > 1 ? "s" : ""} attached)` : message },
+                { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
                 { role: "assistant", content: text, tools: logs },
               ];
               await sb
