@@ -23,6 +23,7 @@ export type ProviderReadiness = Record<ControlPlaneProvider, {
 }>;
 
 export type SyncPlanInput = {
+  mode?: ResourceMode;
   providers: ProviderReadiness;
   hasDatabase: boolean;
   hasDeployment: boolean;
@@ -141,7 +142,7 @@ export function buildProjectSyncPlan(input: SyncPlanInput): ProjectSyncPlan {
 
   const requiresApproval = steps.filter((step) => step.state === "approval_required").map((step) => step.operation);
   return {
-    mode: "connect_existing",
+    mode: input.mode ?? "connect_existing",
     steps,
     canStart: steps.some((step) => step.state === "ready") && !steps.some((step) => step.state === "blocked"),
     requiresApproval,
