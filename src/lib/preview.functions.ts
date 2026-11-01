@@ -33,11 +33,10 @@ function view(r: any) {
     expiresAt: r.expires_at as string, lastCheck: (r.last_health_check_at as string | null) ?? null,
     restarts: Number(r.process?.restarts ?? 0), lastHttp: (r.process?.last_http as number | undefined) ?? null,
     shareUntil: (r.share_until as string | null) ?? null, logTail: redactPreviewDiagnostic((r.logTail as string | undefined) ?? "").slice(-30_000),
-    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []).slice(-50).map((e: { m?: string; path?: string; at?: string }) => ({
-      m: redactPreviewDiagnostic(e.m ?? "").slice(0, 1000),
-      ...(e.path ? { path: e.path.split(/[?#]/, 1)[0]!.replace(/[\r\n\\]/g, "").slice(0, 300) } : {}),
-      at: e.at ?? "",
-    })) as Array<{ m: string; path?: string; at: string }>,
+    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []).slice(-50).map((e: { m?: string; path?: string; at?: string }): { m: string; path?: string; at: string } => {
+      const path = typeof e.path === "string" ? e.path.split(/[?#]/, 1)[0]!.replace(/[\\r\\n\\\\]/g, "").slice(0, 300) : undefined;
+      return { m: redactPreviewDiagnostic(e.m ?? "").slice(0, 1000), ...(path !== undefined ? { path } : {}), at: e.at ?? "" };
+    }),
   };
 }
 export type PreviewView = NonNullable<ReturnType<typeof view>>;
