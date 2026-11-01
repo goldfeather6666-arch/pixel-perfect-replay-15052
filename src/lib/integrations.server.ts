@@ -28,6 +28,11 @@ export class SupabaseMgmt {
     const r = await this.req<any[]>("/organizations");
     return r.map((o) => ({ id: o.id as string, name: o.name as string }));
   }
+  /** Who this token belongs to: its organizations identify the account. */
+  async identity(): Promise<AccountIdentity> {
+    const orgs = (await this.orgs()).sort((a, b) => a.id.localeCompare(b.id));
+    return { key: orgs.map((o) => o.id).join(",") || "none", name: orgs.map((o) => o.name).join(", ") || "No organizations" };
+  }
   async createProject(name: string, orgId: string, region: string) {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
     const db_pass = btoa(String.fromCharCode(...bytes)).replace(/[^A-Za-z0-9]/g, "") + "Aa1!";
@@ -60,6 +65,12 @@ export class Vercel {
   constructor(private token: string) {}
   private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, p, i); }
   user() { return this.req("/v2/user"); }
+  /** Who this token belongs to (Vercel user id + username/email). */
+  async identity(): Promise<AccountIdentity> {
+    const r = await this.req<any>("/v2/user");
+    const u = r?.user ?? {};
+    return { key: String(u.id ?? u.uid ?? ""), name: String(u.username || u.email || u.name || "Vercel account") };
+  }
   async projects() {
     const r = await this.req<any>("/v9/projects?limit=100");
     return (r.projects as any[]).map((p) => ({ id: p.id as string, name: p.name as string, repo: (p.link?.org && p.link?.repo ? `${p.link.org}/${p.link.repo}` : null) as string | null }));
