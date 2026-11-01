@@ -107,6 +107,8 @@ export const deleteCredential = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
+    const { data: row } = await context.supabase.from("provider_credentials").select("*").eq("id", data.id).eq("user_id", context.userId).maybeSingle();
+    if (row?.auth_method === "oauth") { const { revokeOAuthAccount } = await import("./deploy-oauth.server"); await revokeOAuthAccount(row); }
     const { error } = await context.supabase.from("provider_credentials").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
