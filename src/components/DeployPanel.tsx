@@ -95,7 +95,7 @@ function AccountsCard({ id, options, active, onChange }: { id: string; options: 
         <Button variant="outline" size="sm" onClick={() => setAdding(adding === "Vercel" ? null : "Vercel")}>Add another Vercel account</Button>
         <Button asChild variant="ghost" size="sm"><Link to="/settings">Add GitHub account in Settings</Link></Button>
       </div>
-      {adding && <div className="mt-3 rounded-md border p-3"><NeedToken name={adding} onDone={() => { setAdding(null); onChange(); }} /></div>}
+      {adding && <div className="mt-3 rounded-md border p-3"><NeedToken name={adding} onDone={async (accountId) => { await m.mutateAsync({ provider: adding === "Vercel" ? "vercel" : "supabase", account: accountId }); setAdding(null); }} /></div>}
     </section>
   );
 }

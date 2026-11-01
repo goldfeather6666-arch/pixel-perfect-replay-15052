@@ -178,7 +178,7 @@ export type SessionRow = {
   id: string;
   title: string;
   repo: string;
-  accounts?: Record<string, string> | null;
+  accounts?: Record<string, string | null> | null;
   base_branch: string;
   work_branch: string;
   credential_id: string | null;
