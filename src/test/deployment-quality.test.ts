@@ -22,12 +22,8 @@ describe("production checks", () => {
     expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");
     expect(productionInstructions).toContain("Connect & sync/Auto-fix");
   });
-  it("does not replace real integrations with mocks", () => {
-    expect(productionPolicy.allowMockIntegrations).toBe(false);
-  });
-  it("does not treat production-first building as release consent", () => {
-    expect(productionPolicy.automaticProductionRelease).toBe(false);
-  });
+  it("does not replace real integrations with mocks", () => { expect(productionPolicy.allowMockIntegrations).toBe(false); });
+  it("does not treat production-first building as release consent", () => { expect(productionPolicy.automaticProductionRelease).toBe(false); });
   it("runs omitted final checks but does not blindly repeat attempted checks", () => {
     const state = { changed: true, localPassed: false, linked: true, supervised: false };
     expect(needsFinalCheck(state)).toBe(true);
@@ -51,6 +47,7 @@ describe("production checks", () => {
     const issue = checkFailure({
       exit_code: 1,
       stdout: "[Forge check] npm run build\nsrc/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.\n[Forge exit] 1",
+    });
     expect(issue).toContain("build check failed (exit 1)");
     expect(issue).toContain("First error: src/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.");
     expect(issue).not.toContain("Read its output in Background activity");
@@ -58,17 +55,17 @@ describe("production checks", () => {
   it("redacts token-like values from surfaced error lines", () => {
     const issue = checkFailure({
       exit_code: 1,
-      stdout: "[Forge check] npm run build
-Error: request to https://user:ghp_abcdef1234567890abcdef1234567890ab@example.com failed with token=ghp_abcdef1234567890abcdef1234567890ab
-[Forge exit] 1",
       stdout: "[Forge check] npm run build\nError: request to https://user:ghp_abcdef1234567890abcdef1234567890ab@example.com failed with token=ghp_abcdef1234567890abcdef1234567890ab\n[Forge exit] 1",
+    });
+    expect(issue).toContain("failed");
+    expect(issue).not.toContain("ghp_abcdef1234567890abcdef1234567890ab");
   });
   it("falls back to the last output lines when nothing looks like an error", () => {
-    const issue = checkFailure({ exit_code: 1, stdout: "step one
-step two
-final line" });
-    expect(issue).toContain("final line");
     const issue = checkFailure({ exit_code: 1, stdout: "step one\nstep two\nfinal line" });
+    expect(issue).toContain("final line");
+  });
+  it("keeps failed local checks blocking for supervised and unlinked projects", () => {
+    expect(qualityBlocker({ changed: true, localPassed: false, linked: false, supervised: false })).not.toBeNull();
     expect(qualityBlocker({ changed: true, localPassed: false, linked: true, supervised: true })).not.toBeNull();
   });
   it("runs real production scripts successfully", () => {
