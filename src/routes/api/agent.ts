@@ -14,6 +14,7 @@ import { sharedReads } from "@/lib/shared-reads";
 import { asAutonomy, deployAllowed, migrationNeedsApproval, writeNeedsApproval } from "@/lib/engine/autonomy";
 import { costUsd, estimateTokens, fitToBudget, modelCaps } from "@/lib/engine/model-registry";
 import { finalStage } from "@/lib/engine/lifecycle";
+import { attachmentPart } from "@/lib/agent-request";
 import { contentHash, parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import type { Recorder } from "@/lib/engine/recorder.server";
 
