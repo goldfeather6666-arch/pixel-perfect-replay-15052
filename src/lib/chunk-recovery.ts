@@ -3,6 +3,19 @@ export function isChunkLoadError(error: unknown) {
   return /dynamically imported module|Importing a module script failed|error loading dynamically|ChunkLoadError|Loading chunk .* failed/i.test(message);
 }
 
+/** A mixed Vite dependency generation can detach React's hook dispatcher. */
+export function isStaleReactModuleError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const value = error as { message?: unknown; stack?: unknown };
+  return typeof value.message === "string" && typeof value.stack === "string"
+    && /Cannot read properties of null \(reading ['"]use(?:State|Effect|Ref|Memo|Context|Reducer|Callback)['"]\)/.test(value.message)
+    && /node_modules\/\.vite\/deps\/react(?:\.js|[-_])/.test(value.stack);
+}
+
+export function isRecoverableModuleError(error: unknown) {
+  return isChunkLoadError(error) || isStaleReactModuleError(error);
+}
+
 /** Replace a stale manifest with a cache-busted document, with bounded retries. */
 export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number) {
   const url = new URL(href);

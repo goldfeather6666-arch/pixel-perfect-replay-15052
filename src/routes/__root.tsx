@@ -15,7 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { isChunkLoadError, recoverChunkLoad } from "@/lib/chunk-recovery";
+import { isRecoverableModuleError, recoverChunkLoad } from "@/lib/chunk-recovery";
 
 function NotFoundComponent() {
   return (
@@ -43,7 +43,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    if (isChunkLoadError(error) && recoverChunkLoad()) return;
+    if (isRecoverableModuleError(error) && recoverChunkLoad()) return;
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
@@ -59,7 +59,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button
             onClick={() => {
-              if (isChunkLoadError(error)) {
+              if (isRecoverableModuleError(error)) {
                 const url = new URL(window.location.href);
                 url.searchParams.set("_forge_refresh", String(Date.now()));
                 window.location.replace(url.href);
@@ -130,10 +130,10 @@ function RootComponent() {
       if (recoverChunkLoad()) e.preventDefault();
     };
     const onRejection = (e: PromiseRejectionEvent) => {
-      if (isChunkLoadError(e.reason) && recoverChunkLoad()) e.preventDefault();
+      if (isRecoverableModuleError(e.reason) && recoverChunkLoad()) e.preventDefault();
     };
     const onError = (e: ErrorEvent) => {
-      if (isChunkLoadError(e.error ?? e.message) && recoverChunkLoad()) e.preventDefault();
+      if (isRecoverableModuleError(e.error ?? e.message) && recoverChunkLoad()) e.preventDefault();
     };
     window.addEventListener("vite:preloadError", onPreload);
     window.addEventListener("unhandledrejection", onRejection);

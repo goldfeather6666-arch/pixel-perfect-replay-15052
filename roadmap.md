@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [x] Screenshot comparison in Preview: private reference/current uploads, authenticated AI Gateway comparison, prioritized layout findings, selected-fix brief for Chat. Real signed-in upload/comparison returned HTTP 200 and identified the intended header-height difference; targeted fixes are opt-in, no code changes or deployment triggered by verification.
+
 - [x] Set inactivity detection to two minutes; manual Stop atomically fences the owner’s execution, marks it inactive and cancels browser waiting without heartbeat races. 26 focused tests pass; real signed-in Stop on the stuck Newproject task remained stopped after reload. No paid model run started; active model/shell cancellation remains covered by isolated tests.
 
 - [x] Automatic liveness watchdog: two-minute silence detection, existing 5-min recovery schedule, three-retry cap, saved progress, atomic leases and execution fencing; Stop and approvals preserved. Real paid recovery not triggered.
