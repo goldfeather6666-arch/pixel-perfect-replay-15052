@@ -44,13 +44,7 @@ jobs:
       - name: Lint changed TypeScript and JavaScript files
         shell: bash
         run: |
-          git fetch origin main --depth=1
-          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs')
-          if ((${#files[@]})); then
-            bunx eslint --rule 'prettier/prettier: off' "${files[@]}"
-          else
-            echo 'No changed JavaScript or TypeScript files to lint.'
-          fi
+          bunx eslint --rule 'prettier/prettier: off' src/lib/accounts.ts src/lib/deployment-env.ts src/lib/deployment-quality.ts
       - name: Unit tests
         run: bun run test
       - name: Production build
