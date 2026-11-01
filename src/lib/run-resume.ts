@@ -18,3 +18,18 @@ export function resumeCandidates<S extends Secret>(secrets: S[], sessions: Sessi
   }
   return { resume, clean };
 }
+
+/** Silence beyond this releases the run's sandbox instead of leaving it held open forever. */
+export const QUIET_MS = 10 * 60_000;
+
+/** A run waiting on a person is idle on purpose — it is not stuck and must never be auto-stopped. */
+export const HUMAN_WAIT_STAGES = ["AWAITING_APPROVAL", "AWAITING_INPUT"];
+
+type Quiet = { id: string; user_id: string; running: boolean; stop_requested: boolean; updated_at: string; last_stage: string | null };
+
+/** Decides which silent runs to stop, sparing anything the owner stopped or a person still owes. */
+export function quietStopCandidates(sessions: Quiet[], now: number, quietMs = QUIET_MS) {
+  return sessions.filter((s) => s.running && !s.stop_requested
+    && now - Date.parse(s.updated_at) >= quietMs
+    && !(s.last_stage && HUMAN_WAIT_STAGES.includes(s.last_stage)));
+}
