@@ -1,6 +1,9 @@
 ---
 name: customer-owned-deployment
 description: Configure and deploy generated customer projects using their own GitHub, Supabase, Vercel and AI-provider accounts.
+activation: auto
+triggers: [deploy, deployment, vercel, supabase, github, connect, sync, environment variables, byo]
+version: 1.0.0
 ---
 
 # Customer-owned deployment (BYO infrastructure)
