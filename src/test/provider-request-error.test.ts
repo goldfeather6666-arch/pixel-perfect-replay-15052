@@ -23,3 +23,12 @@ describe("provider request failures", () => {
     expect(text).toContain("continue");
   });
 });
+import { describe as d2, it as i2, expect as e2 } from "vitest";
+import { providerRequestError as pre } from "@/lib/provider-request-error";
+d2("refused keys", () => {
+  i2("shows the provider's reason for a 403 key refusal", () => {
+    const m = pre({ statusCode: 403, message: "This API key is paused: the Free plan uses only your newest key." });
+    e2(m).toContain("refused this API key (403)");
+    e2(m).toContain("API key is paused");
+  });
+});
