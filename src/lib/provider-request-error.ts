@@ -21,5 +21,9 @@ export function providerRequestError(error: unknown): string {
   if (isRateLimit(e)) {
     return "The AI provider's rate limit was reached (usually a cap on generated tokens per minute). Everything done so far is saved — wait a few minutes and send “continue”.";
   }
+  if (e?.statusCode === 401 || e?.statusCode === 403) {
+    const reason = String(e?.message ?? "").replace(/\s+/g, " ").replace(/(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "[key]").slice(0, 240);
+    return `The AI provider refused this API key (${e.statusCode})${reason ? `: “${reason}”` : ""}. Update or replace the key in Settings, or switch this task to another key with the model picker, then resend.`;
+  }
   return "The agent request failed. Check the provider connection and try again after resolving the issue.";
 }
