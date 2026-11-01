@@ -18,6 +18,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
 import { Route as ApiAgentRouteImport } from './routes/api/agent'
 import { Route as ApiAgentBackgroundRouteImport } from './routes/api/agent-background'
+import { Route as ApiVisualCompareRouteImport } from './routes/api/visual-compare'
 import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
 import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
@@ -68,6 +69,11 @@ const ApiAgentBackgroundRoute = ApiAgentBackgroundRouteImport.update({
   path: '/api/agent-background',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVisualCompareRoute = ApiVisualCompareRouteImport.update({
+  id: '/api/visual-compare',
+  path: '/api/visual-compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const McpCallbackRoute = McpCallbackRouteImport.update({
   id: '/mcp/callback',
   path: '/mcp/callback',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/agent-background': typeof ApiAgentBackgroundRoute
+  '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/agent-background': typeof ApiAgentBackgroundRoute
+  '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/agent-background': typeof ApiAgentBackgroundRoute
+  '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/api/agent'
     | '/api/agent-background'
+    | '/api/visual-compare'
     | '/mcp/callback'
     | '/s/$id'
     | '/api/preview/$'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/api/agent'
     | '/api/agent-background'
+    | '/api/visual-compare'
     | '/mcp/callback'
     | '/s/$id'
     | '/api/preview/$'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/skills'
     | '/api/agent'
     | '/api/agent-background'
+    | '/api/visual-compare'
     | '/mcp/callback'
     | '/_authenticated/s/$id'
     | '/api/preview/$'
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthClientRoute: typeof DotwellKnownOauthClientRoute
   ApiAgentRoute: typeof ApiAgentRoute
   ApiAgentBackgroundRoute: typeof ApiAgentBackgroundRoute
+  ApiVisualCompareRoute: typeof ApiVisualCompareRoute
   McpCallbackRoute: typeof McpCallbackRoute
   ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
@@ -268,6 +281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentBackgroundRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/visual-compare': {
+      id: '/api/visual-compare'
+      path: '/api/visual-compare'
+      fullPath: '/api/visual-compare'
+      preLoaderRoute: typeof ApiVisualCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mcp/callback': {
       id: '/mcp/callback'
       path: '/mcp/callback'
@@ -330,6 +350,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotwellKnownOauthClientRoute: DotwellKnownOauthClientRoute,
   ApiAgentRoute: ApiAgentRoute,
   ApiAgentBackgroundRoute: ApiAgentBackgroundRoute,
+  ApiVisualCompareRoute: ApiVisualCompareRoute,
   McpCallbackRoute: McpCallbackRoute,
   ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,

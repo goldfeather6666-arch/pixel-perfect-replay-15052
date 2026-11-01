@@ -9,6 +9,7 @@ import { canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDi
 import { diagnosePreviewFn, getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revokePreviewLinks, startPreviewFn } from "@/lib/preview.functions";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { VisualComparison } from "@/components/VisualComparison";
 
 const DEVICES = { desktop: { w: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", icon: Smartphone, label: "Mobile" } } as const;
 type Device = keyof typeof DEVICES;
@@ -158,6 +159,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
         <span className="text-xs capitalize text-muted-foreground">{p ? p.status : "not started"}{p?.framework && p.framework !== "unknown" ? ` · ${p.framework}` : ""}</span>
         {needsRepair && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button>}
         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowHealth((v) => !v)} aria-pressed={showHealth}><ShieldCheck />Health</Button>
+        <VisualComparison id={id} onSend={onSend} agentBusy={agentBusy} />
         <div className="ml-auto flex items-center gap-0.5">
           {(Object.keys(DEVICES) as Device[]).map((d) => { const I = DEVICES[d].icon; return (
             <button key={d} type="button" aria-label={DEVICES[d].label} aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded p-1.5 ${device === d ? "bg-accent text-primary" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" /></button>
