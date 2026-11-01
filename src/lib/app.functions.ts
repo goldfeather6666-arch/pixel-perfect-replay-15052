@@ -178,6 +178,7 @@ export type SessionRow = {
   id: string;
   title: string;
   repo: string;
+  accounts?: Record<string, string> | null;
   base_branch: string;
   work_branch: string;
   credential_id: string | null;
@@ -338,7 +339,7 @@ export const resolvePending = createServerFn({ method: "POST" })
     const chosen = data.paths ? s.pending.filter((c: { path: string }) => data.paths!.includes(c.path)) : s.pending;
     const rest = data.paths ? s.pending.filter((c: { path: string }) => !data.paths!.includes(c.path)) : [];
     if (data.approve) {
-      const gh = await github(context);
+      const gh = await github(context, s.accounts);
       for (const c of chosen) {
         const msg = data.message || `agent: ${c.action} ${c.path}`;
         if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, c.content ?? "", msg);
