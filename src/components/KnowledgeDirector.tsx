@@ -114,7 +114,7 @@ function Memory({ repo }: { repo: string }) {
 function Tools() {
   const list = useServerFn(listMcpConnections);
   const q = useQuery({ queryKey: ["mcp-connections"], queryFn: () => list(), ...LIVE });
-  const rows = (q.data ?? []) as Array<{ id: string; name: string; url: string; state?: string | null; enabled?: boolean; tool_names?: string[] | null; allow_actions?: boolean }>;
+  const rows = (Array.isArray(q.data) ? q.data : Array.isArray((q.data as { items?: unknown[] } | undefined)?.items) ? (q.data as { items: unknown[] }).items : []) as Array<{ id: string; name: string; url: string; state?: string | null; enabled?: boolean; tool_names?: string[] | null; allow_actions?: boolean }>;
   return (
     <section className="space-y-1.5">
       {q.isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
