@@ -1,15 +1,15 @@
 // Run lifecycle. Mirrors public.engine_stage_allowed — keep both in sync.
-export const STAGES = ["RECEIVED", "DISCOVERING", "PLANNING", "AWAITING_APPROVAL", "EXECUTING", "VERIFYING", "REPAIRING", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"] as const;
+export const STAGES = ["RECEIVED", "DISCOVERING", "PLANNING", "AWAITING_APPROVAL", "AWAITING_INPUT", "EXECUTING", "VERIFYING", "REPAIRING", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"] as const;
 export type Stage = (typeof STAGES)[number];
 
 const NEXT: Record<Stage, Stage[]> = {
   RECEIVED: ["DISCOVERING", "FAILED", "CANCELLED"],
-  DISCOVERING: ["PLANNING", "EXECUTING", "FAILED", "CANCELLED", "BLOCKED"],
-  PLANNING: ["AWAITING_APPROVAL", "EXECUTING", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
-  EXECUTING: ["VERIFYING", "AWAITING_APPROVAL", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
-  VERIFYING: ["EXECUTING", "REPAIRING", "AWAITING_APPROVAL", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
-  REPAIRING: ["EXECUTING", "VERIFYING", "FAILED", "CANCELLED", "BLOCKED"],
-  AWAITING_APPROVAL: [], COMPLETED: [], FAILED: [], CANCELLED: [], BLOCKED: [],
+  DISCOVERING: ["PLANNING", "EXECUTING", "AWAITING_INPUT", "FAILED", "CANCELLED", "BLOCKED"],
+  PLANNING: ["AWAITING_APPROVAL", "AWAITING_INPUT", "AWAITING_INPUT", "EXECUTING", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
+  EXECUTING: ["VERIFYING", "AWAITING_APPROVAL", "AWAITING_INPUT", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
+  VERIFYING: ["EXECUTING", "REPAIRING", "AWAITING_APPROVAL", "AWAITING_INPUT", "COMPLETED", "FAILED", "CANCELLED", "BLOCKED"],
+  REPAIRING: ["EXECUTING", "VERIFYING", "AWAITING_INPUT", "FAILED", "CANCELLED", "BLOCKED"],
+  AWAITING_APPROVAL: [], AWAITING_INPUT: [], COMPLETED: [], FAILED: [], CANCELLED: [], BLOCKED: [],
 };
 
 export function canTransition(from: Stage, to: Stage): boolean {
@@ -20,11 +20,12 @@ export function isTerminal(stage: Stage): boolean {
 }
 
 /** Final stage from real run facts — never "completed" just because the model replied. */
-export function finalStage(f: { aborted: boolean; errored: boolean; blocker: string | null; exhausted: boolean; plan: boolean; pendingChanges: number; stagedActions: number }): { stage: Stage; reason: string } {
+export function finalStage(f: { aborted: boolean; errored: boolean; blocker: string | null; exhausted: boolean; plan: boolean; pendingChanges: number; stagedActions: number; openQuestions?: number }): { stage: Stage; reason: string } {
   if (f.aborted) return { stage: "CANCELLED", reason: "Stopped by user" };
   if (f.errored) return { stage: "FAILED", reason: "Run failed with an error" };
   if (f.blocker) return { stage: "BLOCKED", reason: f.blocker };
   if (f.exhausted) return { stage: "BLOCKED", reason: "Step limit reached before the work was finished" };
+  if ((f.openQuestions ?? 0) > 0) return { stage: "AWAITING_INPUT", reason: `${f.openQuestions} question(s) need your answer` };
   if (f.plan) return { stage: "AWAITING_APPROVAL", reason: "Plan ready for your approval" };
   if (f.pendingChanges > 0 || f.stagedActions > 0) return { stage: "AWAITING_APPROVAL", reason: `${f.pendingChanges} file change(s) and ${f.stagedActions} external action(s) need approval` };
   return { stage: "COMPLETED", reason: "Work finished and required checks did not report a blocker" };

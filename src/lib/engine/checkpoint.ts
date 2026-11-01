@@ -1,7 +1,7 @@
 // Builds a resume checkpoint from a previous run's recorded milestones.
 type Ev = { type: string; payload: unknown };
 
-const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL"]);
+const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL", "AWAITING_INPUT"]);
 
 /** A run counts as interrupted when it never reached an end state and its heartbeat went quiet. */
 export function isInterrupted(run: { stage: string; ended_at: string | null }, active: boolean): boolean {
