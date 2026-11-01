@@ -35,4 +35,10 @@ describe("MCP operation resilience", () => {
     await expect(runMcpOperation(operation, { readOnly: true, retries: 10, delayMs: 0 })).rejects.toThrow("503");
     expect(operation).toHaveBeenCalledTimes(2);
   });
+
+  it("fails a hung operation at the configured timeout without retrying", async () => {
+    const operation = vi.fn(() => new Promise<never>(() => {}));
+    await expect(runMcpOperation(operation, { readOnly: true, timeoutMs: 1000, delayMs: 0 })).rejects.toThrow("timed out");
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
 });
