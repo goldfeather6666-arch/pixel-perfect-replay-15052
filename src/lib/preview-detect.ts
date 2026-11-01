@@ -52,13 +52,22 @@ const INSTALL: Record<PackageManager, string> = { npm: "npm install", pnpm: "pnp
  * Dev command bound to 0.0.0.0 on `port`. Vite-based servers get the gateway base path so assets and
  * HMR resolve through Forge's private gateway; other frameworks are rewritten at the gateway.
  */
+/**
+ * Starts the project's own Vite through its API so `allowedHosts: true` overrides the project config:
+ * Vite otherwise rejects the sandbox's private host ("Blocked request. This host is not allowed").
+ */
+export function viteServe(port: number, base: string | null) {
+  const b = base && /^[\w\-/.]+$/.test(base) ? `,base:'${base}'` : "";
+  return `node --input-type=module -e "const v=await import('vite');const s=await v.createServer({server:{host:'0.0.0.0',port:${Math.trunc(port)},strictPort:true,allowedHosts:true}${b}});await s.listen();s.printUrls()"`;
+}
+
 export function devCommand(fw: Framework, pm: PackageManager, port: number, base: string): string {
   const x = RUN[pm];
   switch (fw) {
     case "next": return `${x} next dev -H 0.0.0.0 -p ${port}`;
-    case "vite": return `${x} vite --host 0.0.0.0 --port ${port} --strictPort --base ${base}`;
+    case "vite": return viteServe(port, base);
     case "astro": return `${x} astro dev --host 0.0.0.0 --port ${port} --base ${base}`;
-    case "sveltekit": return `${x} vite dev --host 0.0.0.0 --port ${port} --strictPort`;
+    case "sveltekit": return viteServe(port, null);
     case "remix": return `${pm} run dev -- --host 0.0.0.0 --port ${port}`;
     case "nuxt": return `${x} nuxi dev --host 0.0.0.0 --port ${port}`;
     case "cra": return `HOST=0.0.0.0 PORT=${port} BROWSER=none ${pm} run start`;
