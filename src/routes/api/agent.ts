@@ -7,6 +7,8 @@ import type { ModelMessage } from "ai";
 import { checkFailure, deploymentSkill, productionInstructions, needsFinalCheck, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
 import { agentRequest, attachmentPart, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
+import { agentLiveness } from "@/lib/agent-liveness";
+import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
 import { ACTIVE_TEAM_WORKERS, CHECKER_ROLES, ROLE_BRIEF, WRITER_ROLES, scheduleWaves, parallelMap, ownsPath, proposalConflict, sleep, teamSchema, type CodeProposal } from "@/lib/agent-team";
 import { serializeBy } from "@/lib/branch-write-queue";
@@ -63,9 +65,11 @@ export const Route = createFileRoute("/api/agent")({
         const parsed = agentRequest.safeParse(payload);
         if (!parsed.success) return new Response(requestError(parsed.error.issues, payload?.message), { status: 400 });
         const { sessionId, message, plan, images } = parsed.data;
+        const autoRecovery = message === RESUME_MESSAGE;
 
         const { data: s } = await sb.from("agent_sessions").select("*").eq("id", sessionId).eq("user_id", u.user.id).single();
         if (!s) return new Response("Session not found", { status: 404 });
+        if (autoRecovery && s.stop_requested) return new Response("Task stopped", { status: 409 });
         if (!s.credential_id || !s.model) return new Response("Choose a provider and model first", { status: 400 });
 
         const { decryptSecret } = await import("@/lib/crypto.server");
@@ -743,10 +747,14 @@ export const Route = createFileRoute("/api/agent")({
         // Do not erase a Stop pressed while this request was preparing repository context.
         const { data: beforeClaim } = await sb.from("agent_sessions").select("stop_requested, updated_at").eq("id", sessionId).eq("user_id", u.user.id).single();
         if (beforeClaim?.stop_requested && beforeClaim.updated_at !== s.updated_at) return new Response("Task stopped", { status: 409 });
-        const { data: claimed } = await sb.from("agent_sessions").update({
+        const executionId = crypto.randomUUID();
+        let claim = sb.from("agent_sessions").update({
           running: true, stop_requested: false, updated_at: new Date().toISOString(),
+          execution_id: executionId,
           messages: [...history, { role: "user", content: message }, { role: "assistant", content: "", tools: [] }],
-        }).eq("id", sessionId).eq("user_id", u.user.id).or(`running.is.null,running.eq.false,updated_at.lt.${staleBefore}`).select("id");
+        }).eq("id", sessionId).eq("user_id", u.user.id).or(`running.is.null,running.eq.false,updated_at.lt.${staleBefore}`);
+        if (autoRecovery) claim = claim.eq("stop_requested", false);
+        const { data: claimed } = await claim.select("id");
         if (!claimed?.length) return new Response("This task is already running", { status: 409 });
         const { startRecorder } = await import("@/lib/engine/recorder.server");
         rec = await startRecorder(sb, { sessionId, objective: message, provider: cred.provider, model: s.model, autonomy: plan ? `${autonomy}+plan` : autonomy });
@@ -767,14 +775,19 @@ export const Route = createFileRoute("/api/agent")({
           cancel() { closeStream(); },
           async start(controller) {
             let open = true;
-            const send = (e: AgentEvent) => { if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
+            const life = agentLiveness();
+            let stalled = false;
+            const send = (e: AgentEvent) => { life.progress(); if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
             closeStream = () => { open = false; };
             emit = send;
-            // Heartbeat: proves the run is alive between steps; a run with no beat for 2 min is treated as dead.
-            const beat = setInterval(() => { void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id); }, 30_000);
+            // Do not let a timer falsely prove life while the model/tool is stuck.
+            const beat = setInterval(() => {
+              if (life.stalled()) { stalled = true; runAbort.abort(); return; }
+              void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId);
+            }, 30_000);
             const stopWatching = watchForStop(async () => {
-              const { data } = await sb.from("agent_sessions").select("stop_requested").eq("id", sessionId).eq("user_id", u.user.id).single();
-              return data?.stop_requested === true;
+              const { data } = await sb.from("agent_sessions").select("stop_requested, execution_id").eq("id", sessionId).eq("user_id", u.user.id).single();
+              return data?.stop_requested === true || (!!data && data.execution_id !== executionId);
             }, runAbort);
             let text = "";
             let errored = false;
@@ -851,7 +864,7 @@ export const Route = createFileRoute("/api/agent")({
                   const { data: st } = await sb.from("agent_sessions").update({
                     messages: [...history, { role: "user", content: message }, { role: "assistant", content: text, tools: logs }],
                     pending, updated_at: new Date().toISOString(),
-                  }).eq("id", sessionId).eq("user_id", u.user.id).select("stop_requested").single();
+                  }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).select("stop_requested").single();
                   if (st?.stop_requested) runAbort.abort();
                 } else if (part.type === "error") {
                   throw part.error;
@@ -941,23 +954,24 @@ export const Route = createFileRoute("/api/agent")({
                 .from("agent_sessions")
                 .update({
                   messages: next,
-                  running: false,
-                  stop_requested: false,
+                  running: stalled,
                   ...(ownKeeper ? { keeper_id: null } : {}),
                   pending,
                   summary: summary || null,
                   summarized_count: summarizedCount,
                   usage: { input: (((s as any).usage?.input) ?? 0) + usage.input, output: (((s as any).usage?.output) ?? 0) + usage.output },
-                  updated_at: new Date().toISOString(),
+                  updated_at: new Date(Date.now() - (stalled ? (await import("@/lib/task-run-status")).STALE_MS + 1 : 0)).toISOString(),
                   ...(history.length === 0 ? { title: message.slice(0, 80) } : {}),
                 })
-                .eq("id", sessionId).eq("user_id", u.user.id);
+                .eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId);
               {
+                if (!stalled) {
                 const { data: staged } = await sb.from("mcp_action_requests").select("id").eq("user_id", u.user.id).eq("session_id", sessionId).eq("state", "pending");
                 const fin = finalStage({ aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan: !!plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 await rec.finish({ steps: stepsDone, usage, costUsd: costUsd(modelCaps(s.model), usage), model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
+                }
               }
               send({ t: "done" });
               if (open) try { controller.close(); } catch { /* client gone */ }
