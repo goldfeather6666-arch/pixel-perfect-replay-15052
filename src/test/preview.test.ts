@@ -77,3 +77,15 @@ describe("preview gateway", () => {
     expect(injectBridge("<html><head><title>x</title></head></html>")).toMatch(/<head><script>.*forgePreviewError/);
   });
 });
+
+import { devCommand as dc, installCommand as ic, nextMajor } from "../lib/preview-detect";
+describe("preview speed", () => {
+  it("uses Turbopack only for Next 15+", () => {
+    expect(nextMajor({ dependencies: { next: "^15.1.0" } })).toBe(15);
+    expect(dc("next", "npm", 3000, "/", { nextMajor: 15 })).toContain("--turbopack");
+    expect(dc("next", "npm", 3000, "/", { nextMajor: 14 })).not.toContain("--turbopack");
+  });
+  it("installs from cache without audit and skips when installed", () => {
+    expect(ic("npm", "vite")).toBe("[ -d node_modules ] || npm install --prefer-offline --no-audit --no-fund --progress=false --loglevel=error");
+  });
+});
