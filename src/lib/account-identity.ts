@@ -3,7 +3,8 @@
 export type AccountIdentity = { key: string; name: string };
 export type IdentifiedToken = { id: string; last4: string; identity: AccountIdentity | null };
 
-const GENERIC = new Set(["", "vercel", "supabase"]);
+// "supabase · no organizations" was a short-lived auto label that carried no account information.
+const GENERIC = new Set(["", "vercel", "supabase", "supabase · no organizations"]);
 
 /** True when a saved label carries no account information (e.g. the default "Vercel"). */
 export function isGenericLabel(label: string | null | undefined) {
