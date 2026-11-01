@@ -52,7 +52,7 @@ export const startPreviewFn = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     const s = await ownedTask(context, data.id);
     const { startPreview } = await import("./preview-manager.server");
-    return view(await startPreview(context.supabase, s, await githubToken(context), { ...(data.command ? { command: data.command } : {}), ...(data.port ? { port: data.port } : {}) }));
+    return view(await startPreview(context.supabase, s, await githubToken(context, s.accounts), { ...(data.command ? { command: data.command } : {}), ...(data.port ? { port: data.port } : {}) }));
   });
 
 export const previewActionFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
