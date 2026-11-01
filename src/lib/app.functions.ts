@@ -85,7 +85,7 @@ export const saveCredential = createServerFn({ method: "POST" })
     }
     const { encryptSecret } = await import("./crypto.server");
     const enc = await encryptSecret(data.key);
-    const { error } = await context.supabase.from("provider_credentials").insert({
+    const { error, data: saved } = await context.supabase.from("provider_credentials").insert({
       provider: data.provider,
       label: data.label,
       base_url: data.base_url,
@@ -95,9 +95,9 @@ export const saveCredential = createServerFn({ method: "POST" })
       iv: enc.iv,
       last4: data.key.slice(-4),
       user_id: context.userId,
-    });
+    }).select("id").single();
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, id: saved.id as string };
   });
 
 export const deleteCredential = createServerFn({ method: "POST" })

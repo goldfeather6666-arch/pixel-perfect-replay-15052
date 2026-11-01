@@ -120,14 +120,14 @@ const GUIDES = {
   },
 } as const;
 
-function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: () => void }) {
+function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: (accountId: string) => void | Promise<void> }) {
   const [key, setKey] = useState("");
   const save = useServerFn(saveCredential);
   const qc = useQueryClient();
   const g = GUIDES[name];
   const m = useMutation({
     mutationFn: () => save({ data: { provider: name === "Supabase" ? "supabase" : "vercel", label: name, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
-    onSuccess: () => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); onDone(); },
+    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); await onDone(r.id); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
@@ -275,7 +275,7 @@ function VercelCard({ id, options, account, has, linked, onChange, dbLinked }: {
           <Select value={savedAccount} onValueChange={setSavedAccount}><SelectTrigger className={trig}><SelectValue placeholder="Choose saved Vercel account" /></SelectTrigger><SelectContent>{options.map((o) => <SelectItem key={o.id} value={o.id}>{o.label} ···{o.last4}</SelectItem>)}</SelectContent></Select>
           {!options.length && <p className="text-xs text-muted-foreground">No saved Vercel accounts. Connect a new account.</p>}
           <Button className="w-full" disabled={!savedAccount || connectM.isPending} onClick={() => connectM.mutate(savedAccount)}>Connect selected account</Button>
-        </> : <NeedToken name="Vercel" onDone={async () => { await onChange(); }} />}
+      </> : <NeedToken name="Vercel" onDone={async (accountId) => { await connectM.mutateAsync(accountId); }} />}
       </div> : linked ? (
         <div className="space-y-3 text-sm">
           <p className="break-all font-mono text-xs text-muted-foreground">Linked website · {linked}</p>
