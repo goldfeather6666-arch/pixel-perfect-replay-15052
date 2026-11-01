@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Fix account-switch project lists and stale linked projects; expose clear Vercel link/unlink controls.
+
 - [x] Surface file/MCP approvals and pending database migrations in live chat; shared resolvers and inline confirmations retain consent safeguards. 30 focused tests passed; signed-in simulated MCP approval verified desktop/phone and status read-back without external actions. Database application not executed during verification.
 
 - [x] Reorganize built-in build/deployment guidance into a shared production-first contract for master, specialists, work splitting and repair briefs; preserve approvals and honest readiness claims. Focused checks passed; no paid model run triggered.
