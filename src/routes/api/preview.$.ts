@@ -125,6 +125,12 @@ async function handle({ request }: { request: Request }) {
   const textual = /text\/html|javascript|text\/css/.test(type);
   if (!textual || method === "HEAD") return new Response(upstream.body, { status: upstream.status, headers: out });
   let text = await upstream.text();
+  // A project server that dies before rendering returns a near-empty 500 page, which leaves a blank
+  // screen. Show an explanation instead; Forge's Health check and Fix with AI hold the real error.
+  const dest = request.headers.get("sec-fetch-dest") ?? "";
+  if (upstream.status >= 500 && type.includes("text/html") && /^(document|iframe)$/.test(dest) && text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, "").trim().length < 200) {
+    return deny(502, "Your project's server crashed while loading this page (often a missing setting or a server error). Open Health in Forge's Preview tab, or press Fix with AI.");
+  }
   if (!nativeBase) text = rewriteRootUrls(text, base);
   if (type.includes("text/html")) text = injectBridge(text);
   return new Response(text, { status: upstream.status, headers: out });
