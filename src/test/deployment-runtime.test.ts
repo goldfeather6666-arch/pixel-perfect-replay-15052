@@ -30,4 +30,10 @@ describe("deployed page verification", () => {
     expect(await checkDeploymentRuntime("https://vercel.app.evil.example")).toMatchObject({ state: "UNVERIFIED" });
     expect(fetcher).not.toHaveBeenCalled();
   });
+
+  it("returns unverified for malformed URLs without throwing", async () => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    await expect(checkDeploymentRuntime("not a url")).resolves.toMatchObject({ state: "UNVERIFIED", status: null });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });
