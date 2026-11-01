@@ -295,6 +295,36 @@ export type Database = {
         }
         Relationships: []
       }
+      deploy_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          provider: string
+          redirect_uri: string
+          state_digest: string
+          user_id: string
+          verifier: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          provider: string
+          redirect_uri: string
+          state_digest: string
+          user_id: string
+          verifier: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          provider?: string
+          redirect_uri?: string
+          state_digest?: string
+          user_id?: string
+          verifier?: string
+        }
+        Relationships: []
+      }
       mcp_action_requests: {
         Row: {
           arguments: Json
@@ -665,42 +695,54 @@ export type Database = {
       }
       provider_credentials: {
         Row: {
+          auth_method: string
           base_url: string | null
           ciphertext: string
           created_at: string
           custom_models: string[]
+          expires_at: string | null
           extra_body: Json | null
           id: string
           iv: string
           label: string
           last4: string
           provider: string
+          refresh_ciphertext: string | null
+          refresh_iv: string | null
           user_id: string
         }
         Insert: {
+          auth_method?: string
           base_url?: string | null
           ciphertext: string
           created_at?: string
           custom_models?: string[]
+          expires_at?: string | null
           extra_body?: Json | null
           id?: string
           iv: string
           label?: string
           last4: string
           provider: string
+          refresh_ciphertext?: string | null
+          refresh_iv?: string | null
           user_id?: string
         }
         Update: {
+          auth_method?: string
           base_url?: string | null
           ciphertext?: string
           created_at?: string
           custom_models?: string[]
+          expires_at?: string | null
           extra_body?: Json | null
           id?: string
           iv?: string
           label?: string
           last4?: string
           provider?: string
+          refresh_ciphertext?: string | null
+          refresh_iv?: string | null
           user_id?: string
         }
         Relationships: []

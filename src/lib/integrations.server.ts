@@ -1,3 +1,4 @@
+import { unpackVercelToken, withTeam } from "./deploy-oauth";
 // Clients for the user's own Supabase (Management API) and Vercel accounts.
 // Hosts are fixed, so no user-controlled network targets.
 import type { AccountIdentity } from "./account-identity";
@@ -66,8 +67,10 @@ export class DeployLimitError extends Error {
 }
 
 export class Vercel {
-  constructor(private token: string) {}
-  private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, p, i); }
+  private token: string;
+  private teamId: string | null;
+  constructor(packed: string) { const u = unpackVercelToken(packed); this.token = u.token; this.teamId = u.teamId; }
+  private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, withTeam(p, this.teamId), i); }
   user() { return this.req("/v2/user"); }
   /** Who this token belongs to (Vercel user id + username/email). */
   async identity(): Promise<AccountIdentity> {

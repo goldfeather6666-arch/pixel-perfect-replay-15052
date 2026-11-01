@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { deleteCredential, listCredentials, saveCredential } from "@/lib/app.functions";
 import { AI_PROVIDERS, providerName, type ProviderId } from "@/lib/providers";
 import { McpConnections } from "@/components/McpConnections";
+import { OneClickConnect } from "@/components/OneClickConnect";
 import { pageMeta } from "@/lib/page-meta";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -100,6 +101,7 @@ function SettingsPage() {
         <section className="panel rounded-2xl p-4 sm:p-6">
           <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-primary"><ShieldCheck className="size-5" /></div><div><h2 className="font-semibold tracking-tight">{tab === "ai" ? "Connect an AI provider" : "Connect an account"}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{tab === "ai" ? "Keys are verified, encrypted and never displayed again." : "Connect your own GitHub, Supabase and Vercel accounts. Each project can use its own selected accounts."}</p></div></div>
+          {tab === "accounts" && <OneClickConnect />}
           <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
             <div className="space-y-1.5">
               <Label>Service</Label>
