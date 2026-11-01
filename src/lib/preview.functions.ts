@@ -32,8 +32,12 @@ function view(r: any) {
     branch: r.branch_name as string, command: r.command as string, base: r.preview_url as string,
     expiresAt: r.expires_at as string, lastCheck: (r.last_health_check_at as string | null) ?? null,
     restarts: Number(r.process?.restarts ?? 0), lastHttp: (r.process?.last_http as number | undefined) ?? null,
-    shareUntil: (r.share_until as string | null) ?? null, logTail: (r.logTail as string | undefined) ?? "",
-    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []) as Array<{ m: string; path?: string; at: string }>,
+    shareUntil: (r.share_until as string | null) ?? null, logTail: redactPreviewDiagnostic((r.logTail as string | undefined) ?? "").slice(-30_000),
+    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []).slice(-50).map((e: { m?: string; path?: string; at?: string }) => ({
+      m: redactPreviewDiagnostic(e.m ?? "").slice(0, 1000),
+      ...(e.path ? { path: e.path.split(/[?#]/, 1)[0]!.replace(/[\r\n\\]/g, "").slice(0, 300) } : {}),
+      at: e.at ?? "",
+    })) as Array<{ m: string; path?: string; at: string }>,
   };
 }
 export type PreviewView = NonNullable<ReturnType<typeof view>>;
