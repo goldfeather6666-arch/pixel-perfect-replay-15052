@@ -66,7 +66,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow || typeof e.data?.forgePreviewError !== "string") return;
-      const item = { m: redactPreviewDiagnostic(e.data.forgePreviewError.slice(0, 1000)), path: typeof e.data.path === "string" ? redactPreviewDiagnostic(e.data.path.slice(0, 300)) : undefined };
+      const item = { m: redactPreviewDiagnostic(e.data.forgePreviewError.slice(0, 1000)), ...(typeof e.data.path === "string" ? { path: redactPreviewDiagnostic(e.data.path.slice(0, 300)) } : {}) };
       setErrors((x) => [...x, item].slice(-30));
       pendingErr.current.push(item.path ? item : { m: item.m });
     };
