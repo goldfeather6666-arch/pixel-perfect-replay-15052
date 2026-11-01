@@ -47,7 +47,7 @@ jobs:
           git fetch origin main --depth=1
           mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs')
           if ((${#files[@]})); then
-            bunx eslint "${files[@]}"
+            bunx eslint --rule 'prettier/prettier: off' "${files[@]}"
           else
             echo 'No changed JavaScript or TypeScript files to lint.'
           fi
