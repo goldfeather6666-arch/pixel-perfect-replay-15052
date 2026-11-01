@@ -54,7 +54,12 @@ export const decideSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid(), decision: z.enum(SUGGESTION_DECISIONS) }))
   .handler(async ({ data, context }) => {
-    const { data: result, error } = await context.supabase.rpc("decide_task_suggestion", {
+    // decide_task_suggestion is newer than the generated types; call it untyped.
+    const rpc = context.supabase.rpc as unknown as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>;
+    const { data: result, error } = await rpc.call(context.supabase, "decide_task_suggestion", {
       _suggestion: data.id,
       _decision: data.decision,
     });
