@@ -39,6 +39,13 @@ export type PreviewView = NonNullable<ReturnType<typeof view>>;
 
 const Task = z.object({ id: z.string().uuid() });
 
+export const diagnosePreviewFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(Task)
+  .handler(async ({ data, context }) => {
+    const task = await ownedTask(context, data.id);
+    const { diagnosePreview } = await import("./preview-diagnosis.server");
+    return diagnosePreview(context.supabase, task);
+  });
+
 export const getPreview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(Task)
   .handler(async ({ data, context }) => {
     const row = await ownedPreview(context, data.id);

@@ -187,6 +187,14 @@ export async function previewLogs(row: PreviewRow, bytes = 12_000) {
   return (await sh(box, `tail -c ${Math.min(bytes, 60_000)} ${dirOf(row.id)}/out.log 2>/dev/null`)).out;
 }
 
+/** Presence only; never return environment contents. */
+export async function previewEnvironment(row: PreviewRow): Promise<boolean> {
+  const box = await connect(row.sandbox_id);
+  if (!box) return false;
+  const result = await sh(box, `test -s ${dirOf(row.id)}/env && grep -q '^export SUPABASE_URL=' ${dirOf(row.id)}/env && grep -q '^export SUPABASE_PUBLISHABLE_KEY=' ${dirOf(row.id)}/env`);
+  return result.code === 0;
+}
+
 /** Error lines from server logs plus browser errors reported by the preview panel. */
 export async function previewErrors(row: PreviewRow) {
   const log = await previewLogs(row, 30_000);
