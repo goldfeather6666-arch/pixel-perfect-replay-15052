@@ -363,7 +363,7 @@ function Workspace() {
                 </div>
               )}
               {messages.map((m, i) => (
-                <MessageView key={i} m={m} live={running && i === messages.length - 1} />
+                <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
