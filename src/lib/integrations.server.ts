@@ -1,3 +1,4 @@
+import { unpackVercelToken, withTeam } from "./deploy-oauth";
 // Clients for the user's own Supabase (Management API) and Vercel accounts.
 // Hosts are fixed, so no user-controlled network targets.
 import type { AccountIdentity } from "./account-identity";

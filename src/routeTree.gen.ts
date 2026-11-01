@@ -24,6 +24,7 @@ import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.
 import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
 import { Route as ApiPublicJobsResumeRunsRouteImport } from './routes/api/public/jobs/resume-runs'
+import { Route as ApiPublicOauthProviderCallbackRouteImport } from './routes/api/public/oauth/$provider.callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -99,6 +100,12 @@ const ApiPublicJobsResumeRunsRoute = ApiPublicJobsResumeRunsRouteImport.update({
   path: '/api/public/jobs/resume-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOauthProviderCallbackRoute =
+  ApiPublicOauthProviderCallbackRouteImport.update({
+    id: '/api/public/oauth/$provider/callback',
+    path: '/api/public/oauth/$provider/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -131,6 +139,7 @@ export interface FileRoutesByTo {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -149,6 +158,7 @@ export interface FileRoutesById {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/oauth/$provider/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/oauth/$provider/callback'
   id:
     | '__root__'
     | '/'
@@ -200,6 +212,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/oauth/$provider/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -214,6 +227,7 @@ export interface RootRouteChildren {
   ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
   ApiPublicJobsResumeRunsRoute: typeof ApiPublicJobsResumeRunsRoute
+  ApiPublicOauthProviderCallbackRoute: typeof ApiPublicOauthProviderCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsResumeRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/oauth/$provider/callback': {
+      id: '/api/public/oauth/$provider/callback'
+      path: '/api/public/oauth/$provider/callback'
+      fullPath: '/api/public/oauth/$provider/callback'
+      preLoaderRoute: typeof ApiPublicOauthProviderCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -355,6 +376,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
   ApiPublicJobsResumeRunsRoute: ApiPublicJobsResumeRunsRoute,
+  ApiPublicOauthProviderCallbackRoute: ApiPublicOauthProviderCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
