@@ -77,10 +77,18 @@ async function handle({ request }: { request: Request }) {
 
   const method = request.method.toUpperCase();
   let upstream: Response;
-  try {
-    upstream = await fetch(target, { method, headers, body: method === "GET" || method === "HEAD" ? null : await request.arrayBuffer(), redirect: "manual" });
-  } catch {
-    return deny(502, "The dev server is not answering yet. It may still be starting.");
+  const body = method === "GET" || method === "HEAD" ? null : await request.arrayBuffer();
+  // Dev servers drop connections while compiling or restarting: retry idempotent requests briefly.
+  const attempts = body === null ? 3 : 1;
+  for (let i = 0; ; i++) {
+    try {
+      upstream = await fetch(target, { method, headers, body, redirect: "manual" });
+      if (upstream.status === 502 && i < attempts - 1) throw new Error("upstream 502");
+      break;
+    } catch {
+      if (i >= attempts - 1) return deny(503, "The dev server is busy or restarting. Refresh in a few seconds.");
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
   }
   const out = new Headers();
   upstream.headers.forEach((v, k) => {
