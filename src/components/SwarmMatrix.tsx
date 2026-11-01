@@ -86,7 +86,7 @@ export function SwarmMatrix({ messages, usage, model, running }: { messages: Cha
               </div>
             </div>
           ))}
-          {!jobs.length && <p className="mt-3 text-center text-xs text-muted-foreground">No specialists dispatched yet. The master works solo until a task is large enough to split.</p>}
+          {!jobs.length && <p className="mt-3 text-center text-xs text-muted-foreground">No specialists dispatched yet. The master splits every task into parallel groups after a quick look at the code.</p>}
         </div>
         {latest?.summary && <p className="mt-3 line-clamp-3 border-t pt-2 font-mono text-[11px] text-muted-foreground">{latest.summary}</p>}
       </section>
