@@ -99,7 +99,7 @@ async function handle({ request }: { request: Request }) {
   const attempts = body === null ? 3 : 1;
   for (let i = 0; ; i++) {
     try {
-      upstream = await fetch(target, { method, headers, body, redirect: "manual" });
+      upstream = await fetch(target, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(30_000) });
       if (upstream.status === 502 && i < attempts - 1) throw new Error("upstream 502");
       break;
     } catch {
