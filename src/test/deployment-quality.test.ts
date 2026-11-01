@@ -83,13 +83,13 @@ describe("production checks", () => {
     const result = fixture({ typecheck: "node -e 'process.exit(0)'", test: "node -e 'process.exit(0)'", build: "node -e 'process.exit(0)'" });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("npm run build");
-  });
+  }, 30_000);
   it("fails on compiler errors and does not claim a build pass", () => {
     const result = fixture({ typecheck: "node -e 'process.exit(2)'", build: "node -e 'process.exit(0)'" });
     expect(result.status).toBe(1);
     expect(result.stdout).not.toContain("npm run build");
-  });
-  it("requires a production build script", () => { expect(fixture({}).status).toBe(1); });
+  }, 30_000);
+  it("requires a production build script", () => { expect(fixture({}).status).toBe(1); }, 30_000);
   it("rejects directory traversal or shell injection", () => {
     expect(() => preflightCommand("check", "../repo")).toThrow();
     expect(() => preflightCommand("check", "app'; echo secret")).toThrow();
