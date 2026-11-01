@@ -1,6 +1,9 @@
 ---
 name: preview-diagnosis-and-repair
 description: Start, inspect, diagnose and repair customer project previews in isolated task sandboxes; verify real routes and browser behavior.
+activation: auto
+triggers: [preview, live preview, dev server, browser error, runtime error, diagnose, auto-fix]
+version: 1.0.0
 ---
 
 # Preview diagnosis and repair
