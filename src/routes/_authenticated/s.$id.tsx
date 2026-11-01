@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelLeftClose, PanelRightClose } from "lucide-react";
+import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelLeftClose, PanelRightClose, Globe } from "lucide-react";
+import { PreviewPanel } from "@/components/PreviewPanel";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,12 +30,12 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
   component: Workspace,
 });
 
-type PanelKey = "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
+type PanelKey = "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
 const LEFT = [
   ["swarm", "Swarm", Network], ["run", "Run", Activity], ["changes", "Changes", GitCompare],
   ["knowledge", "Knowledge", BookOpen], ["deploy", "Deploy", Rocket],
 ] as const;
-const RIGHT = [["terminal", "Terminal", TerminalSquare], ["files", "Files", FolderTree]] as const;
+const RIGHT = [["preview", "Preview", Globe], ["terminal", "Terminal", TerminalSquare], ["files", "Files", FolderTree]] as const;
 
 function useIsDesktop() {
   const [d, setD] = useState(false);
@@ -52,6 +53,13 @@ function Workspace() {
   const [view, setView] = useState<PanelKey>("chat");
   const [left, setLeft] = useState<PanelKey | null>("swarm");
   const [right, setRight] = useState<PanelKey | null>("terminal");
+  const [dockPct, setDockPct] = useState(46);
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const move = (ev: PointerEvent) => setDockPct(Math.min(75, Math.max(25, ((window.innerWidth - ev.clientX) / window.innerWidth) * 100)));
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -275,6 +283,7 @@ function Workspace() {
       case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
       case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
       case "deploy": return <DeployPanel id={id} />;
+      case "preview": return <PreviewPanel id={id} />;
       case "terminal": return <TerminalDeck id={id} />;
       case "files": return <FileWorkbench id={id} />;
       case "changes": return (
@@ -442,7 +451,8 @@ function Workspace() {
           </form>
         </section>
         {desktop && right && (
-          <aside className="flex min-h-0 w-[46%] max-w-[860px] flex-col border-l bg-card/30">
+          <aside className="relative flex min-h-0 flex-col border-l bg-card/30" style={{ width: `${dockPct}%` }}>
+            <div role="separator" aria-label="Resize panels" onPointerDown={startResize} className="absolute -left-1 top-0 z-20 h-full w-2 cursor-col-resize hover:bg-primary/30" />
             <div className="flex items-center gap-1 border-b px-2 py-1.5">
               {RIGHT.map(([k, label, Icon]) => (
                 <button key={k} type="button" onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-3.5 w-3.5" />{label}</button>

@@ -229,12 +229,31 @@ export const createSession = createServerFn({ method: "POST" })
     const gh = await github(context);
     const work = `agent/${Date.now().toString(36)}`;
     await gh.createBranch(data.repo, data.base_branch, work);
+    // Per-project links carry over: a new task on a repo reuses that repo's last database + Vercel links
+    // (and its saved encrypted database settings), so parallel tasks never need re-setup.
+    const { data: prev } = await context.supabase.from("agent_sessions")
+      .select("id, supabase_ref, vercel_project_id, applied_migrations")
+      .eq("user_id", context.userId).eq("repo", data.repo)
+      .or("supabase_ref.not.is.null,vercel_project_id.not.is.null")
+      .order("updated_at", { ascending: false }).limit(1);
+    const link = prev?.[0];
     const { data: row, error } = await context.supabase
       .from("agent_sessions")
-      .insert({ ...data, work_branch: work, user_id: context.userId })
+      .insert({
+        ...data, work_branch: work, user_id: context.userId,
+        ...(link ? { supabase_ref: link.supabase_ref, vercel_project_id: link.vercel_project_id, applied_migrations: link.applied_migrations ?? [] } : {}),
+      })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    if (link?.supabase_ref) {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: saved } = await supabaseAdmin.from("task_deployment_settings").select("project_ref, ciphertext, iv")
+          .eq("task_id", link.id).eq("user_id", context.userId).eq("project_ref", link.supabase_ref).maybeSingle();
+        if (saved) await supabaseAdmin.from("task_deployment_settings").upsert({ task_id: row.id, user_id: context.userId, ...saved, updated_at: new Date().toISOString() });
+      } catch { /* links still carried; settings can be re-saved in Deploy */ }
+    }
     return row.id as string;
   });
 
