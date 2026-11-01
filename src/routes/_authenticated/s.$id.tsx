@@ -31,6 +31,7 @@ import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } 
 import { SharedFiles } from "@/components/SharedFiles";
 import { DatabaseApproval } from "@/components/DatabaseApproval";
 import { TaskInteractions } from "@/components/TaskInteractions";
+import { createAgentEventDecoder } from "@/lib/agent-stream";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -139,9 +140,11 @@ function Workspace() {
     }
   }, [id, input]);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [streamInterrupted, setStreamInterrupted] = useState(false);
   const capacity = promptCapacity(input);
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
+  const sendLockRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const manualStopRef = useRef(false);
   const lastWasPlan = useRef(false);
@@ -191,7 +194,8 @@ function Workspace() {
 
   async function send(override?: string, forcePlan?: boolean) {
     let text = (override ?? input).trim();
-    if (!text || running || bgRunning) return;
+    // State updates render asynchronously; this ref closes the same-tick double-submit race.
+    if (!text || running || bgRunning || sendLockRef.current) return;
     manualStopRef.current = false;
     let plan = forcePlan ?? planMode;
     runStart.current = Date.now();
@@ -206,7 +210,9 @@ function Workspace() {
     }
     const validationError = promptError(text);
     if (validationError) { setSendError(validationError); return; }
+    sendLockRef.current = true;
     setSendError(null);
+    setStreamInterrupted(false);
     const sentImages = images;
     let accepted = false;
     setInput("");
@@ -243,17 +249,13 @@ function Workspace() {
       if (!res.ok || !res.body) throw new Error(await res.text());
       accepted = true;
       const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
+      const decoder = createAgentEventDecoder();
+      let receivedDoneEvent = false;
+      let receivedErrorEvent = false;
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line) continue;
-          const e = JSON.parse(line) as AgentEvent;
+        const events = done ? decoder.finish() : decoder.push(value!);
+        for (const e of events) {
           if (e.t === "text") patchLast((m) => ({ ...m, content: m.content + e.d }));
           else if (e.t === "tool")
             patchLast((m) => ({
@@ -272,11 +274,24 @@ function Workspace() {
           else if (e.t === "pending") setPending([...e.pending]);
           else if (e.t === "usage") setUsage({ input: ((session.data as { usage?: { input: number } } | undefined)?.usage?.input ?? 0) + e.input, output: ((session.data as { usage?: { output: number } } | undefined)?.usage?.output ?? 0) + e.output });
           else if (e.t === "error") {
+            receivedErrorEvent = true;
             setSendError(e.m);
+            // The server reported a terminal run error even though the transport may close cleanly.
+            // Offer the same safe continuation used for interrupted streams; never replay the prompt.
+            setStreamInterrupted(true);
             patchLast((m) => ({ ...m, content: `${m.content}\n\n${e.m}` }));
             toast.error(e.m);
           }
+          if (e.t === "done") receivedDoneEvent = true;
         }
+        if (done) break;
+      }
+      // A clean EOF is not proof the agent finished: the API emits an explicit done event.
+      if (!receivedDoneEvent && !receivedErrorEvent) {
+        const detail = "The agent stream ended before completion was confirmed. Your saved progress is preserved; continue from the latest state.";
+        setSendError(detail);
+        setStreamInterrupted(true);
+        toast.error("Agent connection ended before completion.");
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -287,9 +302,14 @@ function Workspace() {
           setInput(text);
           setImages(sentImages);
           setMessages((ms) => ms.slice(0, -2));
+        } else {
+          // Server-side actions may have completed before the stream disconnected.
+          // Do not replay the original prompt automatically; offer a safe continuation.
+          setStreamInterrupted(true);
         }
       }
     } finally {
+      sendLockRef.current = false;
       setRunning(false);
       abortRef.current = null;
       if (!backgrounded && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
@@ -317,7 +337,16 @@ function Workspace() {
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
           <MemoryView repo={s.repo} />
           <div className="px-3 pb-8">
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => { await remove({ data: { id } }); nav({ to: "/app" }); }}>
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
+              if (!confirm("Delete this task from Forge? The GitHub branch and commits will remain untouched.")) return;
+              try {
+                await remove({ data: { id } });
+                toast.success("Task deleted");
+                nav({ to: "/app" });
+              } catch (error) {
+                toast.error("Could not delete task: " + (error as Error).message);
+              }
+            }}>
               <Trash2 /> Delete task (branch stays on GitHub)
             </Button>
           </div>
@@ -338,8 +367,15 @@ function Workspace() {
               className="h-7 shrink-0 rounded border bg-background px-1 font-mono text-xs hover:border-primary"
               value={asAutonomy(s.mode)}
               onChange={async (e) => {
-                await update({ data: { id, mode: e.target.value as Autonomy } });
-                qc.invalidateQueries({ queryKey: ["session", id] });
+                const nextMode = e.target.value as Autonomy;
+                try {
+                  await update({ data: { id, mode: nextMode } });
+                  toast.success("Autonomy level updated");
+                  await qc.invalidateQueries({ queryKey: ["session", id] });
+                } catch (error) {
+                  toast.error("Could not update autonomy: " + (error as Error).message);
+                  await qc.invalidateQueries({ queryKey: ["session", id] });
+                }
               }}
             >
               {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
@@ -354,7 +390,18 @@ function Workspace() {
           </div>
         )}
       </AppHeader>
-      <div className="flex min-h-0 flex-1">
+      {!s && (
+        <main className="mx-auto flex w-full max-w-xl flex-1 items-center justify-center p-5">
+          <section className="w-full rounded-xl border bg-card p-5 text-center">
+            {session.isLoading ? (
+              <><Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" /><h1 className="font-semibold">Opening your workspace…</h1><p className="mt-1 text-sm text-muted-foreground">Loading the task, conversation and saved progress.</p></>
+            ) : (
+              <><h1 className="font-semibold">Could not open this task</h1><p role="alert" className="mt-2 break-words text-sm text-muted-foreground">{(session.error as Error | null)?.message ?? "This task may have been deleted or you may not have access."}</p><div className="mt-4 flex justify-center gap-2"><Button variant="outline" onClick={() => nav({ to: "/app" })}>Back to workspace</Button><Button onClick={() => session.refetch()} disabled={session.isFetching}>{session.isFetching ? <Loader2 className="animate-spin" /> : "Try again"}</Button></div></>
+            )}
+          </section>
+        </main>
+      )}
+      <div className={`${!s ? "hidden " : ""}flex min-h-0 flex-1`}>
         <section className={`${!desktop && view !== "chat" ? "hidden" : "flex"} min-w-0 flex-1 flex-col`}>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mx-auto max-w-3xl space-y-5">
@@ -418,8 +465,8 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 2 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
-            {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs"><p className="min-w-0 flex-1 text-foreground">No progress update for over 2 minutes. Your saved work is safe. {autoResumes.current >= 3 ? "Automatic recovery has reached its limit." : "Forge is checking whether the run can recover."}</p><Button type="button" size="sm" variant="outline" onClick={() => void session.refetch()} disabled={session.isFetching}>Check status</Button>{autoResumes.current >= 3 && <Button type="button" size="sm" onClick={() => { autoResumes.current = 0; resumedFor.current = null; void send("Continue from the latest saved progress. First inspect the current state and completed work; do not repeat completed steps."); }}>Resume task</Button>}<Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={stopping} onClick={stopWork}><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop run"}</Button></div>}
+            {sendError && <div role="alert" className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm"><p className="min-w-0 flex-1 break-words text-destructive">{sendError}</p>{streamInterrupted && <Button type="button" size="sm" variant="outline" disabled={running || bgRunning} onClick={() => void send("The previous response stream disconnected. Inspect the current repository and task state, identify what was completed, then continue only unfinished work. Do not repeat completed actions.")}>Continue from saved progress</Button>}</div>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
                 {images.map((im, i) => (
