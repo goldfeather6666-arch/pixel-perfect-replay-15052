@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duplicateGroups, identityLabel, sameAccount } from "./account-identity";
+import { duplicateGroups, identityLabel, sameAccount } from "@/lib/account-identity";
 
 describe("account identity", () => {
   const a = { id: "1", last4: "PMZM", identity: { key: "user_1", name: "gold" } };
