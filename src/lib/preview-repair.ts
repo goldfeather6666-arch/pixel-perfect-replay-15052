@@ -51,7 +51,7 @@ Investigate with preview_diagnose, preview_status, preview_logs and preview_erro
 /** Normalize untrusted browser telemetry and bound its storage growth per preview. */
 export function appendPreviewErrors(
   previous: Array<{ m?: string; path?: string; at?: string }>,
-  incoming: Array<{ m: string; path?: string }>,
+  incoming: Array<{ m: string; path?: string | undefined }>,
   now = Date.now(),
   limit = 20,
 ) {
