@@ -16,6 +16,7 @@
 - The agent streams NDJSON AgentEvents from /api/agent. Why: long tool loops need streaming.
 - Stop is owner-scoped, polled independently of model steps, releases stalled streams; completion saves before remote cleanup; stopped tasks never auto-resume; stale stop compares heartbeat before clearing a keeper. Why: cancellation must not hang or restart work.
 - Agent writes go only to its per-task branch; approval-required writes stage in agent_sessions.pending. Why: never touch the base branch without consent.
+- Multi-file agent edits use write_files (one tree commit). Why: per-file commits dominated save time.
 - GitHub commits serialize per repo+branch with 409/sha retries (branch-write-queue.ts). Why: parallel writes race.
 - External MCP is a runtime client: owner-scoped, encrypted optional tokens, public HTTPS HTTP/SSE; read-only tools execute, others stage immutable per-task requests when opted in; clients close per turn. Why: isolation and consent.
 - MCP approval takes only request ID + decision; verify owner, atomically claim, revalidate endpoint/schema/args, execute at most once. Why: no substitution or replay.
@@ -29,7 +30,7 @@
 - Chunk failures do bounded cache-busted reloads. Why: stale manifests.
 - Diagnostics never invoke external tools or expose remote error bodies. Why: truthful checks without side effects.
 - Edits invalidate deploy checks; omitted final preflight runs once; Vercel READY needs current commit plus entry-page probe; agent/* branches disable git deploys and use one API deploy; quota refusal = LIMITED. Why: hidden blockers, crashed pages, daily quota.
-- Public runs use /api/agent-background with an E2B keeper (token env-only); claims atomic; completion kills keeper; cloud labels need fresh heartbeat + keeper. Why: survive phone sleep truthfully.
+- Public runs use /api/agent-background with an E2B keeper (token env-only); claims atomic; completion kills keeper; a 5-min scheduled job (/api/public/jobs/resume-runs) restarts dead, unstopped cloud runs up to 3 times via a fresh one-off owner session (consent row in service-only run_resume_secrets, never the browser's token); cloud labels need fresh heartbeat + keeper. Why: survive phone sleep truthfully.
 - Work splitting uses the caller's key, one master, exclusive coder paths. Why: BYOK.
 - Live previews: preview-manager.server.ts runs one dev server per task preview in the task's E2B sandbox (private traffic); browsers reach it only via /api/preview/$ with short-lived HMAC tokens (preview-token.server.ts, revoked by token_version) and a path-scoped HttpOnly cookie; upstream host/traffic token live encrypted in service-only preview_secrets. Agents may call a preview working only after status 'ready' (process alive + HTTP < 500). Why: secure previews, honest readiness, preview never implies deploy.
 - Each task stores its chosen GitHub/database/Vercel account ids (agent_sessions.accounts, resolved by accounts.ts; missing = newest saved); new tasks inherit the repo's latest links, accounts and saved DB settings. Why: multiple accounts and parallel projects without re-setup.

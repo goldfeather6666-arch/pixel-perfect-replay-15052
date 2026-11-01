@@ -34,7 +34,7 @@ function userClient(token: string) {
 }
 
 const SYSTEM = `You are an autonomous software engineering agent working on a GitHub repository.
-You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, delete_file, run_command (cloud sandbox shell), preview_start/preview_status/preview_logs/preview_errors/preview_check_route/preview_restart/preview_stop (private live preview in the task sandbox; after creating or changing a web app, call preview_start and fix errors until status is 'ready' — never claim the preview works otherwise; a working preview never means deploy — production deploys stay separate and need the normal approval), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: if a Vercel project is linked, after your final commit call deploy_status; if it failed, fix and re-check.
+You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, write_files (many files in one commit — prefer it for multi-file changes), delete_file, run_command (cloud sandbox shell), preview_start/preview_status/preview_logs/preview_errors/preview_check_route/preview_restart/preview_stop (private live preview in the task sandbox; after creating or changing a web app, call preview_start and fix errors until status is 'ready' — never claim the preview works otherwise; a working preview never means deploy — production deploys stay separate and need the normal approval), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: if a Vercel project is linked, after your final commit call deploy_status; if it failed, fix and re-check.
 Speed: you can call several tools in ONE step and they run in parallel — batch independent reads/searches together; use read_files for multiple files; for broad or multi-area work, split it with delegate instead of exploring serially; while writing code, a 'tester' helper can run checks.\nWorkflow: inspect the repository structure, read relevant files before editing, plan briefly, then make focused changes.
 You are the MASTER agent: own the plan, dependencies, assignments and final integration. For multi-area implementation, delegate independent coding areas in one team call; assign each coder exact non-overlapping file paths and acceptance criteria. Coders read files and submit complete code proposals, never commit. Review their reports and read proposed contents before apply_proposals; use read_proposals to inspect them without repeating contents in your response. Merge dependencies before importers; reassign stale/conflicting files. Delegate a reviewer after integration, then run final production checks yourself. Avoid helper calls for trivial tasks. Helpers cannot delegate, deploy, change databases or approve external actions. More helpers consume more of the user's provider tokens; use only the specialists needed.
 write_file replaces the ENTIRE file content — always send the complete file.
@@ -258,6 +258,26 @@ export const Route = createFileRoute("/api/agent")({
               invalidateChecks();
               treeCache = null;
               return { committed: sha.slice(0, 7) };
+            },
+          }),
+          write_files: tool({
+            description: "Create or overwrite several files (2–30) with complete new content in ONE commit. Much faster than repeated write_file; prefer it whenever you change more than one file.",
+            inputSchema: z.object({ files: z.array(z.object({ path: z.string().min(1), content: z.string() })).min(1).max(30), commit_message: z.string() }),
+            execute: async ({ files, commit_message }) => {
+              const direct: { path: string; content: string }[] = [];
+              let staged = 0;
+              for (const f of files) {
+                const original = autonomy === "significant" ? await readCurrent(f.path) : undefined;
+                if (supervised || writeNeedsApproval(autonomy, { path: f.path, action: "write", content: f.content, original })) {
+                  pending.push({ path: f.path, action: "write", content: f.content, original: await readCurrent(f.path) });
+                  staged++;
+                } else direct.push(f);
+              }
+              invalidateChecks();
+              if (!direct.length) return { staged, note: "Staged for user approval." };
+              const sha = await gh.putFiles(repo, branch, direct, commit_message);
+              treeCache = null;
+              return { committed: sha.slice(0, 7), files: direct.length, staged };
             },
           }),
           delete_file: tool({
@@ -651,7 +671,7 @@ export const Route = createFileRoute("/api/agent")({
 
         testerTools = () => ({ ...readOnly(), run_command: tools.run_command }) as import("ai").ToolSet;
         readOnly = () => ({ list_files: tools.list_files, read_file: tools.read_file, read_files: tools.read_files, search_files: tools.search_files }) as import("ai").ToolSet;
-        if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).delete_file; }
+        if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).write_files; delete (tools as Partial<typeof tools>).delete_file; }
 
         // Project instructions from the repo + the user's enabled skills.
         const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions").eq("user_id", u.user.id).eq("enabled", true);
@@ -791,7 +811,7 @@ export const Route = createFileRoute("/api/agent")({
                   rec.metric("timeToFirstTokenMs", rec.since("firstToken"));
                   rec.mark(`tool:${part.toolCallId}`);
                   if (part.toolName === "deployment_preflight" || part.toolName === "deploy_status") rec.to("VERIFYING", `Running ${part.toolName}`);
-                  else if (/^(write_file|delete_file|apply_proposals)$/.test(part.toolName) && rec.stage === "VERIFYING") rec.to("REPAIRING", "Editing after verification");
+                  else if (/^(write_files?|delete_file|apply_proposals)$/.test(part.toolName) && rec.stage === "VERIFYING") rec.to("REPAIRING", "Editing after verification");
                   rec.event("tool.execution.started", { id: part.toolCallId, tool: part.toolName });
                   logs.push({ id: part.toolCallId, name: part.toolName, input: part.input });
                   send({ t: "tool", id: part.toolCallId, name: part.toolName, input: part.input });
@@ -809,7 +829,7 @@ export const Route = createFileRoute("/api/agent")({
                     const classified = okFinal ? null : rec.error(`tool:${part.toolName}`, summary);
                     rec.event("tool.execution.completed", { id: part.toolCallId, tool: part.toolName, ok: okFinal, ms, ...(classified ? { category: classified.category, summary: classified.message.slice(0, 200) } : {}) });
                   }
-                  if (part.toolName === "write_file" || part.toolName === "delete_file") send({ t: "pending", pending });
+                  if (part.toolName === "write_file" || part.toolName === "write_files" || part.toolName === "delete_file") send({ t: "pending", pending });
                 } else if (part.type === "finish-step") {
                   const pu = (part as any).usage ?? {};
                   usage = { input: usage.input + (pu.inputTokens ?? 0), output: usage.output + (pu.outputTokens ?? 0) };

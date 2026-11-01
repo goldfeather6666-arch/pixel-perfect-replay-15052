@@ -37,6 +37,8 @@ export const Route = createFileRoute("/api/agent-background")({
           // preview gate rather than Forge; stream from the browser instead.
           if (!r.ok && [401, 403, 404, 502].includes(r.status)) return Response.json({ mode: "direct" });
           if (!r.ok) return new Response(r.message, { status: r.status });
+          const { saveResumeToken } = await import("@/lib/run-resume.server");
+          await saveResumeToken(s.id, u.user.id).catch(() => {});
           return Response.json({ mode: "background" });
         } catch (e) {
           console.error("background keeper failed", e);

@@ -22,6 +22,7 @@ import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
 import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
+import { Route as ApiPublicJobsResumeRunsRouteImport } from './routes/api/public/jobs/resume-runs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -87,6 +88,11 @@ const ApiPublicOauthClientRoute = ApiPublicOauthClientRouteImport.update({
   path: '/api/public/oauth-client',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsResumeRunsRoute = ApiPublicJobsResumeRunsRouteImport.update({
+  id: '/api/public/jobs/resume-runs',
+  path: '/api/public/jobs/resume-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
+  '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
+  '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
+  '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
+    | '/api/public/jobs/resume-runs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
+    | '/api/public/jobs/resume-runs'
   id:
     | '__root__'
     | '/'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
+    | '/api/public/jobs/resume-runs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   McpCallbackRoute: typeof McpCallbackRoute
   ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
+  ApiPublicJobsResumeRunsRoute: typeof ApiPublicJobsResumeRunsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -283,6 +296,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOauthClientRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/resume-runs': {
+      id: '/api/public/jobs/resume-runs'
+      path: '/api/public/jobs/resume-runs'
+      fullPath: '/api/public/jobs/resume-runs'
+      preLoaderRoute: typeof ApiPublicJobsResumeRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpCallbackRoute: McpCallbackRoute,
   ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
+  ApiPublicJobsResumeRunsRoute: ApiPublicJobsResumeRunsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
