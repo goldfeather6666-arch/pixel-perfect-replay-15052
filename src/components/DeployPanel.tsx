@@ -73,7 +73,7 @@ function AccountsCard({ id, options, active, onChange }: { id: string; options: 
           return (
             <div key={svc.key} className="grid gap-1.5 sm:grid-cols-[10rem_1fr] sm:items-center">
               <Label className="text-sm">{svc.name}</Label>
-              <Select value={active[svc.key] ?? undefined} onValueChange={(v) => m.mutate({ provider: svc.key, account: v })} disabled={m.isPending || list.length < 2}>
+              <Select value={active[svc.key] ?? ""} onValueChange={(v) => m.mutate({ provider: svc.key, account: v })} disabled={m.isPending || list.length < 2}>
                 <SelectTrigger className={trig}><SelectValue placeholder="Choose account" /></SelectTrigger>
                 <SelectContent>
                   {list.map((o) => <SelectItem key={o.id} value={o.id}>{o.label} ···{o.last4}</SelectItem>)}
