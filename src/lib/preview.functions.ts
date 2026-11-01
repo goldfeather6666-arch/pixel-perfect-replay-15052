@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { redactPreviewDiagnostic } from "./preview-repair";
+import { appendPreviewErrors, redactPreviewDiagnostic } from "./preview-repair";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -108,18 +108,7 @@ export const reportPreviewErrors = createServerFn({ method: "POST" }).middleware
     const row = await ownedPreview(context, data.id);
     if (!row) return { ok: false };
     const prev = Array.isArray(row.browser_errors) ? row.browser_errors : [];
-    const now = Date.now();
-    // Browser telemetry is untrusted: redact secrets, bound paths, and coalesce repeat reports.
-    const incoming = data.errors.map((e) => ({
-      m: redactPreviewDiagnostic(e.m).slice(0, 1000),
-      ...(e.path ? { path: e.path.split(/[?#]/, 1)[0]!.replace(/[\r\n\\]/g, "").slice(0, 300) } : {}),
-      at: new Date(now).toISOString(),
-    })).filter((e) => e.m.trim());
-    const recent = prev.filter((e: { at?: string }) => !e.at || now - new Date(e.at).getTime() < 60_000);
-    const unique = incoming.filter((e) => !recent.some((old: { m?: string; path?: string }) => old.m === e.m && old.path === e.path));
-    // Keep at most 20 new events per minute per preview; the stored history is bounded.
-    const accepted = unique.slice(0, Math.max(0, 20 - recent.length));
-    const next = [...recent, ...accepted].slice(-50);
-    if (accepted.length) await context.supabase.from("preview_sessions").update({ browser_errors: next }).eq("id", row.id);
-    return { ok: true, accepted: accepted.length };
+    const { errors, accepted } = appendPreviewErrors(prev, data.errors);
+    if (accepted) await context.supabase.from("preview_sessions").update({ browser_errors: errors }).eq("id", row.id);
+    return { ok: true, accepted };
   });
