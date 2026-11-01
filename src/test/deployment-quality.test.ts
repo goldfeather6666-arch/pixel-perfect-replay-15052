@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { checkFailure, needsFinalCheck, preflightCommand, productionPolicy, qualityBlocker } from "@/lib/deployment-quality";
+import { checkFailure, needsFinalCheck, preflightCommand, productionPolicy, qualityBlocker, previewDiagnosisSkill } from "@/lib/deployment-quality";
 
 function fixture(scripts: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "forge-preflight-"));
@@ -16,12 +17,24 @@ describe("production checks", () => {
     expect(productionPolicy.buildMode).toBe("production");
     expect(productionPolicy.allowDemo).toBe(false);
   });
-  it("does not replace real integrations with mocks", () => {
-    expect(productionPolicy.allowMockIntegrations).toBe(false);
+  it("teaches agents the exact Forge-synced Supabase env contract for Next.js, Vite and server runtimes", async () => {
+    const { productionInstructions } = await import("@/lib/deployment-quality");
+    for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);
+    expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");
+    expect(productionInstructions).toContain("Connect & sync/Auto-fix");
+    expect(productionInstructions).toContain("BYO customer resources");
+    expect(productionInstructions).toContain("never fall back to the operator");
+    expect(productionInstructions).toContain("process-alive or HTTP below 500 alone is insufficient");
   });
-  it("does not treat production-first building as release consent", () => {
-    expect(productionPolicy.automaticProductionRelease).toBe(false);
+  it("auto-activates the built-in preview diagnosis skill for preview failures", () => {
+    const meta = parseSkill(previewDiagnosisSkill.name, previewDiagnosisSkill.instructions);
+    expect(meta.activation).toBe("auto");
+    expect(meta.triggers).toContain("preview");
+    const selected = selectSkills("Fix the live preview browser error", [meta]);
+    expect(selected.selected.map((item) => item.skill.name)).toContain("preview-diagnosis-and-repair");
   });
+  it("does not replace real integrations with mocks", () => { expect(productionPolicy.allowMockIntegrations).toBe(false); });
+  it("does not treat production-first building as release consent", () => { expect(productionPolicy.automaticProductionRelease).toBe(false); });
   it("runs omitted final checks but does not blindly repeat attempted checks", () => {
     const state = { changed: true, localPassed: false, linked: true, supervised: false };
     expect(needsFinalCheck(state)).toBe(true);

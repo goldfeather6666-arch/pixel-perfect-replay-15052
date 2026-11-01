@@ -14,8 +14,8 @@ describe("per-project accounts", () => {
   it("falls back to the newest account when none is chosen", () => {
     expect(resolveAccount(rows, "github", {})?.id).toBe(rows[1]!.id);
   });
-  it("falls back when the chosen account was deleted", () => {
-    expect(resolveAccount(rows, "github", { github: "99999999-9999-9999-9999-999999999999" })?.id).toBe(rows[1]!.id);
+  it("does not silently switch to another account when the pinned account was deleted", () => {
+    expect(resolveAccount(rows, "github", { github: "99999999-9999-9999-9999-999999999999" })).toBeNull();
   });
   it("never uses another service's account", () => {
     expect(resolveAccount(rows, "supabase", { supabase: rows[2]!.id })).toBeNull();

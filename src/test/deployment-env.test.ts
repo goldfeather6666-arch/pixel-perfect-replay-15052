@@ -10,6 +10,16 @@ describe("deployment settings rules", () => {
     await syncSupabaseToVercel("test-db", "test-vercel", "testproject", "project");
     const body = JSON.parse(fetcher.mock.calls[1]?.[1]?.body);
     expect(body.find((v: any) => v.key === "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")).toMatchObject({ value: "public-test", target: ["production", "preview", "development"] });
+    expect(body.find((v: any) => v.key === "VITE_SUPABASE_PROJECT_ID")).toMatchObject({ value: "testproject", target: ["production", "preview", "development"] });
+  });
+  it("syncs the project reference for generated Vite, Next.js and server clients", () => {
+    const vars = deploymentEnv("https://ref.supabase.co", "sb_publishable_test", undefined, "ref");
+    expect(vars).toMatchObject({
+      SUPABASE_PROJECT_ID: "ref",
+      NEXT_PUBLIC_SUPABASE_PROJECT_ID: "ref",
+      VITE_SUPABASE_PROJECT_ID: "ref",
+    });
+    expect(deploymentTemplate().split("\n")).toContain("VITE_SUPABASE_PROJECT_ID=");
   });
   it("never maps a privileged key to a public variable", () => {
     const vars = deploymentEnv("https://example.test", "public-test", "private-test");

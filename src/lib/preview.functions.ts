@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { appendPreviewErrors, redactPreviewDiagnostic } from "./preview-repair";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -31,8 +32,11 @@ function view(r: any) {
     branch: r.branch_name as string, command: r.command as string, base: r.preview_url as string,
     expiresAt: r.expires_at as string, lastCheck: (r.last_health_check_at as string | null) ?? null,
     restarts: Number(r.process?.restarts ?? 0), lastHttp: (r.process?.last_http as number | undefined) ?? null,
-    shareUntil: (r.share_until as string | null) ?? null, logTail: (r.logTail as string | undefined) ?? "",
-    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []) as Array<{ m: string; path?: string; at: string }>,
+    shareUntil: (r.share_until as string | null) ?? null, logTail: redactPreviewDiagnostic((r.logTail as string | undefined) ?? "").slice(-30_000),
+    browserErrors: (Array.isArray(r.browser_errors) ? r.browser_errors : []).slice(-50).map((e: { m?: string; path?: string; at?: string }): { m: string; path?: string; at: string } => {
+      const path = typeof e.path === "string" ? e.path.split(/[?#]/, 1)[0]!.replace(/[\\r\\n\\\\]/g, "").slice(0, 300) : undefined;
+      return { m: redactPreviewDiagnostic(e.m ?? "").slice(0, 1000), ...(path !== undefined ? { path } : {}), at: e.at ?? "" };
+    }),
   };
 }
 export type PreviewView = NonNullable<ReturnType<typeof view>>;
@@ -68,7 +72,7 @@ export const previewActionFn = createServerFn({ method: "POST" }).middleware([re
     const row = await ownedPreview(context, data.id);
     if (!row) throw new Error("No preview for this task yet");
     const m = await import("./preview-manager.server");
-    if (data.action === "logs") return { logs: await m.previewLogs(row, 30_000) };
+    if (data.action === "logs") return { logs: redactPreviewDiagnostic(await m.previewLogs(row, 30_000)).slice(-30_000) };
     if (data.action === "stop") { await m.stopPreview(context.supabase, row); return { ok: true }; }
     await m.restartPreview(context.supabase, row, await ownedTask(context, data.id));
     return { ok: true };
@@ -103,7 +107,7 @@ export const reportPreviewErrors = createServerFn({ method: "POST" }).middleware
     const row = await ownedPreview(context, data.id);
     if (!row) return { ok: false };
     const prev = Array.isArray(row.browser_errors) ? row.browser_errors : [];
-    const next = [...prev, ...data.errors.map((e) => ({ ...e, at: new Date().toISOString() }))].slice(-50);
-    await context.supabase.from("preview_sessions").update({ browser_errors: next }).eq("id", row.id);
-    return { ok: true };
+    const { errors, accepted } = appendPreviewErrors(prev, data.errors);
+    if (accepted) await context.supabase.from("preview_sessions").update({ browser_errors: errors }).eq("id", row.id);
+    return { ok: true, accepted };
   });

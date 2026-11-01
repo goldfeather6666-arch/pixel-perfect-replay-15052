@@ -163,7 +163,7 @@ export async function syncSupabaseToVercel(supabaseToken: string, vercelToken: s
   if (!anon) throw new Error("Couldn't read the Supabase public key (project may still be starting up).");
   const url = `https://${ref}.supabase.co`;
   const { deploymentEnv } = await import("./deployment-env");
-  await new Vercel(vercelToken).setEnv(vercelId, deploymentEnv(url, anon));
+  await new Vercel(vercelToken).setEnv(vercelId, deploymentEnv(url, anon, undefined, ref));
   return url;
 }
 

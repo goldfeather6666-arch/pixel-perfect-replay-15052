@@ -128,6 +128,16 @@ function Workspace() {
     const saved = sessionStorage.getItem(key);
     if (saved) { setInput(saved); sessionStorage.removeItem(key); }
   }, [id]);
+  // Preserve an in-progress mobile prompt across accidental reloads or app/browser exits.
+  useEffect(() => {
+    const key = `forge:draft:${id}`;
+    try {
+      if (input.trim()) sessionStorage.setItem(key, input);
+      else sessionStorage.removeItem(key);
+    } catch {
+      // Storage can be unavailable in private/restricted browser contexts; composing still works.
+    }
+  }, [id, input]);
   const [sendError, setSendError] = useState<string | null>(null);
   const capacity = promptCapacity(input);
   const [planMode, setPlanMode] = useState(false);
@@ -384,7 +394,7 @@ function Workspace() {
               <div ref={endRef} />
             </div>
           </div>
-          <form className="glass border-t p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
+          <form className="glass border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
               {!desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
               <button type="button" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
@@ -432,15 +442,15 @@ function Workspace() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                 placeholder={planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
-                className="max-h-48 min-h-11 resize-none"
+                className="max-h-48 min-h-11 text-base resize-none md:text-sm"
                 rows={1}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-              <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+              <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" className="min-h-11 min-w-11" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
               {running || bgRunning ? (
-                <Button type="button" size="icon" variant="secondary" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>
+                <Button type="button" size="icon" variant="secondary" aria-label="Stop" className="min-h-11 min-w-11" disabled={stopping} onClick={stopWork}><Square /></Button>
               ) : (
-                <Button size="icon" aria-label="Send" disabled={!input.trim() || capacity.overLimit}><Send /></Button>
+                <Button size="icon" className="min-h-11 min-w-11" aria-label="Send" disabled={!input.trim() || capacity.overLimit}><Send /></Button>
               )}
             </div>
             <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
