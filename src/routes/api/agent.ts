@@ -69,6 +69,7 @@ export const Route = createFileRoute("/api/agent")({
 
         const { data: s } = await sb.from("agent_sessions").select("*").eq("id", sessionId).eq("user_id", u.user.id).single();
         if (!s) return new Response("Session not found", { status: 404 });
+        if (request.headers.has("x-forge-keeper") && (s.stop_requested || request.headers.get("x-forge-keeper") !== s.keeper_id)) return new Response("Task stopped or keeper replaced", { status: 409 });
         if (autoRecovery && s.stop_requested) return new Response("Task stopped", { status: 409 });
         if (!s.credential_id || !s.model) return new Response("Choose a provider and model first", { status: 400 });
 
@@ -754,6 +755,9 @@ export const Route = createFileRoute("/api/agent")({
           messages: [...history, { role: "user", content: message }, { role: "assistant", content: "", tools: [] }],
         }).eq("id", sessionId).eq("user_id", u.user.id).or(`running.is.null,running.eq.false,updated_at.lt.${staleBefore}`);
         if (autoRecovery) claim = claim.eq("stop_requested", false);
+        // A Stop during preparation rotates this fence, even if the old snapshot
+        // already had stop_requested=true from an earlier intentional stop.
+        claim = s.execution_id ? claim.eq("execution_id", s.execution_id) : claim.is("execution_id", null);
         const { data: claimed } = await claim.select("id");
         if (!claimed?.length) return new Response("This task is already running", { status: 409 });
         const { startRecorder } = await import("@/lib/engine/recorder.server");
@@ -783,7 +787,7 @@ export const Route = createFileRoute("/api/agent")({
             // Do not let a timer falsely prove life while the model/tool is stuck.
             const beat = setInterval(() => {
               if (life.stalled()) { stalled = true; runAbort.abort(); return; }
-              void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId);
+              void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).eq("stop_requested", false);
             }, 30_000);
             const stopWatching = watchForStop(async () => {
               const { data } = await sb.from("agent_sessions").select("stop_requested, execution_id").eq("id", sessionId).eq("user_id", u.user.id).single();
