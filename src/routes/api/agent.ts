@@ -125,6 +125,7 @@ export const Route = createFileRoute("/api/agent")({
           lastSpec ? `<task_specification version="${lastSpec.version}">\n${JSON.stringify(lastSpec.spec).slice(0, 6000)}\n</task_specification>` : "",
         ].filter(Boolean).join("\n");
         let askedThisRun = 0;
+        let specVersion = 0;
         if (images?.some((im) => im.mediaType.startsWith("image/")) && caps.known && !caps.vision) return new Response(`${s.model} cannot read images. Remove the images or switch to a model with vision.`, { status: 400 });
         // eslint-disable-next-line prefer-const
         let rec!: Recorder;
@@ -368,7 +369,6 @@ export const Route = createFileRoute("/api/agent")({
             description: "Ask the user 1-5 focused questions whose answers would materially change architecture, cost, scope, security, UX or acceptance criteria. Each needs a recommended answer with a reason and, when safe, a safe_default. The run pauses until answered; then a new run resumes with the answers. Never ask what is already answered or obvious from the repo.",
             inputSchema: askInput,
             execute: async ({ questions }) => {
-              if (plan === undefined) return { error: "unavailable" };
               const { keep, dropped } = filterQuestions(questions, answered.map((q) => q.title), taskClass);
               if (!keep.length) return { error: "No new questions to ask.", dropped, hint: "Proceed with the recommended/safe defaults." };
               const rows = keep.map((q, i) => ({ ...q, user_id: u.user.id, session_id: sessionId, run_id: rec.runId, position: askedThisRun + i }));
@@ -393,7 +393,7 @@ export const Route = createFileRoute("/api/agent")({
             description: "Save/replace the versioned task specification (objective, success criteria, users, functional requirements, non-goals, non-functional needs, constraints, assumptions, risks, acceptance criteria). Use for large or high-risk work and after answers change requirements.",
             inputSchema: specInput,
             execute: async (spec) => {
-              const version = (lastSpec?.version ?? 0) + 1 + askedThisRun * 0;
+              const version = (specVersion = Math.max(specVersion, lastSpec?.version ?? 0) + 1);
               const { error } = await sb.from("task_specifications").insert({ user_id: u.user.id, session_id: sessionId, run_id: rec.runId, version, task_class: taskClass, spec });
               if (error) return { error: error.message };
               rec.event("spec.updated", { version, acceptance: spec.acceptance_criteria.length });
@@ -956,7 +956,7 @@ export const Route = createFileRoute("/api/agent")({
               const exhausted = usedSteps >= stepCap;
               // The model sometimes uses ad-hoc checks only, then hits its step cap.
               // Run one authoritative final check rather than asking the user to Continue indefinitely.
-              if (!plan && needsFinalCheck(quality)) {
+              if (!plan && !askedThisRun && needsFinalCheck(quality)) {
                 const id = `final-check-${repairRound}`;
                 if (text.trim()) logs.push({ id: `note-${id}`, name: "note", input: {}, ok: true, summary: text.trim() });
                 text = "";
@@ -981,7 +981,7 @@ export const Route = createFileRoute("/api/agent")({
                   send({ t: "tool-result", id, ok: false, summary: quality.localIssue });
                 }
               }
-              const blocker = !plan ? qualityBlocker(quality) : null;
+              const blocker = !plan && !askedThisRun ? qualityBlocker(quality) : null;
               if (blocker && repairRound < 3 && !exhausted && !runAbort.signal.aborted) {
                 rec.to("REPAIRING", blocker);
                 rec.event("repair.started", { round: repairRound + 1, blocker });
