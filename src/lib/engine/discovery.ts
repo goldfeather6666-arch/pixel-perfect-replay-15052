@@ -95,12 +95,12 @@ export function validateAnswer(q: Pick<StoredQuestion, "type" | "options" | "req
     if (a.option_ids.length) return "Text questions do not accept option selections.";
     return text || !q.required ? null : "Please type an answer.";
   }
-  const ids = new Set(q.options.map((o) => o.id));
-  const bad = a.option_ids.find((id) => !ids.has(id));
-  if (bad) return `Unknown option: ${bad}`;
   if (q.type === "confirmation") {
     return !text && a.option_ids.length === 1 && ["yes", "no"].includes(a.option_ids[0]!) ? null : "Choose yes or no.";
   }
+  const ids = new Set(q.options.map((o) => o.id));
+  const bad = a.option_ids.find((id) => !ids.has(id));
+  if (bad) return `Unknown option: ${bad}`;
   if (text && !q.allow_custom_answer) return "Custom answers are not allowed for this question.";
   if (q.type === "single_select" && a.option_ids.length > 1) return "Choose one option.";
   if (!a.option_ids.length && !text) return q.required ? "Choose an option." : null;
