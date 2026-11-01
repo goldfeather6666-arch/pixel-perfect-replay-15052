@@ -1,5 +1,6 @@
 // Clients for the user's own Supabase (Management API) and Vercel accounts.
 // Hosts are fixed, so no user-controlled network targets.
+import type { AccountIdentity } from "./account-identity";
 
 async function call<T>(base: string, token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${base}${path}`, {
