@@ -66,3 +66,4 @@
 - [x] Phase B: task workspace (Chat/Preview/Deploy + More)
 - [x] Phase C: home reorganise
 - [x] Phase D: Settings sections
+- [ ] Knowledge panel: Rules/Memories/Tools tabs show nothing and don't update live
