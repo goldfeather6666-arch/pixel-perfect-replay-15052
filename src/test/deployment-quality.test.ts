@@ -21,6 +21,9 @@ describe("production checks", () => {
     for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);
     expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");
     expect(productionInstructions).toContain("Connect & sync/Auto-fix");
+    expect(productionInstructions).toContain("BYO customer resources");
+    expect(productionInstructions).toContain("never fall back to the operator");
+    expect(productionInstructions).toContain("process-alive or HTTP below 500 alone is insufficient");
   });
   it("does not replace real integrations with mocks", () => { expect(productionPolicy.allowMockIntegrations).toBe(false); });
   it("does not treat production-first building as release consent", () => { expect(productionPolicy.automaticProductionRelease).toBe(false); });
