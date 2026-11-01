@@ -4,14 +4,13 @@ import { z } from "zod";
 
 type Ctx = { supabase: any; userId: string };
 
-async function token(ctx: Ctx, provider: "supabase" | "vercel" | "github") {
-  const { data } = await ctx.supabase.from("provider_credentials").select("ciphertext, iv").eq("user_id", ctx.userId).eq("provider", provider).order("created_at", { ascending: false }).limit(1);
-  if (!data?.length) return null;
-  const { decryptSecret } = await import("./crypto.server");
-  return decryptSecret(data[0].ciphertext, data[0].iv) as Promise<string>;
+/** Token for a service: the task's chosen account (accounts) or, without one, the newest saved account. */
+async function token(ctx: Ctx, provider: "supabase" | "vercel" | "github", accounts?: unknown) {
+  const { accountToken } = await import("./accounts.server");
+  return accountToken(ctx.supabase, ctx.userId, provider, accounts);
 }
-async function need(ctx: Ctx, provider: "supabase" | "vercel") {
-  const t = await token(ctx, provider);
+async function need(ctx: Ctx, provider: "supabase" | "vercel", accounts?: unknown) {
+  const t = await token(ctx, provider, accounts);
   if (!t) throw new Error(`Add a ${provider === "supabase" ? "Supabase" : "Vercel"} token in Settings first`);
   return t;
 }
@@ -46,7 +45,7 @@ export const listSupabaseOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { SupabaseMgmt } = await import("./integrations.server");
-    const m = new SupabaseMgmt(await need(context, "supabase"));
+    const m = new SupabaseMgmt(await need(context, "supabase", s.accounts));
     const [projects, orgs] = await Promise.all([m.projects(), m.orgs()]);
     return { projects, orgs };
   });
@@ -55,14 +54,15 @@ export const listVercelProjects = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { Vercel } = await import("./integrations.server");
-    return new Vercel(await need(context, "vercel")).projects();
+    return new Vercel(await need(context, "vercel", s.accounts)).projects();
   });
 
 /** Copies the linked Supabase project's public URL and anon key into the linked Vercel project. */
 async function wireEnv(ctx: Ctx, id: string, ref: string | null, vercelId: string | null) {
   if (!ref || !vercelId) return;
-  const st = await token(ctx, "supabase");
-  const vt = await token(ctx, "vercel");
+  const acc = (await sessionRow(ctx, id)).accounts;
+  const st = await token(ctx, "supabase", acc);
+  const vt = await token(ctx, "vercel", acc);
   if (!st || !vt) throw new Error("Connect both accounts before syncing database settings");
   const { syncTaskDatabase } = await import("./deployment-settings.server");
   await syncTaskDatabase(ctx.userId, id, ref, vercelId, st, vt);
@@ -70,7 +70,7 @@ async function wireEnv(ctx: Ctx, id: string, ref: string | null, vercelId: strin
 }
 
 async function syncConfigTemplate(ctx: Ctx, s: any) {
-  const gt = await token(ctx, "github");
+  const gt = await token(ctx, "github", s.accounts);
   if (!gt) throw new Error("Vercel settings synced; connect GitHub to sync the configuration template");
   const { GitHub } = await import("./github.server");
   const { deploymentTemplate } = await import("./deployment-env");
@@ -122,7 +122,7 @@ export const syncDeployEnv = createServerFn({ method: "POST" })
     let redeployed: string | null = null;
     if (data.redeploy) {
       // Build the branch's CURRENT code once (rebuilding the last deployment would rebuild an old commit).
-      const gt = await token(context, "github");
+      const gt = await token(context, "github", s.accounts);
       if (!gt) throw new Error("Add a GitHub token in Settings first");
       const { GitHub } = await import("./github.server");
       try {
@@ -153,12 +153,12 @@ export const linkSupabase = createServerFn({ method: "POST" })
     let ref: string | null = null;
     if ("ref" in data) {
       const { SupabaseMgmt } = await import("./integrations.server");
-      const list = await new SupabaseMgmt(await need(context, "supabase")).projects();
+      const list = await new SupabaseMgmt(await need(context, "supabase", s.accounts)).projects();
       if (!list.some((p) => p.ref === data.ref)) throw new Error("That Supabase project isn't in your account");
       ref = data.ref;
     } else if ("create" in data) {
       const { SupabaseMgmt } = await import("./integrations.server");
-      ref = (await new SupabaseMgmt(await need(context, "supabase")).createProject(data.create.name, data.create.orgId, data.create.region)).ref;
+      ref = (await new SupabaseMgmt(await need(context, "supabase", s.accounts)).createProject(data.create.name, data.create.orgId, data.create.region)).ref;
     }
     const { error } = await context.supabase.from("agent_sessions").update({ supabase_ref: ref, applied_migrations: ref === s.supabase_ref ? s.applied_migrations : [] }).eq("id", data.id).eq("user_id", context.userId);
     if (error) throw new Error(error.message);
@@ -181,7 +181,7 @@ export const linkVercel = createServerFn({ method: "POST" })
     let pid: string | null = null;
     if (!("unlink" in data)) {
       const { Vercel } = await import("./integrations.server");
-      const v = new Vercel(await need(context, "vercel"));
+      const v = new Vercel(await need(context, "vercel", s.accounts));
       if ("projectId" in data) {
         if (!(await v.projects()).some((p) => p.id === data.projectId)) throw new Error("That Vercel project isn't in your account");
         pid = data.projectId;
@@ -193,7 +193,7 @@ export const linkVercel = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     let syncError: string | null = null;
     try { await wireEnv(context, data.id, s.supabase_ref, pid); } catch { syncError = "Website linked, but database settings did not sync. Use Sync to retry."; }
-    if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel")).ensureBuildGate(pid).catch(() => {}); }
+    if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel", s.accounts)).ensureBuildGate(pid).catch(() => {}); }
     return { projectId: pid, syncError };
   });
 
@@ -204,7 +204,7 @@ export const getDeployments = createServerFn({ method: "POST" })
     const s = await sessionRow(context, data.id);
     if (!s.vercel_project_id) return { deployments: [], log: null as string | null, runtime: null };
     const { Vercel } = await import("./integrations.server");
-    const v = new Vercel(await need(context, "vercel"));
+    const v = new Vercel(await need(context, "vercel", s.accounts));
     const deployments = (await v.deployments(s.vercel_project_id, s.work_branch)).slice(0, 5);
     const latest = deployments[0];
     const log = latest && latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : null;
@@ -218,7 +218,7 @@ export const getMigrationStatus = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
-    const gt = await token(context, "github");
+    const gt = await token(context, "github", s.accounts);
     if (!gt) throw new Error("Add a GitHub token in Settings first");
     const { GitHub } = await import("./github.server");
     const { pendingMigrations } = await import("./integrations.server");
@@ -226,7 +226,7 @@ export const getMigrationStatus = createServerFn({ method: "POST" })
     let dbStatus: string | null = null;
     if (s.supabase_ref) {
       const { SupabaseMgmt } = await import("./integrations.server");
-      dbStatus = await new SupabaseMgmt(await need(context, "supabase")).status(s.supabase_ref).catch(() => null);
+      dbStatus = await new SupabaseMgmt(await need(context, "supabase", s.accounts)).status(s.supabase_ref).catch(() => null);
     }
     return { pending: pendingMigrations(tree, s.applied_migrations ?? []), applied: (s.applied_migrations ?? []) as string[], dbStatus };
   });
@@ -236,8 +236,8 @@ export const applyMigrations = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
-    const gt = await token(context, "github");
+    const gt = await token(context, "github", s.accounts);
     if (!gt) throw new Error("Add a GitHub token in Settings first");
     const { applySessionMigrations } = await import("./migrations.server");
-    return applySessionMigrations(context.supabase, s, gt, await need(context, "supabase"));
+    return applySessionMigrations(context.supabase, s, gt, await need(context, "supabase", s.accounts));
   });
