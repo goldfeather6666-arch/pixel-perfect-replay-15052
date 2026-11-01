@@ -10,6 +10,10 @@ const HOP = ["connection", "keep-alive", "transfer-encoding", "te", "trailer", "
 
 const cookieName = (id: string) => `forge_pv_${id.slice(0, 8)}`;
 
+/** Short per-worker lookup cache (revocation bumps token_version, which changes the key). */
+const LOOKUP_MS = 5000;
+const LOOKUP = new Map<string, { at: number; row: { user_id: string; status: string; token_version: number; share_until: string | null; framework: string; expires_at: string }; sec: { upstream_host: string; traffic: string } | null }>();
+
 function readCookie(req: Request, name: string) {
   const m = (req.headers.get("cookie") ?? "").match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
   return m ? decodeURIComponent(m[1]!) : null;
@@ -49,15 +53,28 @@ async function handle({ request }: { request: Request }) {
   const claims = token ? await verifyPreviewToken(token, secret) : null;
   if (!claims || claims.p !== id) return deny(401, "Preview access expired. Reopen the preview from Forge.");
 
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: row } = await supabaseAdmin.from("preview_sessions").select("user_id, status, token_version, share_until, framework, expires_at").eq("id", id).maybeSingle();
-  if (!row || row.user_id !== claims.u || row.token_version !== claims.v) return deny(403, "This preview link was revoked.");
+  // A page load fires hundreds of module requests; look the preview up once every few seconds, not per file.
+  const ck = `${id}:${claims.v}`;
+  let hit = LOOKUP.get(ck);
+  if (!hit || hit.at < Date.now() - LOOKUP_MS) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: row }, { data: sec }] = await Promise.all([
+      supabaseAdmin.from("preview_sessions").select("user_id, status, token_version, share_until, framework, expires_at").eq("id", id).maybeSingle(),
+      supabaseAdmin.from("preview_secrets").select("upstream_host, ciphertext, iv").eq("preview_id", id).maybeSingle(),
+    ]);
+    if (!row) { LOOKUP.delete(ck); return deny(403, "This preview link was revoked."); }
+    const { decryptSecret } = await import("@/lib/crypto.server");
+    hit = { at: Date.now(), row, sec: sec ? { upstream_host: sec.upstream_host, traffic: await decryptSecret(sec.ciphertext, sec.iv) } : null };
+    if (LOOKUP.size > 200) LOOKUP.clear();
+    LOOKUP.set(ck, hit);
+  }
+  const { row } = hit;
+  if (row.user_id !== claims.u || row.token_version !== claims.v) return deny(403, "This preview link was revoked.");
   if (!ACTIVE.includes(row.status) || new Date(row.expires_at).getTime() < Date.now()) return deny(410, "This preview is stopped or expired.");
   if (claims.k === "share" && (!row.share_until || new Date(row.share_until).getTime() < Date.now())) return deny(403, "This share link has expired.");
-  const { data: sec } = await supabaseAdmin.from("preview_secrets").select("upstream_host, ciphertext, iv").eq("preview_id", id).maybeSingle();
-  if (!sec) return deny(503, "Preview is not reachable yet.");
-  const { decryptSecret } = await import("@/lib/crypto.server");
-  const traffic = await decryptSecret(sec.ciphertext, sec.iv);
+  if (!hit.sec) { LOOKUP.delete(ck); return deny(503, "Preview is not reachable yet."); }
+  const sec = hit.sec;
+  const traffic = sec.traffic;
 
   const nativeBase = row.framework === "vite" || row.framework === "astro";
   const upstreamPath = nativeBase ? `${base.slice(0, -1)}${rest}` : rest;
@@ -96,7 +113,8 @@ async function handle({ request }: { request: Request }) {
     if (["content-encoding", "content-length", "x-frame-options", "content-security-policy", "set-cookie", "transfer-encoding", "connection"].includes(lk)) return;
     out.set(k, v);
   });
-  out.set("cache-control", "private, no-store");
+  // Pre-bundled dependencies carry a version hash, so the browser may keep them; everything else stays fresh.
+  out.set("cache-control", /\/node_modules\/\.vite\/deps\/|\/_next\/static\/chunks\//.test(rest) && /[?&]v=|\.[0-9a-f]{8,}\./.test(rest + url.search) ? "private, max-age=3600, immutable" : "private, no-store");
   const loc = upstream.headers.get("location");
   if (loc) out.set("location", rewriteLocation(loc, sec.upstream_host, base));
   // Upstream cookies: keep them, but scoped to this preview's path.
