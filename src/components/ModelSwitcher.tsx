@@ -9,25 +9,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listCredentials, listModels, updateSession } from "@/lib/app.functions";
 
 /** Lets the user switch the AI key/provider and model of an ongoing task; applies from the next message. */
-export function ModelSwitcher({ id, credentialId, model, fallbackModel, disabled }: { id: string; credentialId: string | null; model: string; fallbackModel?: string | null; disabled?: boolean }) {
+export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile = "auto", codingModel, reviewerModel, disabled }: { id: string; credentialId: string | null; model: string; fallbackModel?: string | null; profile?: string; codingModel?: string | null; reviewerModel?: string | null; disabled?: boolean }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [cred, setCred] = useState(credentialId ?? "");
   const [m, setM] = useState(model);
   const [saving, setSaving] = useState(false);
   const [fb, setFb] = useState(fallbackModel ?? "");
+  const [prof, setProf] = useState(profile);
+  const [cm, setCm] = useState(codingModel ?? "");
+  const [rm, setRm] = useState(reviewerModel ?? "");
   const fetchCreds = useServerFn(listCredentials);
   const fetchModels = useServerFn(listModels);
   const update = useServerFn(updateSession);
   const creds = useQuery({ queryKey: ["credentials"], queryFn: () => fetchCreds(), enabled: open });
   const models = useQuery({ queryKey: ["models", cred], queryFn: () => fetchModels({ data: { id: cred } }), enabled: open && !!cred, retry: false });
-  useEffect(() => { if (open) { setCred(credentialId ?? ""); setM(model); setFb(fallbackModel ?? ""); } }, [open, credentialId, model, fallbackModel]);
+  useEffect(() => { if (open) { setCred(credentialId ?? ""); setM(model); setFb(fallbackModel ?? ""); setProf(profile); setCm(codingModel ?? ""); setRm(reviewerModel ?? ""); } }, [open, credentialId, model, fallbackModel, profile, codingModel, reviewerModel]);
 
   async function save() {
     if (!cred || !m) return;
     setSaving(true);
     try {
-      await update({ data: { id, credential_id: cred, model: m, fallback_model: fb && fb !== m ? fb : null } });
+      await update({ data: { id, credential_id: cred, model: m, fallback_model: fb && fb !== m ? fb : null, reasoning_profile: prof as "auto", coding_model: cm && cm !== m ? cm : null, reviewer_model: rm && rm !== m ? rm : null } });
       await qc.invalidateQueries({ queryKey: ["session", id] });
       toast.success(`Next messages will use ${m}`);
       setOpen(false);
@@ -66,6 +69,22 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, disabled
                 <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="none">No backup</SelectItem>{models.data?.filter((x) => x !== m).map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Thinking level. Auto picks Speed for small fixes, Deep for risky work. Only settings your model supports are sent.</p>
+              <Select value={prof} onValueChange={setProf}>
+                <SelectTrigger className="h-11 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{[["auto", "Auto (recommended)"], ["speed", "Speed"], ["balanced", "Balanced"], ["deep", "Deep"]].map(([v, l]) => <SelectItem key={v} value={v!}>{l}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {([["Coding helpers model", cm, setCm], ["Reviewer model", rm, setRm]] as const).map(([label, val, set]) => (
+              <div key={label} className="space-y-1">
+                <p className="text-xs text-muted-foreground">{label} (optional, same AI key). Without one, helpers use the main model.</p>
+                <Select value={val || "none"} onValueChange={(v) => set(v === "none" ? "" : v)} disabled={!cred}>
+                  <SelectTrigger className="h-11 w-full [&>span]:truncate"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="none">Same as main model</SelectItem>{models.data?.filter((x) => x !== m).map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            ))}
             <Button className="h-11 w-full" disabled={!cred || !m || saving} onClick={save}>{saving ? "Saving…" : "Use this model"}</Button>
           </div>
         </DialogContent>

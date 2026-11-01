@@ -30,6 +30,7 @@ import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
 import { SharedFiles } from "@/components/SharedFiles";
 import { DatabaseApproval } from "@/components/DatabaseApproval";
+import { TaskInteractions } from "@/components/TaskInteractions";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -333,7 +334,7 @@ function Workspace() {
             >
               {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
             </select>
-            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} disabled={running || bgRunning} />
+            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} disabled={running || bgRunning} />
             {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
@@ -374,6 +375,7 @@ function Workspace() {
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
               <McpActionApprovals sessionId={id} chat />
               <DatabaseApproval id={id} busy={running || bgRunning || stopping} />
+              <TaskInteractions sessionId={id} busy={running || bgRunning || stopping} onSend={(m) => send(m, false)} />
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
