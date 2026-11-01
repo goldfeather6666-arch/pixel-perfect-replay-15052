@@ -29,7 +29,7 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
   const { data: secrets } = await db.from("run_resume_secrets").select("session_id, user_id, ciphertext, iv, attempts");
   if (!secrets?.length) return { resumed: 0, cleaned: 0 };
   const { data: sessions } = await db.from("agent_sessions").select("id, user_id, running, stop_requested, updated_at").in("id", secrets.map((s: any) => s.session_id));
-  const { resume, clean } = resumeCandidates(secrets, sessions ?? [], now, STALE_MS);
+  const { resume, clean } = resumeCandidates<{ session_id: string; user_id: string; ciphertext: string; iv: string; attempts: number }>(secrets, sessions ?? [], now, STALE_MS);
   if (clean.length) await db.from("run_resume_secrets").delete().in("session_id", clean);
   let resumed = 0;
   const { startKeeper } = await import("./background-run.server");
