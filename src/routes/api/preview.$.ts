@@ -136,6 +136,19 @@ async function handle({ request }: { request: Request }) {
   return new Response(text, { status: upstream.status, headers: out });
 }
 
+// Never let an aborted upstream stream, a lookup failure or a decrypt error surface as a bare 500.
+async function safeHandle(ctx: { request: Request }) {
+  try {
+    return await handle(ctx);
+  } catch (error) {
+    if ((error as Error)?.name === "AbortError" || ctx.request.signal?.aborted) {
+      return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });
+    }
+    console.error("[preview gateway]", error);
+    return deny(503, "The preview connection dropped. Refresh in a few seconds, or restart Preview in Forge.");
+  }
+}
+
 export const Route = createFileRoute("/api/preview/$")({
-  server: { handlers: { GET: handle, HEAD: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, OPTIONS: handle } },
+  server: { handlers: { GET: safeHandle, HEAD: safeHandle, POST: safeHandle, PUT: safeHandle, PATCH: safeHandle, DELETE: safeHandle, OPTIONS: safeHandle } },
 });
