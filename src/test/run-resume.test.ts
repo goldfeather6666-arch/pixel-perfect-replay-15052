@@ -4,7 +4,7 @@ import { RECOVERY_COOLDOWN_MS, resumeCandidates } from "@/lib/run-resume";
 const now = Date.parse("2026-11-01T01:00:00Z");
 const old = "2026-11-01T00:30:00Z";
 const fresh = "2026-11-01T00:59:00Z";
-const STALE = 15 * 60_000;
+const STALE = 2 * 60_000;
 
 describe("auto-resume while app is closed", () => {
   it("restarts a dead run that was not stopped", () => {

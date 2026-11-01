@@ -17,7 +17,7 @@
 - User AI keys/GitHub tokens are AES-GCM encrypted (crypto.server.ts), decrypted server-side only, never returned to the browser. Why: BYOK.
 - Model calls use the user's key via providers.server.ts, never the Lovable AI Gateway. Why: BYOK.
 - The agent streams NDJSON AgentEvents from /api/agent. Why: long tool loops need streaming.
-- Stop is owner-scoped, polled independently of model steps, releases stalled streams; completion saves before remote cleanup; stopped tasks never auto-resume; stale stop compares heartbeat before clearing a keeper. Why: cancellation must not hang or restart work.
+- Stop uses session-stop.server.ts to atomically fence the owner’s execution and mark it inactive without heartbeat comparisons; independent polling cancels model/shell work, keeper cleanup is detached and fenced; stopped tasks never auto-resume. Why: heartbeat races and remote cleanup must not hold Stop hostage.
 - Agent writes go only to its per-task branch; approval-required writes stage in agent_sessions.pending. Why: never touch the base branch without consent.
 - Multi-file agent edits use write_files (one tree commit). Why: per-file commits dominated save time.
 - GitHub commits serialize per repo+branch with 409/sha retries (branch-write-queue.ts). Why: parallel writes race.
@@ -33,7 +33,7 @@
 - Chunk failures do bounded cache-busted reloads. Why: stale manifests.
 - Diagnostics never invoke external tools or expose remote error bodies. Why: truthful checks without side effects.
 - Edits invalidate deploy checks; omitted final preflight runs once; Vercel READY needs current commit plus entry-page probe; agent/* branches disable git deploys and use one API deploy; quota refusal = LIMITED. Why: hidden blockers, crashed pages, daily quota.
-- Cloud runs use E2B keepers and a 5-min recovery job; 15-min silence aborts stuck executions, atomic consent-row leases cap recovery at 3, execution_id fences heartbeats/saves, and Stop/approvals survive recovery. Fresh one-off owner sessions stay server-only. Why: recover dead runs without duplicate execution or false liveness.
+- Cloud runs use E2B keepers and a scheduled recovery job; progress and missing-heartbeat watchdogs share one inactivity limit, atomic consent-row leases cap recovery at 3, execution_id fences heartbeats/saves, and Stop/approvals survive recovery. Fresh one-off owner sessions stay server-only. Why: recover dead runs without duplicate execution or false liveness.
 - Work splitting uses the caller's key, one master, exclusive coder paths. Why: BYOK.
 - Live previews: preview-manager.server.ts runs one dev server per task in its E2B sandbox (private traffic); browsers reach it only via /api/preview/$ with short-lived HMAC tokens (revoked by token_version) and a path-scoped HttpOnly cookie; upstream secrets live encrypted in service-only preview_secrets; 'ready' = process alive + HTTP < 500. Why: secure, honest previews that never imply deploy.
 - Tasks pin GitHub/database/Vercel account ids (agent_sessions.accounts via accounts.ts; missing = newest, null = none) and inherit the repo's latest links; switches clear links atomically while idle; saved tokens are labeled/deduped by real provider account (account-identity.ts). Why: parallel multi-account projects that switch truthfully.

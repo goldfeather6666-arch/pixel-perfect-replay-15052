@@ -132,6 +132,7 @@ function Workspace() {
   const [planMode, setPlanMode] = useState(false);
   const [usage, setUsage] = useState({ input: 0, output: 0 });
   const abortRef = useRef<AbortController | null>(null);
+  const manualStopRef = useRef(false);
   const lastWasPlan = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -150,9 +151,12 @@ function Workspace() {
 
   async function stopWork() {
     if (stopping) return;
+    manualStopRef.current = true;
     setStopping(true);
     try {
       await stop({ data: { id } });
+      abortRef.current?.abort();
+      setRunning(false);
       await qc.invalidateQueries({ queryKey: ["session", id] });
     } catch (error) {
       setStopping(false);
@@ -164,7 +168,7 @@ function Workspace() {
   const autoResumes = useRef(0);
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!stale || running || stopping || sd?.stop_requested || !sd?.updated_at) return;
+    if (!stale || running || stopping || manualStopRef.current || sd?.stop_requested || !sd?.updated_at) return;
     if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
     resumedFor.current = sd.updated_at;
     autoResumes.current++;
@@ -177,6 +181,7 @@ function Workspace() {
   async function send(override?: string, forcePlan?: boolean) {
     let text = (override ?? input).trim();
     if (!text || running || bgRunning) return;
+    manualStopRef.current = false;
     let plan = forcePlan ?? planMode;
     runStart.current = Date.now();
     const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
@@ -401,7 +406,7 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 15 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 2 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
             {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">

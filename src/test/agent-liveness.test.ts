@@ -7,9 +7,10 @@ describe("agent liveness", () => {
     life.progress(NO_PROGRESS_MS - 1);
     expect(life.stalled(NO_PROGRESS_MS)).toBe(false);
   });
-  it("declares no signs of life only after fifteen minutes of silence", () => {
+  it("declares no signs of life at exactly two minutes of silence", () => {
     const life = agentLiveness(0);
-    expect(life.stalled(NO_PROGRESS_MS - 1)).toBe(false);
-    expect(life.stalled(NO_PROGRESS_MS)).toBe(true);
+    expect(NO_PROGRESS_MS).toBe(120_000);
+    expect(life.stalled(119_999)).toBe(false);
+    expect(life.stalled(120_000)).toBe(true);
   });
 });

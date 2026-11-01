@@ -12,10 +12,13 @@ type Result = { ok: true } | { ok: false; status: number; message: string };
 export async function startKeeper(opts: { sb: any; userId: string; sessionId: string; origin: string; token: string; body: string; recovery?: boolean }): Promise<Result | null> {
   const apiKey = process.env["E2B_API_KEY"];
   if (!apiKey) return null;
+  const { data: before } = await opts.sb.from("agent_sessions").select("execution_id, stop_requested").eq("id", opts.sessionId).eq("user_id", opts.userId).single();
+  if (!before || (opts.recovery && before.stop_requested)) return { ok: false, status: 409, message: "Task stopped or changed before startup" };
   const { Sandbox } = await import("e2b");
   const box = await Sandbox.create({ apiKey, timeoutMs: KEEPER_TIMEOUT_MS, metadata: { keeper: opts.sessionId } });
   try {
-    let pin = opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId }).eq("id", opts.sessionId).eq("user_id", opts.userId);
+    let pin = opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId, ...(!opts.recovery ? { stop_requested: false } : {}) }).eq("id", opts.sessionId).eq("user_id", opts.userId);
+    pin = before.execution_id ? pin.eq("execution_id", before.execution_id) : pin.is("execution_id", null);
     if (opts.recovery) pin = pin.eq("stop_requested", false).eq("running", true);
     const { data: pinned, error } = await pin.select("id");
     if (error || !pinned?.length) { await box.kill(); return { ok: false, status: 409, message: "Task stopped or changed before recovery" }; }
@@ -28,6 +31,11 @@ export async function startKeeper(opts: { sb: any; userId: string; sessionId: st
     const started = Date.now();
     while (Date.now() - started < ACCEPT_WAIT_MS) {
       await new Promise((r) => setTimeout(r, 1000));
+      const { data: current } = await opts.sb.from("agent_sessions").select("stop_requested, keeper_id").eq("id", opts.sessionId).eq("user_id", opts.userId).single();
+      if (!current || current.stop_requested || current.keeper_id !== box.sandboxId) {
+        await box.kill().catch(() => {});
+        return { ok: false, status: 409, message: "Task stopped during startup" };
+      }
       const probe = await box.commands
         .run(`printf '%s|%s|' "$(cat /tmp/done 2>/dev/null)" "$(head -1 /tmp/headers 2>/dev/null | tr -d '\\r')"; [ -f /tmp/done ] && head -c 1000 /tmp/out.ndjson`, { timeoutMs: 10_000 })
         .catch((e: any) => e);
