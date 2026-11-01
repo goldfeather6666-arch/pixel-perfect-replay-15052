@@ -41,18 +41,22 @@ export const getIntegrations = createServerFn({ method: "POST" })
     };
   });
 
-export const listSupabaseOptions = createServerFn({ method: "GET" })
+export const listSupabaseOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator(z.object({ id: z.string().uuid().optional(), account: z.string().uuid().optional() }).default({}))
+  .handler(async ({ data, context }) => {
+    const s = { accounts: data.account ? { supabase: data.account } : data.id ? (await sessionRow(context, data.id)).accounts : null };
     const { SupabaseMgmt } = await import("./integrations.server");
     const m = new SupabaseMgmt(await need(context, "supabase", s.accounts));
     const [projects, orgs] = await Promise.all([m.projects(), m.orgs()]);
     return { projects, orgs };
   });
 
-export const listVercelProjects = createServerFn({ method: "GET" })
+export const listVercelProjects = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator(z.object({ id: z.string().uuid().optional(), account: z.string().uuid().optional() }).default({}))
+  .handler(async ({ data, context }) => {
+    const s = { accounts: data.account ? { vercel: data.account } : data.id ? (await sessionRow(context, data.id)).accounts : null };
     const { Vercel } = await import("./integrations.server");
     return new Vercel(await need(context, "vercel", s.accounts)).projects();
   });
