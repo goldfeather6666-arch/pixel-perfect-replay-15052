@@ -152,6 +152,12 @@ export const Route = createFileRoute("/api/agent")({
         };
 
         let usage = { input: 0, output: 0 };
+        const usageByModel: Record<string, { input: number; output: number }> = {};
+        const recordModelUsage = (model: string, input: number, output: number) => {
+          const current = usageByModel[model] ??= { input: 0, output: 0 };
+          current.input += input;
+          current.output += output;
+        };
         // Runs keep going if the browser disconnects (background tasks); only an explicit stop cancels.
         const runAbort = new AbortController();
         const { data: mem } = await sb.from("repo_memory").select("notes, updated_at").eq("user_id", u.user.id).eq("repo", repo).maybeSingle();
@@ -719,7 +725,10 @@ export const Route = createFileRoute("/api/agent")({
                       emit({ t: "progress", id, summary: log.summary });
                     },
                   });
-                  usage = { input: usage.input + (r.totalUsage?.inputTokens ?? 0), output: usage.output + (r.totalUsage?.outputTokens ?? 0) };
+                  const workerInput = r.totalUsage?.inputTokens ?? 0;
+                  const workerOutput = r.totalUsage?.outputTokens ?? 0;
+                  usage = { input: usage.input + workerInput, output: usage.output + workerOutput };
+                  recordModelUsage(routed.id, workerInput, workerOutput);
                   const { parseWorkerReport } = await import("@/lib/engine/worker-report");
                   const contract = parseWorkerReport(r.text, WRITER_ROLES.includes(job.role) ? job.paths : [], submitted.map((pid) => proposals.get(pid)?.path ?? pid));
                   const report = r.text.slice(0, 8000);
@@ -943,7 +952,10 @@ export const Route = createFileRoute("/api/agent")({
                   if (part.toolName === "write_file" || part.toolName === "write_files" || part.toolName === "delete_file") send({ t: "pending", pending });
                 } else if (part.type === "finish-step") {
                   const pu = (part as any).usage ?? {};
-                  usage = { input: usage.input + (pu.inputTokens ?? 0), output: usage.output + (pu.outputTokens ?? 0) };
+                  const stepInput = pu.inputTokens ?? 0;
+                  const stepOutput = pu.outputTokens ?? 0;
+                  usage = { input: usage.input + stepInput, output: usage.output + stepOutput };
+                  recordModelUsage(activeModel, stepInput, stepOutput);
                   send({ t: "usage", input: usage.input, output: usage.output });
                   rec.event("model.step", { ms: rec.since("step"), input: pu.inputTokens ?? 0, output: pu.outputTokens ?? 0, model: activeModel });
                   rec.mark("step");
@@ -1057,7 +1069,9 @@ export const Route = createFileRoute("/api/agent")({
                 const { count: openCount } = await sb.from("task_questions").select("id", { count: "exact", head: true }).eq("session_id", sessionId).eq("status", "open").eq("required", true);
                 const fin = finalStage({ openQuestions: openCount ?? 0, aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan: !!plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
-                await rec.finish({ steps: stepsDone, usage, costUsd: costUsd(modelCaps(s.model), usage), model: s.model, pending: pending.length });
+                const costBreakdown = Object.entries(usageByModel).map(([model, tokens]) => ({ model, input: tokens.input, output: tokens.output, costUsd: costUsd(modelCaps(model), tokens) }));
+                const totalCostUsd = costBreakdown.reduce((total, item) => total + item.costUsd, 0);
+                await rec.finish({ steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
                 }
               }
