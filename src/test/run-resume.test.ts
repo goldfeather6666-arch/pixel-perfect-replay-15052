@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RECOVERY_COOLDOWN_MS, resumeCandidates } from "@/lib/run-resume";
+import { QUIET_MS, RECOVERY_COOLDOWN_MS, quietStopCandidates, resumeCandidates } from "@/lib/run-resume";
 
 const now = Date.parse("2026-11-01T01:00:00Z");
 const old = "2026-11-01T00:30:00Z";
