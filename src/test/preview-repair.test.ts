@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
+import { canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
 
 describe("preview crash repair", () => {
   it("offers repair for server crashes and real browser errors", () => {
@@ -28,5 +28,27 @@ describe("preview crash repair", () => {
     const data = JSON.parse(prompt.slice(prompt.indexOf("{\n"), prompt.indexOf("\nInvestigate with")));
     expect(data.httpStatus).toBe("not recorded");
     expect(data.browserErrors).toEqual([]);
+  });
+  it("auto repair requires explicit opt-in", () => {
+    expect(canAutoRepair(false, false, 0, "failure", null)).toBe(false);
+    expect(canAutoRepair(true, false, 0, "failure", null)).toBe(true);
+  });
+  it("does not interrupt an active agent", () => {
+    expect(canAutoRepair(true, true, 0, "failure", null)).toBe(false);
+  });
+  it("limits automatic repair to three attempts", () => {
+    expect(canAutoRepair(true, false, 2, "new failure", null)).toBe(true);
+    expect(canAutoRepair(true, false, 3, "new failure", null)).toBe(false);
+  });
+  it("does not repeat an unchanged error or repair a healthy preview", () => {
+    expect(canAutoRepair(true, false, 0, "same", "same")).toBe(false);
+    expect(canAutoRepair(true, false, 0, null, null)).toBe(false);
+  });
+  it("sends service evidence without credentials", () => {
+    const prompt = previewRepairPrompt({ status: "error" }, [], undefined, { checkedAt: "2026-11-01T07:40:00Z", checks: [{ service: "Vercel", state: "error", detail: "Build failed; SECRET_KEY=private-value" }] });
+    const data = JSON.parse(prompt.slice(prompt.indexOf("{\n"), prompt.indexOf("\nInvestigate with")));
+    expect(data.connectedServices.checks[0].state).toBe("error");
+    expect(data.connectedServices.checkedAt).toBe("2026-11-01T07:40:00Z");
+    expect(prompt).not.toContain("private-value");
   });
 });
