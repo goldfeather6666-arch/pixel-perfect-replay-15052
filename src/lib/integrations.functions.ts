@@ -174,6 +174,8 @@ export const linkSupabase = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     let syncError: string | null = null;
     try { await wireEnv(context, data.id, ref, s.vercel_project_id); } catch { syncError = "Database linked, but Vercel settings did not sync. Use Sync to retry."; }
+    // Keep sign-in return links in step with the linked site (fixes login/logout after deploy).
+    try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
     return { ref, syncError };
   });
 
@@ -203,6 +205,8 @@ export const linkVercel = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     let syncError: string | null = null;
     try { await wireEnv(context, data.id, s.supabase_ref, pid); } catch { syncError = "Website linked, but database settings did not sync. Use Sync to retry."; }
+    // Keep sign-in return links in step with the linked site (fixes login/logout after deploy).
+    try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
     if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel", s.accounts)).ensureBuildGate(pid).catch(() => {}); }
     return { projectId: pid, syncError };
   });

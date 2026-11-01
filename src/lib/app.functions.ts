@@ -198,10 +198,11 @@ export const listSessions = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("agent_sessions")
-      .select("id, title, repo, work_branch, mode, updated_at, running, keeper_id")
+      .select("id, title, repo, work_branch, mode, updated_at, running, keeper_id, pending, supabase_ref, vercel_project_id")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data as Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at" | "running" | "keeper_id">[];
+    // Only the count of waiting changes is needed by the list.
+    return (data ?? []).map(({ pending, ...r }: any) => ({ ...r, pendingCount: Array.isArray(pending) ? pending.length : 0 })) as (Pick<SessionRow, "id" | "title" | "repo" | "work_branch" | "mode" | "updated_at" | "running" | "keeper_id"> & { pendingCount: number; supabase_ref: string | null; vercel_project_id: string | null })[];
   });
 
 export const getSession = createServerFn({ method: "POST" })

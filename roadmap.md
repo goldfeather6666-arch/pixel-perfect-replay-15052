@@ -62,3 +62,7 @@
 - [ ] Live preview: Next.js runs + gateway verified; Artelie3d needs NEXT_PUBLIC_SUPABASE keys (database token lacks api_gateway_keys_read) — blocked on user; Vite app not yet live-tested
 - [x] Several GitHub/database/Vercel accounts, chosen per project
 - [x] Vite preview blocked host fixed
+- [x] Phase A: Connect & sync (env, auth URLs, migrations, health) + Auto-fix
+- [x] Phase B: task workspace (Chat/Preview/Deploy + More)
+- [x] Phase C: home reorganise
+- [x] Phase D: Settings sections
