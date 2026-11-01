@@ -5,8 +5,10 @@ import { toast } from "sonner";
 import { AlertTriangle, Copy, ExternalLink, Globe, Link2, Loader2, Maximize2, Minimize2, Monitor, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Smartphone, Square, Tablet, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
-import { getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revokePreviewLinks, startPreviewFn } from "@/lib/preview.functions";
+import { canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
+import { diagnosePreviewFn, getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revokePreviewLinks, startPreviewFn } from "@/lib/preview.functions";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const DEVICES = { desktop: { w: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", icon: Smartphone, label: "Mobile" } } as const;
 type Device = keyof typeof DEVICES;
@@ -21,6 +23,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const access = useServerFn(previewAccessFn);
   const revoke = useServerFn(revokePreviewLinks);
   const report = useServerFn(reportPreviewErrors);
+  const diagnose = useServerFn(diagnosePreviewFn);
   const [device, setDevice] = useState<Device>("desktop");
   const [full, setFull] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -30,6 +33,10 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const [repairOpen, setRepairOpen] = useState(false);
   const [dismissedFailure, setDismissedFailure] = useState<string | null>(null);
   const [sendingRepair, setSendingRepair] = useState(false);
+  const [showHealth, setShowHealth] = useState(false);
+  const [autoRepair, setAutoRepair] = useState(false);
+  const [repairAttempts, setRepairAttempts] = useState(0);
+  const lastAutoFailure = useRef<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const pendingErr = useRef<Array<{ m: string; path?: string }>>([]);
 
@@ -82,19 +89,39 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const startM = useMutation({ mutationFn: () => start({ data: { id } }), onSuccess: () => { setErrors([]); qc.invalidateQueries({ queryKey: ["preview", id] }); }, onError: (e: Error) => toast.error(e.message) });
   const actM = useMutation({ mutationFn: (action: "stop" | "restart") => act({ data: { id, action } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["preview", id] }), onError: (e: Error) => toast.error(e.message) });
   const logs = useQuery({ queryKey: ["preview-logs", id], queryFn: () => act({ data: { id, action: "logs" } }), enabled: (showLogs || repairOpen) && !!p, refetchInterval: showLogs && running ? 3000 : false });
+  const health = useQuery({ queryKey: ["preview-diagnosis", id], queryFn: () => diagnose({ data: { id } }), enabled: showHealth || repairOpen, staleTime: 30000, retry: false });
   async function fixPreview() {
     if (!p || !onSend || agentBusy || sendingRepair) return;
     setSendingRepair(true);
     try {
-      const latest = await logs.refetch();
+      const [latest, diagnosis] = await Promise.all([logs.refetch(), health.refetch()]);
       const output = latest.data && "logs" in latest.data ? latest.data.logs : undefined;
       const captured = [...(p.browserErrors ?? []), ...errors].slice(-20);
-      await onSend(previewRepairPrompt(p, captured, output));
+      await onSend(previewRepairPrompt(p, captured, output, diagnosis.data));
+      lastAutoFailure.current = failureKey;
+      setRepairAttempts((n) => n + 1);
+      setErrors([]);
       setDismissedFailure(failureKey);
       setRepairOpen(false);
     } catch (e) { toast.error(`Could not send repair: ${(e as Error).message}`); }
     finally { setSendingRepair(false); }
   }
+
+  useEffect(() => {
+    if (!canAutoRepair(autoRepair, agentBusy || sendingRepair, repairAttempts, failureKey, lastAutoFailure.current) || !onSend) return;
+    lastAutoFailure.current = failureKey;
+    void fixPreview();
+    // The current diagnostic is captured by fixPreview; no repeated repair for the same failure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRepair, agentBusy, sendingRepair, repairAttempts, failureKey, onSend]);
+
+  const healthView = <div className="space-y-2 text-xs">
+    <div className="flex items-center justify-between gap-2"><p className="font-medium">Connected-service checks</p><Button variant="ghost" size="sm" disabled={health.isFetching} onClick={() => void health.refetch()}>{health.isFetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}Check</Button></div>
+    {health.error && <p className="text-destructive">Checks unavailable. Retry; the AI can still inspect the preview.</p>}
+    {health.isFetching && !health.data && <p role="status" className="text-muted-foreground">Checking preview, database and Vercel…</p>}
+    {health.data?.checks.map((c) => <div key={c.service} className="border-b pb-2 last:border-0"><p className={`font-medium ${c.state === "error" ? "text-destructive" : c.state === "ok" ? "text-primary" : "text-muted-foreground"}`}>{c.service} · {c.state === "unlinked" ? "not linked" : c.state}</p><pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap break-words font-sans text-muted-foreground">{c.detail}</pre></div>)}
+    {health.data && <p className="text-muted-foreground">Checked {new Date(health.data.checkedAt).toLocaleTimeString()} · Read-only</p>}
+  </div>;
 
   const absolute = src ? `${typeof window !== "undefined" ? window.location.origin : ""}${src}` : "";
   async function share() {
@@ -115,6 +142,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
             <DialogDescription>{p?.status === "crashed" ? "The preview server crashed." : p?.status === "error" ? "The preview returned a server error." : "The preview reported a browser error."}</DialogDescription>
           </DialogHeader>
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border bg-muted p-3 font-mono text-xs text-destructive">{redactPreviewDiagnostic(errors.length ? errors.slice(-3).map((e) => `${e.path ?? ""}: ${e.m}`).join("\n") : p?.logTail || (logs.data && "logs" in logs.data ? logs.data.logs : "") || `Status: ${p?.status ?? "unknown"}; HTTP: ${p?.lastHttp ?? "not recorded"}. No error output captured yet.`)}</pre>
+          {healthView}
           {agentBusy && <p role="status" className="text-xs text-muted-foreground">An agent is already working. Send the repair after it finishes, or stop it in Chat.</p>}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { setDismissedFailure(failureKey); setRepairOpen(false); }}>Dismiss</Button>
@@ -129,6 +157,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
         <span className={`h-2 w-2 rounded-full ${TONE[p?.status ?? "stopped"] ?? "bg-muted-foreground"}`} />
         <span className="text-xs capitalize text-muted-foreground">{p ? p.status : "not started"}{p?.framework && p.framework !== "unknown" ? ` · ${p.framework}` : ""}</span>
         {needsRepair && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button>}
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowHealth((v) => !v)} aria-pressed={showHealth}><ShieldCheck />Health</Button>
         <div className="ml-auto flex items-center gap-0.5">
           {(Object.keys(DEVICES) as Device[]).map((d) => { const I = DEVICES[d].icon; return (
             <button key={d} type="button" aria-label={DEVICES[d].label} aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded p-1.5 ${device === d ? "bg-accent text-primary" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" /></button>
@@ -138,6 +167,13 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
           <button type="button" aria-label={full ? "Exit fullscreen" : "Fullscreen"} onClick={() => setFull((f) => !f)} className="rounded p-1.5 text-muted-foreground">{full ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs">
+        <Switch id={`auto-repair-${id}`} checked={autoRepair} disabled={!onSend} onCheckedChange={(value) => { setAutoRepair(value); setRepairAttempts(0); lastAutoFailure.current = null; }} />
+        <Label htmlFor={`auto-repair-${id}`} className="text-xs">Auto-repair with AI</Label>
+        <span className="text-muted-foreground">{autoRepair ? `${repairAttempts}/3 attempts · uses your AI credits · approvals stay in Chat` : "Off"}</span>
+      </div>
+      {showHealth && <div className="max-h-[35%] overflow-y-auto border-b bg-card px-3 py-2">{healthView}</div>}
 
       {running && (
         <div className="flex items-center gap-1.5 border-b px-2 py-1 text-xs">

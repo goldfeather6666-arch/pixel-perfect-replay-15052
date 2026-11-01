@@ -23,6 +23,10 @@ describe("per-project accounts", () => {
   it("drops malformed choices", () => {
     expect(cleanAccounts({ github: "x", vercel: rows[2]!.id, other: rows[0]!.id })).toEqual({ vercel: rows[2]!.id });
   });
+  it("explicit unlink does not fall back to another saved Vercel account", () => {
+    expect(resolveAccount(rows, "vercel", cleanAccounts({ vercel: null }))).toBeNull();
+    expect(accountSwitchPatch({ vercel: rows[2]?.id }, "vercel", null, rows[2]?.id ?? null)).toEqual({ accounts: { vercel: null }, vercel_project_id: null });
+  });
   it("clears the old Vercel project when switching accounts", () => {
     expect(accountSwitchPatch({ github: rows[0]?.id, vercel: rows[2]?.id }, "vercel", "44444444-4444-4444-4444-444444444444", rows[2]?.id ?? null)).toEqual({
       accounts: { github: rows[0]?.id, vercel: "44444444-4444-4444-4444-444444444444" }, vercel_project_id: null,

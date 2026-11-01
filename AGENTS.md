@@ -12,7 +12,7 @@
 ## Architecture rules
 - Chat reuses file/MCP approval resolvers and shows pending migrations with explicit confirmation; live polling continues after runs finish. Why: actionable consent without weakening safeguards.
 - Build/deployment instructions share productionInstructions in deployment-quality.ts across master, specialists, work splitting and repair prompts; production-first never grants release consent. Why: consistent production expectations without bypassing approvals.
-- Preview crash repair uses captured status/browser errors and fresh server logs, redacted by preview-repair.ts, through the existing task send flow; repair is user-triggered and disabled during active runs. Why: actionable evidence without secret leakage or competing runs.
+- Preview repairs use redacted logs and read-only pinned-service diagnosis via chat; opt-in auto-repair is capped and waits for idle agents. Why: safe evidence, bounded cost, existing approvals.
 - Subdirectories may have their own AGENTS.md (src/lib/engine/); read it before changing files there.
 - User AI keys/GitHub tokens are AES-GCM encrypted (crypto.server.ts), decrypted server-side only, never returned to the browser. Why: BYOK.
 - Model calls use the user's key via providers.server.ts, never the Lovable AI Gateway. Why: BYOK.
@@ -37,6 +37,6 @@
 - Work splitting uses the caller's key, one master, exclusive coder paths. Why: BYOK.
 - Live previews: preview-manager.server.ts runs one dev server per task preview in the task's E2B sandbox (private traffic); browsers reach it only via /api/preview/$ with short-lived HMAC tokens (preview-token.server.ts, revoked by token_version) and a path-scoped HttpOnly cookie; upstream host/traffic token live encrypted in service-only preview_secrets. Agents may call a preview working only after status 'ready' (process alive + HTTP < 500). Why: secure previews, honest readiness, preview never implies deploy.
 - Each task stores its chosen GitHub/database/Vercel account ids (agent_sessions.accounts, resolved by accounts.ts; missing = newest saved); new tasks inherit the repo's latest links, accounts and saved DB settings. Why: multiple accounts and parallel projects without re-setup.
-- Account switching clears only that service's task link atomically, is blocked during active runs, and scopes project-list caches by account; sync/rebuild uses pinned credentials. Why: avoid stale cross-account projects or deployments.
+- Account switches clear service links atomically while idle; null pins disable fallback; lists and rebuilds use pinned accounts. Why: safe switching/unlinking without deleting saved credentials.
 - Connect & sync (connect.server.ts, pure rules in connect.ts) is the single place that wires GitHub/database/Vercel: env sync, sign-in allow-list merge (never removes links), migrations, build/live probe; Auto-fix = sync then send only real blockers to the agent. Why: one truthful repair path.
 - Task UI: Chat + Preview + Deploy are primary; Changes/Files/Terminal/Run/Agents/Knowledge live under More. Why: simple by default.

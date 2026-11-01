@@ -34,8 +34,8 @@ export const getIntegrations = createServerFn({ method: "POST" })
     return {
       accountOptions: ((all ?? []) as { id: string; provider: string; label: string; last4: string }[]).map((c) => ({ id: c.id, provider: c.provider, label: c.label || c.provider, last4: c.last4 })),
       activeAccounts: { github: pick("github"), supabase: pick("supabase"), vercel: pick("vercel") },
-      hasSupabase: has.has("supabase"),
-      hasVercel: has.has("vercel"),
+      hasSupabase: !!pick("supabase"),
+      hasVercel: !!pick("vercel"),
       supabase_ref: s.supabase_ref as string | null,
       vercel_project_id: s.vercel_project_id as string | null,
       applied: (s.applied_migrations ?? []) as string[],
@@ -259,12 +259,14 @@ export const applyMigrations = createServerFn({ method: "POST" })
 /** Chooses which saved GitHub / database / Vercel account this task (project) uses. */
 export const setTaskAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), provider: z.enum(["github", "supabase", "vercel"]), account: z.string().uuid() }))
+  .inputValidator(z.object({ id: z.string().uuid(), provider: z.enum(["github", "supabase", "vercel"]), account: z.string().uuid().nullable() }))
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
     if (s.running) throw new Error("Stop the active task before changing its accounts");
-    const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.account).eq("provider", data.provider).eq("user_id", context.userId).maybeSingle();
-    if (!cred) throw new Error("That account isn't saved in your Settings");
+    if (data.account) {
+      const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.account).eq("provider", data.provider).eq("user_id", context.userId).maybeSingle();
+      if (!cred) throw new Error("That account isn't saved in your Settings");
+    }
     const { accountRow } = await import("./accounts.server");
     const current = await accountRow(context.supabase, context.userId, data.provider, s.accounts);
     const { accountSwitchPatch } = await import("./accounts");

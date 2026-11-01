@@ -371,6 +371,16 @@ export const Route = createFileRoute("/api/agent")({
               return { status: st.status, framework: st.framework, port: st.port, command: st.command, http: (st.process as { last_http?: number })?.last_http ?? null, log_tail: st.status === "ready" ? undefined : st.logTail?.slice(-2500), note: st.status === "ready" ? "Ready and HTTP health check passed. The user can open it in the Preview tab." : "Not ready. Read the log tail, fix the cause, then call preview_restart or preview_start." };
             },
           }),
+          preview_diagnose: tool({
+            description: "Read-only diagnosis of this task's preview logs, public environment presence, pinned database health/auth settings/migration tracking and Vercel branch build/runtime health. No SQL, sync, deployments or secrets returned. Use for preview errors before repair; preserve normal approvals.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const { data: task } = await sb.from("agent_sessions").select("*").eq("id", sessionId).eq("user_id", u.user.id).single();
+              if (!task) return { error: "Task unavailable" };
+              const { diagnosePreview } = await import("@/lib/preview-diagnosis.server");
+              return diagnosePreview(sb, task);
+            },
+          }),
           preview_status: tool({
             description: "Current live-preview status with a fresh process + HTTP health check (auto-restarts a crashed server at most 3 times).",
             inputSchema: z.object({}),

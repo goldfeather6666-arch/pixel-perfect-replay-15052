@@ -44,7 +44,7 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
       <AccountsCard id={id} options={d.accountOptions} active={d.activeAccounts} onChange={() => { refresh(); qc.invalidateQueries({ queryKey: ["sb-opts", id] }); qc.invalidateQueries({ queryKey: ["vc-projects", id] }); }} />
       <SupabaseCard key={`sb-${d.activeAccounts.supabase}`} account={d.activeAccounts.supabase} id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
-      <VercelCard key={`vc-${d.activeAccounts.vercel}`} account={d.activeAccounts.vercel} dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
+      <VercelCard key={`vc-${d.activeAccounts.vercel}`} options={d.accountOptions.filter((o) => o.provider === "vercel")} account={d.activeAccounts.vercel} dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
       )}
@@ -95,7 +95,7 @@ function AccountsCard({ id, options, active, onChange }: { id: string; options: 
         <Button variant="outline" size="sm" onClick={() => setAdding(adding === "Vercel" ? null : "Vercel")}>Add another Vercel account</Button>
         <Button asChild variant="ghost" size="sm"><Link to="/settings">Add GitHub account in Settings</Link></Button>
       </div>
-      {adding && <div className="mt-3 rounded-md border p-3"><NeedToken name={adding} onDone={() => { setAdding(null); onChange(); }} /></div>}
+      {adding && <div className="mt-3 rounded-md border p-3"><NeedToken name={adding} onDone={async (accountId) => { await m.mutateAsync({ provider: adding === "Vercel" ? "vercel" : "supabase", account: accountId }); setAdding(null); }} /></div>}
     </section>
   );
 }
@@ -120,14 +120,14 @@ const GUIDES = {
   },
 } as const;
 
-function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: () => void }) {
+function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: (accountId: string) => void | Promise<void> }) {
   const [key, setKey] = useState("");
   const save = useServerFn(saveCredential);
   const qc = useQueryClient();
   const g = GUIDES[name];
   const m = useMutation({
     mutationFn: () => save({ data: { provider: name === "Supabase" ? "supabase" : "vercel", label: name, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
-    onSuccess: () => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); onDone(); },
+    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); await onDone(r.id); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
@@ -235,8 +235,16 @@ function SupabaseCard({ id, account, has, linked, onChange }: { id: string; acco
   );
 }
 
-function VercelCard({ id, account, has, linked, onChange, dbLinked }: { account: string | null; dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
+function VercelCard({ id, options, account, has, linked, onChange, dbLinked }: { options: AccountOption[]; account: string | null; dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
+  const [connection, setConnection] = useState<"existing" | "new">("existing");
+  const [savedAccount, setSavedAccount] = useState("");
+  const saveAccount = useServerFn(setTaskAccount);
+  const connectM = useMutation({
+    mutationFn: (value: string | null) => saveAccount({ data: { id, provider: "vercel", account: value } }),
+    onSuccess: () => { onChange(); toast.success("Vercel connection updated for this task"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [pick, setPick] = useState("");
   const projects = useQuery({ queryKey: ["vc-projects", id, account], queryFn: useServerFn(listVercelProjects).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: has && !linked });
   const link = useServerFn(linkVercel);
@@ -260,7 +268,15 @@ function VercelCard({ id, account, has, linked, onChange, dbLinked }: { account:
 
   return (
     <Card icon={<Rocket className="h-4 w-4 shrink-0" />} title="Vercel website">
-      {!has ? <NeedToken name="Vercel" onDone={onChange} /> : linked ? (
+      {has && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">Account connected · {options.find((o) => o.id === account)?.label ?? "Vercel"}</span><Button variant="outline" size="sm" disabled={connectM.isPending} onClick={() => connectM.mutate(null)}>{connectM.isPending ? "Unlinking…" : "Unlink Vercel account"}</Button></div>}
+      {!has ? <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2"><Button variant={connection === "existing" ? "secondary" : "outline"} onClick={() => setConnection("existing")}>Use saved account</Button><Button variant={connection === "new" ? "secondary" : "outline"} onClick={() => setConnection("new")}>Connect new account</Button></div>
+        {connection === "existing" ? <>
+          <Select value={savedAccount} onValueChange={setSavedAccount}><SelectTrigger className={trig}><SelectValue placeholder="Choose saved Vercel account" /></SelectTrigger><SelectContent>{options.map((o) => <SelectItem key={o.id} value={o.id}>{o.label} ···{o.last4}</SelectItem>)}</SelectContent></Select>
+          {!options.length && <p className="text-xs text-muted-foreground">No saved Vercel accounts. Connect a new account.</p>}
+          <Button className="w-full" disabled={!savedAccount || connectM.isPending} onClick={() => connectM.mutate(savedAccount)}>Connect selected account</Button>
+      </> : <NeedToken name="Vercel" onDone={async (accountId) => { await connectM.mutateAsync(accountId); }} />}
+      </div> : linked ? (
         <div className="space-y-3 text-sm">
           <p className="break-all font-mono text-xs text-muted-foreground">Linked website · {linked}</p>
           <div className="flex items-center justify-between gap-2">
