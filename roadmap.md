@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Automatic liveness watchdog: recover silent/stalled agents with bounded retries, saved progress, execution fencing and intentional-stop safeguards.
+
 - [x] Show Vercel account unlink in the website section and offer saved/new account connection choices; explicit unlink disables fallback and preserves saved accounts/remote websites. Nine account tests passed; real-account browser flow remains unverified.
 
 - [x] Add read-only preview/database/Vercel diagnosis, AI service inspection tool, failed-network capture and opt-in auto-repair (three attempts, idle agents only, existing chat approvals). 24 preview tests passed; desktop/phone simulated failure verified service evidence in AI submission. No paid repair, SQL or deployment triggered; live service checks remain unverified.

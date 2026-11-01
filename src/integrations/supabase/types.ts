@@ -206,6 +206,7 @@ export type Database = {
           base_branch: string
           created_at: string
           credential_id: string | null
+          execution_id: string | null
           fallback_model: string | null
           id: string
           keeper_id: string | null
@@ -233,6 +234,7 @@ export type Database = {
           base_branch: string
           created_at?: string
           credential_id?: string | null
+          execution_id?: string | null
           fallback_model?: string | null
           id?: string
           keeper_id?: string | null
@@ -260,6 +262,7 @@ export type Database = {
           base_branch?: string
           created_at?: string
           credential_id?: string | null
+          execution_id?: string | null
           fallback_model?: string | null
           id?: string
           keeper_id?: string | null

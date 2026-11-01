@@ -1,0 +1,2 @@
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS execution_id uuid;
+COMMENT ON COLUMN public.agent_sessions.execution_id IS 'Execution fencing token: replaced on each run; stale executions cannot overwrite their replacement.';
