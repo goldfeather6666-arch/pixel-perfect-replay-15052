@@ -38,6 +38,10 @@ export class SupabaseMgmt {
   runSql(ref: string, query: string) {
     return this.req<any>(`/projects/${ref}/database/query`, { method: "POST", body: JSON.stringify({ query }) });
   }
+  authConfig(ref: string) { return this.req<{ site_url?: string; uri_allow_list?: string }>(`/projects/${ref}/config/auth`); }
+  patchAuth(ref: string, body: { site_url?: string; uri_allow_list?: string }) {
+    return this.req(`/projects/${ref}/config/auth`, { method: "PATCH", body: JSON.stringify(body) });
+  }
   async anonKey(ref: string) {
     const keys = await this.req<any[]>(`/projects/${ref}/api-keys`);
     return (keys.find((k) => k.name === "anon") ?? keys.find((k) => k.type === "publishable"))?.api_key as string | undefined;
@@ -59,6 +63,14 @@ export class Vercel {
   async projects() {
     const r = await this.req<any>("/v9/projects?limit=100");
     return (r.projects as any[]).map((p) => ({ id: p.id as string, name: p.name as string, repo: (p.link?.org && p.link?.repo ? `${p.link.org}/${p.link.repo}` : null) as string | null }));
+  }
+  async project(projectId: string) {
+    const p = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}`);
+    return { id: p.id as string, repo: (p.link?.org && p.link?.repo ? `${p.link.org}/${p.link.repo}` : null) as string | null };
+  }
+  async domains(projectId: string): Promise<string[]> {
+    const r = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}/domains`);
+    return ((r.domains ?? []) as any[]).filter((d) => d.verified !== false && !d.redirect).map((d) => String(d.name));
   }
   async createProject(name: string, repo: string) {
     const p = await this.req<any>("/v11/projects", {
