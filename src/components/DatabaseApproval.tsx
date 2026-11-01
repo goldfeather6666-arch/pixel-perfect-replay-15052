@@ -4,10 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, Database, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { applyMigrations, getMigrationStatus } from "@/lib/integrations.functions";
+import { applyMigrations, getIntegrations, getMigrationStatus } from "@/lib/integrations.functions";
 
-export function DatabaseApproval({ id, linked, busy }: { id: string; linked: boolean; busy: boolean }) {
+export function DatabaseApproval({ id, busy }: { id: string; busy: boolean }) {
   const qc = useQueryClient();
+  const integrations = useServerFn(getIntegrations);
+  const info = useQuery({ queryKey: ["integrations", id], queryFn: () => integrations({ data: { id } }), refetchInterval: 10000 });
+  const linked = !!info.data?.supabase_ref;
   const getStatus = useServerFn(getMigrationStatus);
   const apply = useServerFn(applyMigrations);
   const [confirm, setConfirm] = useState(false);
