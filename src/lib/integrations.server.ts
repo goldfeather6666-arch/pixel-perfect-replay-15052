@@ -34,8 +34,8 @@ export class SupabaseMgmt {
     const orgs = (await this.orgs()).sort((a, b) => a.id.localeCompare(b.id));
     if (orgs.length) return { key: `org:${orgs.map((o) => o.id).join(",")}`, name: orgs.map((o) => o.name).join(", ") };
     // No visible organizations: fall back to the projects it can see; an empty account can't be compared.
-    const refs = (await this.projects()).map((p) => p.ref).sort();
-    return { key: refs.length ? `projects:${refs.join(",")}` : "", name: refs.length ? `${refs.length} project(s)` : "Supabase account" };
+    const ps = (await this.projects()).sort((a, b) => a.ref.localeCompare(b.ref));
+    return { key: ps.length ? `projects:${ps.map((p) => p.ref).join(",")}` : "", name: ps.length ? `${ps[0]!.name}${ps.length > 1 ? ` +${ps.length - 1}` : ""}` : "Supabase account" };
   }
   async createProject(name: string, orgId: string, region: string) {
     const bytes = crypto.getRandomValues(new Uint8Array(24));

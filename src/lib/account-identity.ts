@@ -14,7 +14,7 @@ export function isGenericLabel(label: string | null | undefined) {
 /** The label shown for a token: the user's own label wins, otherwise the provider account name. */
 export function identityLabel(provider: "vercel" | "supabase", label: string | null | undefined, identity: AccountIdentity | null) {
   if (!isGenericLabel(label)) return String(label).trim();
-  if (!identity) return provider === "vercel" ? "Vercel" : "Supabase";
+  if (!identity?.key) return provider === "vercel" ? "Vercel" : "Supabase";
   return `${provider === "vercel" ? "Vercel" : "Supabase"} · ${identity.name}`.slice(0, 80);
 }
 
