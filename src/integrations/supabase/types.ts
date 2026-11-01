@@ -1062,6 +1062,10 @@ export type Database = {
         Args: { _answer: Json; _key: string; _question: string; _skip: boolean }
         Returns: Json
       }
+      decide_task_suggestion: {
+        Args: { _decision: string; _suggestion: string }
+        Returns: Json
+      }
       engine_event: {
         Args: { _payload: Json; _run: string; _type: string }
         Returns: number
