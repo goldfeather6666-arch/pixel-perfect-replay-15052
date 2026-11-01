@@ -18,6 +18,7 @@ import { costUsd, estimateTokens, fitToBudget, modelCaps } from "@/lib/engine/mo
 import { finalStage } from "@/lib/engine/lifecycle";
 import { contentHash, parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import type { Recorder } from "@/lib/engine/recorder.server";
+import { WORKER_REPORT_INSTRUCTIONS } from "@/lib/engine/worker-report";
 import { askInput, classifyTask, discoveryPolicy, filterQuestions, specInput, suggestInput, TASK_CLASSES, type TaskClass } from "@/lib/engine/discovery";
 import { effectiveProfile, profilePolicy, reasoningOptions, routeModel, routingSummary, teamPolicy } from "@/lib/engine/reasoning";
 
@@ -638,7 +639,7 @@ export const Route = createFileRoute("/api/agent")({
               const { generateText } = await import("ai");
               const extraBody = (cred as { extra_body?: Record<string, unknown> | null }).extra_body ?? null;
               const modelFor = (role: string) => { const r = routeModel(role, routing); return { model: createModel(cred.provider, apiKey, cred.base_url, r.model, extraBody), id: r.model, reason: r.reason }; };
-              const ROLE = (role: (typeof jobs)[number]["role"]) => `${ROLE_BRIEF[role]}${WRITER_ROLES.includes(role) ? " Read every existing file first, then submit COMPLETE file content via propose_file. Do not commit, run commands, deploy or change external services. The master reviews and merges." : ""}`;
+              const ROLE = (role: (typeof jobs)[number]["role"]) => `${WORKER_REPORT_INSTRUCTIONS}\n${ROLE_BRIEF[role]}${WRITER_ROLES.includes(role) ? " Read every existing file first, then submit COMPLETE file content via propose_file. Do not commit, run commands, deploy or change external services. The master reviews and merges." : ""}`;
               rec.event("agents.dispatched", { jobs: jobs.map((j) => ({ label: j.label, role: j.role, after: j.after, model: routeModel(j.role, routing).model, modelReason: routeModel(j.role, routing).reason })), waves: waves.length, maxWorkers: Math.min(ACTIVE_TEAM_WORKERS, team.maxWorkers), sizing: team.reason, parallelReason: waves.length === 1 ? "all jobs independent" : `${waves.length} dependency waves` });
               const workerLogs = jobs.map((job, i) => {
                 const id = `${toolCallId}-w${i}`;
@@ -720,7 +721,7 @@ export const Route = createFileRoute("/api/agent")({
                   });
                   usage = { input: usage.input + (r.totalUsage?.inputTokens ?? 0), output: usage.output + (r.totalUsage?.outputTokens ?? 0) };
                   const { parseWorkerReport } = await import("@/lib/engine/worker-report");
-                  const contract = parseWorkerReport(r.text, WRITER_ROLES.includes(job.role) ? job.paths : [], submitted.map((pid) => proposals.find((p) => p.id === pid)?.path ?? pid));
+                  const contract = parseWorkerReport(r.text, WRITER_ROLES.includes(job.role) ? job.paths : [], submitted.map((pid) => proposals.get(pid)?.path ?? pid));
                   const report = r.text.slice(0, 8000);
                   Object.assign(log, { ok: true, summary: report.slice(0, 1500) });
                   emit({ t: "tool-result", id, ok: true, summary: report.slice(0, 1500) });
