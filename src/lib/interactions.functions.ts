@@ -52,10 +52,13 @@ export const decideSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid(), decision: z.enum(SUGGESTION_DECISIONS) }))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("task_suggestions").update({ status: data.decision, decided_at: new Date().toISOString() }).eq("id", data.id).in("status", ["proposed", "discussed"]).select("title, recommended_approach");
+    const { data: result, error } = await context.supabase.rpc("decide_task_suggestion", {
+      _suggestion: data.id,
+      _decision: data.decision,
+    });
     if (error) throw new Error(error.message);
-    const row = rows?.[0];
-    if (!row) return { message: null as string | null };
+    const row = result as { changed: boolean; title: string; recommended_approach: string; decision?: string };
+    if (!row?.changed) return { message: null as string | null };
     const message = data.decision === "accepted" ? `I accept your suggestion “${row.title}”: use ${row.recommended_approach}. Update the plan/spec accordingly and continue.`
       : data.decision === "discussed" ? `Let's discuss your suggestion “${row.title}” before deciding. Explain the trade-offs for my project briefly; don't change scope yet.`
       : null;
