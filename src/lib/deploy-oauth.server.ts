@@ -8,11 +8,11 @@ function env(name: string) {
 }
 function creds(p: DeployOAuthProvider) {
   return p === "vercel"
-    ? { id: env("VERCEL_OAUTH_CLIENT_ID"), secret: env("VERCEL_OAUTH_CLIENT_SECRET"), slug: env("VERCEL_INTEGRATION_SLUG") }
-    : { id: env("SB_MGMT_OAUTH_CLIENT_ID"), secret: env("SB_MGMT_OAUTH_CLIENT_SECRET"), slug: undefined };
+    ? { id: env("VERCEL_CLIENT_ID"), secret: env("VERCEL_CLIENT_SECRET"), slug: env("VERCEL_TEAM_SLUG") }
+    : { id: env("FORGE_SUPABASE_OAUTH_CLIENT_ID"), secret: env("FORGE_SUPABASE_OAUTH_CLIENT_SECRET"), slug: undefined };
 }
 export function oauthConfigured(p: DeployOAuthProvider) {
-  const names = p === "vercel" ? ["VERCEL_OAUTH_CLIENT_ID", "VERCEL_OAUTH_CLIENT_SECRET", "VERCEL_INTEGRATION_SLUG"] : ["SB_MGMT_OAUTH_CLIENT_ID", "SB_MGMT_OAUTH_CLIENT_SECRET"];
+  const names = p === "vercel" ? ["VERCEL_CLIENT_ID", "VERCEL_CLIENT_SECRET", "VERCEL_TEAM_SLUG"] : ["FORGE_SUPABASE_OAUTH_CLIENT_ID", "FORGE_SUPABASE_OAUTH_CLIENT_SECRET"];
   return names.every((n) => !!process.env[n]);
 }
 
