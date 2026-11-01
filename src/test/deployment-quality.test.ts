@@ -16,7 +16,13 @@ describe("production checks", () => {
     expect(productionPolicy.buildMode).toBe("production");
     expect(productionPolicy.allowDemo).toBe(false);
   });
-  it("teaches agents the exact Forge-synced Supabase env contract for Next.js, Vite and server runtimes", async () => {\n    const { productionInstructions } = await import("@/lib/deployment-quality");\n    for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);\n    expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");\n    expect(productionInstructions).toContain("Connect & sync/Auto-fix");\n  });\n  it("does not replace real integrations with mocks", () => {
+  it("teaches agents the exact Forge-synced Supabase env contract for Next.js, Vite and server runtimes", async () => {
+    const { productionInstructions } = await import("@/lib/deployment-quality");
+    for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);
+    expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");
+    expect(productionInstructions).toContain("Connect & sync/Auto-fix");
+  });
+  it("does not replace real integrations with mocks", () => {
     expect(productionPolicy.allowMockIntegrations).toBe(false);
   });
   it("does not treat production-first building as release consent", () => {
@@ -39,12 +45,15 @@ describe("production checks", () => {
     expect(checkFailure({ exit_code: 1, stderr: "Your project's URL and Key are required to create a Supabase client!" })).toContain("database URL/public-key settings are missing");
   });
   it("identifies the last failed check rather than generic verification", () => {
-    expect(checkFailure({ exit_code: 2, stdout: "[Forge check] npm run typecheck\n[Forge exit] 2" })).toContain("typecheck check failed (exit 2)");
+    expect(checkFailure({ exit_code: 2, stdout: "[Forge check] npm run typecheck
+[Forge exit] 2" })).toContain("typecheck check failed (exit 2)");
   });
   it("shows the first real error line so the failure is actionable", () => {
     const issue = checkFailure({
       exit_code: 1,
-      stdout: "[Forge check] npm run build\nsrc/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.\n[Forge exit] 1",
+      stdout: "[Forge check] npm run build
+src/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.
+[Forge exit] 1",
     });
     expect(issue).toContain("build check failed (exit 1)");
     expect(issue).toContain("First error: src/app/page.tsx(12,5): error TS2304: Cannot find name 'Demo'.");
@@ -53,13 +62,17 @@ describe("production checks", () => {
   it("redacts token-like values from surfaced error lines", () => {
     const issue = checkFailure({
       exit_code: 1,
-      stdout: "[Forge check] npm run build\nError: request to https://user:ghp_abcdef1234567890abcdef1234567890ab@example.com failed with token=ghp_abcdef1234567890abcdef1234567890ab\n[Forge exit] 1",
+      stdout: "[Forge check] npm run build
+Error: request to https://user:ghp_abcdef1234567890abcdef1234567890ab@example.com failed with token=ghp_abcdef1234567890abcdef1234567890ab
+[Forge exit] 1",
     });
     expect(issue).toContain("failed");
     expect(issue).not.toContain("ghp_abcdef1234567890abcdef1234567890ab");
   });
   it("falls back to the last output lines when nothing looks like an error", () => {
-    const issue = checkFailure({ exit_code: 1, stdout: "step one\nstep two\nfinal line" });
+    const issue = checkFailure({ exit_code: 1, stdout: "step one
+step two
+final line" });
     expect(issue).toContain("final line");
   });
   it("keeps failed local checks blocking for supervised and unlinked projects", () => {
