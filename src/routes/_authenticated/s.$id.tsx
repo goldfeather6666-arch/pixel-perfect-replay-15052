@@ -209,9 +209,7 @@ function Workspace() {
       const token = refreshed?.data.session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token;
       const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
       // Prefer a cloud-kept run so work continues when the phone sleeps or switches apps.
-      // The renewal token lets Forge restart this run if it dies while the app is closed.
-      const refresh = refreshed?.data.session?.refresh_token ?? (await supabase.auth.getSession()).data.session?.refresh_token ?? "";
-      const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-forge-refresh": refresh }, body, signal: ac.signal });
+      const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
       if (!bg.ok) throw new Error(await bg.text());
       if ((await bg.json() as { mode?: string }).mode === "background") {
         accepted = true;
