@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
+import { appendPreviewErrors, canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
 
 describe("preview crash repair", () => {
   it("offers repair for server crashes and real browser errors", () => {
@@ -50,5 +50,35 @@ describe("preview crash repair", () => {
     expect(data.connectedServices.checks[0].state).toBe("error");
     expect(data.connectedServices.checkedAt).toBe("2026-11-01T07:40:00Z");
     expect(prompt).not.toContain("private-value");
+  });
+});
+describe("preview browser telemetry", () => {
+  it("redacts secrets, deduplicates and limits events per minute", () => {
+    const now = Date.parse("2026-11-02T00:00:00Z");
+    const { errors, accepted } = appendPreviewErrors([], [
+      { m: "TypeError: key=private-secret", path: "/home?token=secret" },
+      { m: "TypeError: key=private-secret", path: "/home?token=other" },
+      { m: "TypeError: another failure", path: "/other" },
+    ], now, 1);
+    expect(accepted).toBe(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.m).not.toContain("private-secret");
+    expect(errors[0]?.path).toBe("/home");
+  });
+  it("ignores stale, future and malformed timestamps and caps retained history", () => {
+    const now = Date.parse("2026-11-02T00:00:00Z");
+    const previous = [
+      { m: "stale", at: "2026-11-01T23:00:00Z" },
+      { m: "future", at: "2026-11-03T00:00:00Z" },
+      { m: "bad", at: "not-a-date" },
+    ];
+    const { errors, accepted } = appendPreviewErrors(previous, Array.from({ length: 60 }, (_, i) => ({ m: `Error ${i}` })), now);
+    expect(accepted).toBe(20);
+    expect(errors).toHaveLength(20);
+  });
+  it("does not store duplicate reports inside the same request", () => {
+    const { errors, accepted } = appendPreviewErrors([], [{ m: "same" }, { m: "same" }], Date.now());
+    expect(accepted).toBe(1);
+    expect(errors).toHaveLength(1);
   });
 });
