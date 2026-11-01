@@ -90,14 +90,14 @@ export function validateAnswer(q: Pick<StoredQuestion, "type" | "options" | "req
     return null;
   }
   if (new Set(a.option_ids).size !== a.option_ids.length) return "Duplicate options are not allowed.";
-  const ids = new Set(q.options.map((o) => o.id));
-  const bad = a.option_ids.find((id) => !ids.has(id));
-  if (bad) return `Unknown option: ${bad}`;
   const text = a.text.trim();
   if (q.type === "text") {
     if (a.option_ids.length) return "Text questions do not accept option selections.";
     return text || !q.required ? null : "Please type an answer.";
   }
+  const ids = new Set(q.options.map((o) => o.id));
+  const bad = a.option_ids.find((id) => !ids.has(id));
+  if (bad) return `Unknown option: ${bad}`;
   if (q.type === "confirmation") {
     return !text && a.option_ids.length === 1 && ["yes", "no"].includes(a.option_ids[0]!) ? null : "Choose yes or no.";
   }
