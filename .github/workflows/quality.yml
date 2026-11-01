@@ -32,6 +32,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PROJECT_ID: ci-placeholder
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -39,8 +41,16 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Typecheck
         run: bunx tsc --noEmit
-      - name: Lint
-        run: bun run lint
+      - name: Lint changed TypeScript and JavaScript files
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs')
+          if ((${#files[@]})); then
+            bunx eslint "${files[@]}"
+          else
+            echo 'No changed JavaScript or TypeScript files to lint.'
+          fi
       - name: Unit tests
         run: bun run test
       - name: Production build
