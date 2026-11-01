@@ -310,8 +310,8 @@ function Workspace() {
     <div className="flex h-dvh flex-col">
       <AppHeader>
         {s && (
-          <div className="flex min-w-0 items-center gap-2 text-xs">
-            <span className="truncate font-mono text-muted-foreground">{s.repo} · {s.work_branch}</span>
+          <div className="flex min-w-0 max-w-[50vw] items-center gap-2 overflow-x-auto text-xs sm:max-w-none">
+            <span className="hidden truncate font-mono text-muted-foreground md:inline">{s.repo} · {s.work_branch}</span>
             <select
               aria-label="Autonomy level"
               title={AUTONOMY_LABEL[asAutonomy(s.mode)].hint}
