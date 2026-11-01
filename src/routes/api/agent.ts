@@ -935,7 +935,7 @@ export const Route = createFileRoute("/api/agent")({
             } catch (e: any) {
               errored = true;
               rec.error("provider", errorText(e));
-              if (runAbort.signal.aborted) text += "\n\n_(stopped)_"; else {
+              if (runAbort.signal.aborted) text += stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_"; else {
                 const detail = providerRequestError(e);
                 text += `\n\n${detail}`;
                 send({ t: "error", m: detail });
@@ -943,8 +943,8 @@ export const Route = createFileRoute("/api/agent")({
             } finally {
               stopWatching();
               clearInterval(beat);
-              if (runAbort.signal.aborted && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
-              if (runAbort.signal.aborted) send({ t: "text", d: "\n\n_(stopped)_" });
+              if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
+              if (runAbort.signal.aborted) send({ t: "text", d: stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_" });
               const next: ChatMessage[] = [
                 ...history,
                 { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
