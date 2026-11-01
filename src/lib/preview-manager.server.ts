@@ -175,7 +175,7 @@ export async function waitReady(sb: any, row: PreviewRow, deadlineMs = 150_000) 
   const end = Date.now() + deadlineMs;
   let st = await previewStatus(sb, row, { autoRestart: true });
   while (st.status === "starting" && Date.now() < end) {
-    await new Promise((r) => setTimeout(r, 4000));
+    await new Promise((r) => setTimeout(r, 2000));
     st = await previewStatus(sb, { ...row, ...st } as PreviewRow, { autoRestart: true });
   }
   return st;
