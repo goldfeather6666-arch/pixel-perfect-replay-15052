@@ -47,7 +47,7 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile 
         <Cpu className="h-3 w-3 shrink-0" /><span className="truncate">{model || "model"}</span>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90dvh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Switch AI provider & model</DialogTitle>
             <DialogDescription>Applies from your next message. Chat history, files and branch stay the same.</DialogDescription>
