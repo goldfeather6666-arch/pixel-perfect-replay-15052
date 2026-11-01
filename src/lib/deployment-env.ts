@@ -7,9 +7,9 @@ export function deploymentEnv(url: string, publicKey: string, serviceRoleKey?: s
     VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: publicKey, VITE_SUPABASE_PUBLISHABLE_KEY: publicKey,
   };
   if (projectRef) {
-    vars.SUPABASE_PROJECT_ID = projectRef;
-    vars.NEXT_PUBLIC_SUPABASE_PROJECT_ID = projectRef;
-    vars.VITE_SUPABASE_PROJECT_ID = projectRef;
+    vars["SUPABASE_PROJECT_ID"] = projectRef;
+    vars["NEXT_PUBLIC_SUPABASE_PROJECT_ID"] = projectRef;
+    vars["VITE_SUPABASE_PROJECT_ID"] = projectRef;
   }
   if (serviceRoleKey) vars["SUPABASE_SERVICE_ROLE_KEY"] = serviceRoleKey;
   return vars;
