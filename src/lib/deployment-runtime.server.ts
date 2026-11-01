@@ -6,7 +6,9 @@ export type RuntimeCheck = {
 
 /** Probe only Vercel-owned deployment hosts; never follow an external redirect or expose response bodies. */
 export async function checkDeploymentRuntime(url: string, signal?: AbortSignal): Promise<RuntimeCheck> {
-  const target = new URL(url);
+  let target: URL;
+  try { target = new URL(url); }
+  catch { return { state: "UNVERIFIED", status: null, note: "Runtime check requires a valid Vercel deployment URL." }; }
   if (target.protocol !== "https:" || !/^[a-z0-9-]+\.vercel\.app$/.test(target.hostname) || target.username || target.password || target.port) {
     return { state: "UNVERIFIED", status: null, note: "Runtime check requires a Vercel deployment URL." };
   }
