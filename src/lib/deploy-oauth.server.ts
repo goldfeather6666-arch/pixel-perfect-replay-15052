@@ -32,7 +32,7 @@ export async function beginOAuth(userId: string, p: DeployOAuthProvider, origin:
   return { url: authorizeUrl(p, { clientId: c.id, redirectUri, state, challenge: await sha256b64url(verifier), vercelSlug: c.slug }), digest };
 }
 
-type Tokens = { access: string; refresh?: string | null; expiresIn?: number | null; teamId?: string | null };
+type Tokens = { access: string; refresh?: string | null; expiresIn?: number | null; teamId?: string | null; installationId?: string | null };
 
 async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>): Promise<Tokens> {
   const c = creds(p);
@@ -44,7 +44,7 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
   const res = await fetch(url, { method: "POST", headers, body: form, redirect: "error", signal: AbortSignal.timeout(20_000) });
   const j = await res.json().catch(() => ({})) as any;
   if (!res.ok || !j.access_token) throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})`);
-  return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null };
+  return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null, installationId: j.installation_id ?? null };
 }
 
 /** Finishes a sign-in: claims the attempt once, checks the browser binding, exchanges the code and saves the account. */
@@ -65,7 +65,7 @@ async function saveOAuthAccount(db: any, userId: string, p: DeployOAuthProvider,
   const { encryptSecret } = await import("./crypto.server");
   const a = await encryptSecret(access);
   const r = t.refresh ? await encryptSecret(t.refresh) : null;
-  const values = { ciphertext: a.ciphertext, iv: a.iv, last4: "auth", refresh_ciphertext: r?.ciphertext ?? null, refresh_iv: r?.iv ?? null, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null };
+  const values = { ciphertext: a.ciphertext, iv: a.iv, last4: "auth", refresh_ciphertext: r?.ciphertext ?? null, refresh_iv: r?.iv ?? null, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null, base_url: p === "vercel" ? (t.installationId ?? null) : null };
   // Signing in again to the same account replaces its tokens instead of adding a duplicate.
   const { data: existing } = await db.from("provider_credentials").select("id").eq("user_id", userId).eq("provider", p).eq("auth_method", "oauth").eq("label", label).maybeSingle();
   if (existing) await db.from("provider_credentials").update(values).eq("id", existing.id).eq("user_id", userId);
@@ -87,4 +87,20 @@ export async function freshOAuthToken(row: any): Promise<string> {
   await db.from("provider_credentials").update({ ciphertext: a.ciphertext, iv: a.iv, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null, ...(r ? { refresh_ciphertext: r.ciphertext, refresh_iv: r.iv } : {}) })
     .eq("id", row.id).eq("user_id", row.user_id).eq("ciphertext", row.ciphertext);
   return t.access;
+}
+
+/** Disconnect: revokes the provider-side grant (best effort) for a one-click account. Pasted-token accounts are never touched. */
+export async function revokeOAuthAccount(row: any) {
+  if (row?.auth_method !== "oauth") return;
+  const { decryptSecret } = await import("./crypto.server");
+  try {
+    if (row.provider === "vercel") {
+      const { unpackVercelToken, withTeam } = await import("./deploy-oauth");
+      const { token, teamId } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
+      if (row.base_url) await fetch(`https://api.vercel.com${withTeam(`/v1/integrations/configuration/${encodeURIComponent(row.base_url)}`, teamId)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    } else if (row.provider === "supabase" && row.refresh_ciphertext) {
+      const c = creds("supabase");
+      await fetch("https://api.supabase.com/v1/oauth/revoke", { method: "POST", headers: { "content-type": "application/json", authorization: `Basic ${btoa(`${c.id}:${c.secret}`)}` }, body: JSON.stringify({ client_id: c.id, client_secret: c.secret, refresh_token: await decryptSecret(row.refresh_ciphertext, row.refresh_iv) }), redirect: "error", signal: AbortSignal.timeout(15_000) });
+    }
+  } catch (e) { console.error("oauth revoke failed", row.provider, e instanceof Error ? e.message : "error"); }
 }
