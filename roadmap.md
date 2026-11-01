@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Reorganize built-in build/deployment guidance into a shared production-first contract for master and specialist agents, with regression coverage; preserve approvals and honest readiness claims.
+
 - [x] Replace runtime Ajv compilation with a non-eval cloud-compatible MCP validator; 23 focused tests passed, including blocked code generation. Live signed-in discovery validated all 8 Framer and 2 Motion tools; no external actions executed. Published code still requires publishing.
 
 - [x] Recover stale page imports with bounded cache-busted document requests and a working manual retry; simulated failed sign-in import recovered in browser, four focused tests passed.
