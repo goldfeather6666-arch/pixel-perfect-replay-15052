@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Check, Database, ExternalLink, Rocket } from "lucide-react";
 import { saveCredential } from "@/lib/app.functions";
+import { ConnectSyncCard } from "@/components/ProjectHealth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import {
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
 const trig = "h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left";
 
-export function DeployPanel({ id }: { id: string }) {
+export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
   const qc = useQueryClient();
   const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }) });
   const refresh = () => qc.invalidateQueries({ queryKey: ["integrations", id] });
@@ -34,6 +35,7 @@ export function DeployPanel({ id }: { id: string }) {
           <li className="flex items-center gap-2"><StepBadge n={4} done={!!d.vercel_project_id} /> Choose a website for this task</li>
         </ul>
       </section>
+      <ConnectSyncCard id={id} {...(onSend ? { onSend } : {})} />
       <AccountsCard id={id} options={d.accountOptions} active={d.activeAccounts} onChange={() => { refresh(); qc.invalidateQueries({ queryKey: ["sb-opts", id] }); qc.invalidateQueries({ queryKey: ["vc-projects", id] }); }} />
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}

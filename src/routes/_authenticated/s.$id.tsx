@@ -4,8 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelLeftClose, PanelRightClose, Globe } from "lucide-react";
+import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
+import { AutoFixButton } from "@/components/ProjectHealth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,11 +34,13 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
 });
 
 type PanelKey = "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
-const LEFT = [
-  ["swarm", "Swarm", Network], ["run", "Run", Activity], ["changes", "Changes", GitCompare],
-  ["knowledge", "Knowledge", BookOpen], ["deploy", "Deploy", Rocket],
+// Simple by default: Preview and Deploy up front, everything advanced under "More".
+const MAIN = [["preview", "Preview", Globe], ["deploy", "Deploy", Rocket]] as const;
+const MORE = [
+  ["changes", "Changes", GitCompare], ["files", "Files", FolderTree], ["terminal", "Terminal", TerminalSquare],
+  ["run", "Run timeline", Activity], ["swarm", "Agents", Network], ["knowledge", "Knowledge", BookOpen],
 ] as const;
-const RIGHT = [["preview", "Preview", Globe], ["terminal", "Terminal", TerminalSquare], ["files", "Files", FolderTree]] as const;
+const ALL = [...MAIN, ...MORE];
 
 function useIsDesktop() {
   const [d, setD] = useState(false);
@@ -51,8 +56,8 @@ function useIsDesktop() {
 function Workspace() {
   const desktop = useIsDesktop();
   const [view, setView] = useState<PanelKey>("chat");
-  const [left, setLeft] = useState<PanelKey | null>("swarm");
-  const [right, setRight] = useState<PanelKey | null>("terminal");
+  const [right, setRight] = useState<PanelKey | null>("preview");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [dockPct, setDockPct] = useState(46);
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -276,13 +281,14 @@ function Workspace() {
   }
 
   const s = session.data;
+  const autoFixSend = (prompt: string) => { if (!desktop) setView("chat"); void send(prompt, false); };
   const renderPanel = (k: PanelKey) => {
     if (!s) return null;
     switch (k) {
       case "swarm": return <SwarmMatrix messages={messages} usage={usage} model={s.model} running={running || bgRunning} />;
       case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
       case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
-      case "deploy": return <DeployPanel id={id} />;
+      case "deploy": return <DeployPanel id={id} onSend={autoFixSend} />;
       case "preview": return <PreviewPanel id={id} />;
       case "terminal": return <TerminalDeck id={id} />;
       case "files": return <FileWorkbench id={id} />;
@@ -319,6 +325,7 @@ function Workspace() {
               {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
             </select>
             <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} disabled={running || bgRunning} />
+            <AutoFixButton id={id} onSend={autoFixSend} compact={!desktop} disabled={running || bgRunning} />
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
                 <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
@@ -328,31 +335,6 @@ function Workspace() {
         )}
       </AppHeader>
       <div className="flex min-h-0 flex-1">
-        {desktop && (
-          <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r bg-card/40 py-2" aria-label="Navigator">
-            {LEFT.map(([k, label, Icon]) => (
-              <button key={k} type="button" title={label} aria-label={label} aria-pressed={left === k} onClick={() => setLeft(left === k ? null : k)}
-                className={`relative grid h-10 w-10 place-items-center rounded-lg transition-colors ${left === k ? "bg-accent text-primary shadow-glow" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}>
-                <Icon className="h-4 w-4" />
-                {k === "changes" && pending.length > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
-                {k === "swarm" && (running || bgRunning) && <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
-              </button>
-            ))}
-            <div className="mt-auto flex flex-col gap-1">
-              {RIGHT.map(([k, label, Icon]) => (
-                <button key={k} type="button" title={label} aria-label={`${label} dock`} onClick={() => setRight(right === k ? null : k)}
-                  className={`grid h-10 w-10 place-items-center rounded-lg ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-4 w-4" /></button>
-              ))}
-            </div>
-          </nav>
-        )}
-        {desktop && left && (
-          <aside className="flex min-h-0 w-[360px] shrink-0 flex-col border-r bg-card/20">
-            <div className="flex items-center border-b px-3 py-2"><span className="hud-label">{LEFT.find((l) => l[0] === left)?.[1]}</span>
-              <button type="button" aria-label="Close panel" onClick={() => setLeft(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelLeftClose className="h-4 w-4" /></button></div>
-            <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(left)}</div>
-          </aside>
-        )}
         <section className={`${!desktop && view !== "chat" ? "hidden" : "flex"} min-w-0 flex-1 flex-col`}>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mx-auto max-w-3xl space-y-5">
@@ -454,25 +436,57 @@ function Workspace() {
           <aside className="relative flex min-h-0 flex-col border-l bg-card/30" style={{ width: `${dockPct}%` }}>
             <div role="separator" aria-label="Resize panels" onPointerDown={startResize} className="absolute -left-1 top-0 z-20 h-full w-2 cursor-col-resize hover:bg-primary/30" />
             <div className="flex items-center gap-1 border-b px-2 py-1.5">
-              {RIGHT.map(([k, label, Icon]) => (
+              {MAIN.map(([k, label, Icon]) => (
                 <button key={k} type="button" onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-3.5 w-3.5" />{label}</button>
               ))}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className={`relative flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${MORE.some((m) => m[0] === right) ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                    <MoreHorizontal className="h-3.5 w-3.5" />{MORE.find((m) => m[0] === right)?.[1] ?? "More"}
+                    {pending.length > 0 && <span className="rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {MORE.map(([k, label, Icon]) => (
+                    <DropdownMenuItem key={k} onSelect={() => setRight(k)}><Icon className="h-4 w-4" />{label}{k === "changes" && pending.length > 0 && <span className="ml-auto text-xs text-primary">{pending.length}</span>}</DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <button type="button" aria-label="Close dock" onClick={() => setRight(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelRightClose className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">{renderPanel(right)}</div>
           </aside>
         )}
+        {desktop && !right && (
+          <button type="button" onClick={() => setRight("preview")} className="flex w-10 shrink-0 flex-col items-center gap-2 border-l bg-card/30 py-3 text-xs text-muted-foreground hover:text-foreground" aria-label="Open side panel"><Globe className="h-4 w-4" /></button>
+        )}
         {!desktop && view !== "chat" && <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(view)}</div>}
       </div>
       {!desktop && (
         <nav className="glass flex shrink-0 overflow-x-auto border-t px-1 pb-[env(safe-area-inset-bottom)]" aria-label="Workspace panels">
-          {([["chat", "Chat", MessageSquare] as const, ...LEFT, ...RIGHT]).map(([k, label, Icon]) => (
-            <button key={k} type="button" onClick={() => setView(k)} className={`relative flex min-w-[4.25rem] flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${view === k ? "text-primary" : "text-muted-foreground"}`}>
-              <Icon className="h-4 w-4" />{label}
-              {k === "changes" && pending.length > 0 && <span className="absolute right-3 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
-              {k === "swarm" && (running || bgRunning) && <span className="absolute right-4 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+          {([["chat", "Chat", MessageSquare] as const, ...MAIN]).map(([k, label, Icon]) => (
+            <button key={k} type="button" onClick={() => setView(k)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${view === k ? "text-primary" : "text-muted-foreground"}`}>
+              <Icon className="h-5 w-5" />{label}
+              {k === "chat" && (running || bgRunning) && <span className="absolute right-1/3 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
             </button>
           ))}
+          <button type="button" onClick={() => setMoreOpen(true)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${MORE.some((m) => m[0] === view) ? "text-primary" : "text-muted-foreground"}`}>
+            <MoreHorizontal className="h-5 w-5" />{MORE.find((m) => m[0] === view)?.[1] ?? "More"}
+            {pending.length > 0 && <span className="absolute right-1/4 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+          </button>
+          <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+            <SheetContent side="bottom" className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              <SheetHeader><SheetTitle>More tools</SheetTitle></SheetHeader>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {MORE.map(([k, label, Icon]) => (
+                  <button key={k} type="button" onClick={() => { setView(k); setMoreOpen(false); }} className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs ${view === k ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                    <Icon className="h-5 w-5" />{label}
+                    {k === "changes" && pending.length > 0 && <span className="absolute right-2 top-2 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+                  </button>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
         </nav>
       )}
     </div>
