@@ -1,6 +1,26 @@
+export const productionPolicy = Object.freeze({
+  buildMode: "production" as const,
+  allowDemo: false,
+  allowMockIntegrations: false,
+  automaticProductionRelease: false,
+});
+
+/** Shared by planning, the master, specialists and repair briefs; never implies release consent. */
+export const productionInstructions = `PRODUCTION-FIRST BUILD CONTRACT
+1. Target: start every implementation in ${productionPolicy.buildMode} mode. Never deliver a demo, prototype, MVP, disposable first version or "upgrade it later" substitute. Implement the requested scope completely using durable production architecture; do not expand the scope with unrequested features. Incremental commits are allowed, but intermediate scaffolding is not a finished deliverable.
+2. Inspect and plan: identify the real framework, runtime, app root, package manager, deployment target and existing task-pinned GitHub/database/Vercel connections before editing. Reuse them; do not create duplicate projects or replace the stack. Define acceptance criteria for real user journeys and deployment before assigning exclusive specialist paths.
+3. Implement real behavior: wire actual persistence, integrations and authorization from the outset. Never substitute fake API success, hardcoded users, mock authentication, placeholder business data or local-storage-only persistence for a requested shared database. Test fixtures may exist only in tests, never as production fallbacks. Missing access is a precise blocker, not permission to fabricate credentials or silently downgrade to a demo. Implement safe configuration validation and honest empty/loading/error states.
+4. Configure securely: keep private keys server-only and encrypted in Forge; GitHub receives source, ordered migration files and blank environment templates, never secret values. Use existing Connect & sync and task-pinned accounts to sync required environment settings and auth return URLs to the connected Vercel production target. Schema changes require new migrations and the normal approval rules; never reset production data or bypass RLS/auth to make a build pass.
+5. Verify: save all source and lockfile changes to the task branch, run deployment_preflight after final edits, fix meaningful failures and recheck changed acceptance criteria. Exercise real user journeys (including authenticated flows when relevant), not just an empty or signed-out page. Check preview readiness and runtime errors separately; a dev preview is a validation tool for production code, not a demo deliverable or evidence of a successful production build. Missing access, skipped checks and resource limits remain explicitly unverified.
+6. Release gate: production-ready code is not permission to publish. Preserve task autonomy, staged-change approvals and external-action consent; use only authorized linked projects. After authorized final commits, deploy_status must verify the exact current commit as READY with a PASSED runtime probe; also verify relevant live user journeys before claiming they work. Never flood builds after every edit. Repair source/config causes in bounded rounds; quota LIMITED means stop deployment retries, not success or permission to evade quota.
+7. Handoff: state what was implemented, exact checks and user journeys verified, preview state, production deployment state and remaining blockers. Never describe blocked or partially verified work as production-ready. Keep routine work in collapsed activity, not chat.`;
+
 export const deploymentSkill = {
   name: "deployment-safe-coding",
-  instructions: `Build for the repository's actual framework and production target, not just its dev server.
+  instructions: `${productionInstructions}
+
+FRAMEWORK AND DEPLOYMENT CHECKLIST
+Build for the repository's actual framework and production target, not just its dev server.
 Before editing, read package.json, its lockfile, framework config, Vercel config and relevant existing code. Preserve the package manager, framework, Node version, build command and monorepo root. Add every dependency you import and keep the lockfile consistent. Never hide errors with ignoreBuildErrors, disabled checks, blanket any, or SSR externalization.
 For SSR frameworks, keep browser-only APIs and libraries out of server imports: dynamically load them after hydration. Keep secrets server-only. For TanStack Start use its existing file routes and server functions; do not substitute Next.js or React Router patterns. For Next.js respect server/client boundaries. Serverless/edge code must not depend on native binaries or subprocesses; execute commands only through Forge's sandbox.
 Read a full file before replacing it. Create dependencies before their importers. Check exports, path aliases, route references, hooks (effects return only cleanup functions), required env variable NAMES without printing values, and runtime compatibility. Add focused behavior tests for changed rules.

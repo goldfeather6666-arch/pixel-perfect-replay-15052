@@ -1,4 +1,5 @@
 // Pure rules for "Connect & sync": sign-in return links, health steps and the Auto-fix brief.
+import { productionInstructions } from "./deployment-quality";
 
 export type StepState = "ok" | "warn" | "fail" | "skip";
 export type SyncStep = { key: string; label: string; state: StepState; note: string };
@@ -45,6 +46,7 @@ export function autoFixPrompt(steps: SyncStep[], buildErrors: string[]): string 
   const problems = steps.filter((s) => s.state === "fail" || s.state === "warn");
   if (!problems.length && !buildErrors.length) return null;
   const lines = [
+    productionInstructions,
     "AUTO-FIX: make this project build, deploy and work (including sign-in and sign-out) on the live site.",
     "Connections were already synced by Forge (database settings in Vercel, sign-in return links, migrations). Remaining blockers:",
     ...problems.map((p) => `- ${p.label}: ${p.note}`),

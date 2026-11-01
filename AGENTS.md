@@ -10,6 +10,8 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
+- Build/deployment instructions share productionInstructions in deployment-quality.ts across master, specialists, work splitting and repair prompts; production-first never grants release consent. Why: consistent production expectations without bypassing approvals.
+- Preview crash repair uses captured status/browser errors and fresh server logs, redacted by preview-repair.ts, through the existing task send flow; repair is user-triggered and disabled during active runs. Why: actionable evidence without secret leakage or competing runs.
 - Subdirectories may have their own AGENTS.md (src/lib/engine/); read it before changing files there.
 - User AI keys/GitHub tokens are AES-GCM encrypted (crypto.server.ts), decrypted server-side only, never returned to the browser. Why: BYOK.
 - Model calls use the user's key via providers.server.ts, never the Lovable AI Gateway. Why: BYOK.

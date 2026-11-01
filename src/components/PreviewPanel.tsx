@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, ExternalLink, Globe, Link2, Loader2, Maximize2, Minimize2, Monitor, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Smartphone, Square, Tablet } from "lucide-react";
+import { AlertTriangle, Copy, ExternalLink, Globe, Link2, Loader2, Maximize2, Minimize2, Monitor, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Smartphone, Square, Tablet, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
 import { getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revokePreviewLinks, startPreviewFn } from "@/lib/preview.functions";
 
 const DEVICES = { desktop: { w: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", icon: Smartphone, label: "Mobile" } } as const;
@@ -11,7 +13,7 @@ type Device = keyof typeof DEVICES;
 
 const TONE: Record<string, string> = { ready: "bg-primary", starting: "bg-accent-foreground animate-pulse", unhealthy: "bg-destructive animate-pulse", error: "bg-destructive", crashed: "bg-destructive", stopped: "bg-muted-foreground", expired: "bg-muted-foreground" };
 
-export function PreviewPanel({ id }: { id: string }) {
+export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; onSend?: (prompt: string) => void | Promise<void>; agentBusy?: boolean }) {
   const qc = useQueryClient();
   const fetchPreview = useServerFn(getPreview);
   const start = useServerFn(startPreviewFn);
@@ -25,6 +27,9 @@ export function PreviewPanel({ id }: { id: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [errors, setErrors] = useState<Array<{ m: string; path?: string }>>([]);
+  const [repairOpen, setRepairOpen] = useState(false);
+  const [dismissedFailure, setDismissedFailure] = useState<string | null>(null);
+  const [sendingRepair, setSendingRepair] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const pendingErr = useRef<Array<{ m: string; path?: string }>>([]);
 
@@ -35,6 +40,12 @@ export function PreviewPanel({ id }: { id: string }) {
   });
   const p = q.data;
   const running = !!p && ["starting", "ready", "unhealthy", "error"].includes(p.status);
+  const needsRepair = previewNeedsRepair(p?.status, errors);
+  const failureKey = needsRepair ? `${p?.id}:${p?.status}:${errors.at(-1)?.m ?? "server"}` : null;
+  useEffect(() => {
+    if (failureKey && failureKey !== dismissedFailure) setRepairOpen(true);
+    if (!failureKey) { setRepairOpen(false); setDismissedFailure(null); }
+  }, [failureKey, dismissedFailure]);
 
   // Get a signed gateway URL once the server is running; refresh before the 30-min token expires.
   useEffect(() => {
@@ -55,7 +66,7 @@ export function PreviewPanel({ id }: { id: string }) {
   useEffect(() => {
     const on = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow || typeof e.data?.forgePreviewError !== "string") return;
-      const item = { m: e.data.forgePreviewError as string, path: typeof e.data.path === "string" ? e.data.path : undefined };
+      const item = { m: redactPreviewDiagnostic(e.data.forgePreviewError.slice(0, 1000)), ...(typeof e.data.path === "string" ? { path: redactPreviewDiagnostic(e.data.path.slice(0, 300)) } : {}) };
       setErrors((x) => [...x, item].slice(-30));
       pendingErr.current.push(item.path ? item : { m: item.m });
     };
@@ -70,7 +81,20 @@ export function PreviewPanel({ id }: { id: string }) {
 
   const startM = useMutation({ mutationFn: () => start({ data: { id } }), onSuccess: () => { setErrors([]); qc.invalidateQueries({ queryKey: ["preview", id] }); }, onError: (e: Error) => toast.error(e.message) });
   const actM = useMutation({ mutationFn: (action: "stop" | "restart") => act({ data: { id, action } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["preview", id] }), onError: (e: Error) => toast.error(e.message) });
-  const logs = useQuery({ queryKey: ["preview-logs", id], queryFn: () => act({ data: { id, action: "logs" } }), enabled: showLogs && !!p, refetchInterval: showLogs && running ? 3000 : false });
+  const logs = useQuery({ queryKey: ["preview-logs", id], queryFn: () => act({ data: { id, action: "logs" } }), enabled: (showLogs || repairOpen) && !!p, refetchInterval: showLogs && running ? 3000 : false });
+  async function fixPreview() {
+    if (!p || !onSend || agentBusy || sendingRepair) return;
+    setSendingRepair(true);
+    try {
+      const latest = await logs.refetch();
+      const output = latest.data && "logs" in latest.data ? latest.data.logs : undefined;
+      const captured = [...(p.browserErrors ?? []), ...errors].slice(-20);
+      await onSend(previewRepairPrompt(p, captured, output));
+      setDismissedFailure(failureKey);
+      setRepairOpen(false);
+    } catch (e) { toast.error(`Could not send repair: ${(e as Error).message}`); }
+    finally { setSendingRepair(false); }
+  }
 
   const absolute = src ? `${typeof window !== "undefined" ? window.location.origin : ""}${src}` : "";
   async function share() {
@@ -84,12 +108,27 @@ export function PreviewPanel({ id }: { id: string }) {
 
   return (
     <div className={`flex min-h-0 flex-col bg-background ${full ? "fixed inset-0 z-50" : "h-full"}`}>
+      <Dialog open={repairOpen} onOpenChange={(open) => { setRepairOpen(open); if (!open) setDismissedFailure(failureKey); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-destructive" />Preview needs a fix</DialogTitle>
+            <DialogDescription>{p?.status === "crashed" ? "The preview server crashed." : p?.status === "error" ? "The preview returned a server error." : "The preview reported a browser error."}</DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border bg-muted p-3 font-mono text-xs text-destructive">{redactPreviewDiagnostic(errors.length ? errors.slice(-3).map((e) => `${e.path ?? ""}: ${e.m}`).join("\n") : p?.logTail || (logs.data && "logs" in logs.data ? logs.data.logs : "") || `Status: ${p?.status ?? "unknown"}; HTTP: ${p?.lastHttp ?? "not recorded"}. No error output captured yet.`)}</pre>
+          {agentBusy && <p role="status" className="text-xs text-muted-foreground">An agent is already working. Send the repair after it finishes, or stop it in Chat.</p>}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setDismissedFailure(failureKey); setRepairOpen(false); }}>Dismiss</Button>
+            <Button onClick={fixPreview} disabled={!onSend || agentBusy || sendingRepair}>{sendingRepair ? <Loader2 className="animate-spin" /> : <Wrench />} {sendingRepair ? "Sending…" : "Fix with AI"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
         <span className="flex items-center gap-1 rounded-md border border-primary/40 bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary" title="Development preview — not production">
           <ShieldCheck className="h-3 w-3" /> Preview
         </span>
         <span className={`h-2 w-2 rounded-full ${TONE[p?.status ?? "stopped"] ?? "bg-muted-foreground"}`} />
         <span className="text-xs capitalize text-muted-foreground">{p ? p.status : "not started"}{p?.framework && p.framework !== "unknown" ? ` · ${p.framework}` : ""}</span>
+        {needsRepair && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button>}
         <div className="ml-auto flex items-center gap-0.5">
           {(Object.keys(DEVICES) as Device[]).map((d) => { const I = DEVICES[d].icon; return (
             <button key={d} type="button" aria-label={DEVICES[d].label} aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded p-1.5 ${device === d ? "bg-accent text-primary" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" /></button>

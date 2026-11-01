@@ -292,7 +292,7 @@ function Workspace() {
       case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
       case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
       case "deploy": return <DeployPanel id={id} onSend={autoFixSend} />;
-      case "preview": return <PreviewPanel id={id} />;
+      case "preview": return <PreviewPanel id={id} agentBusy={running || bgRunning || stopping} onSend={async (prompt) => { if (!desktop) setView("chat"); await send(prompt, false); }} />;
       case "terminal": return <TerminalDeck id={id} />;
       case "files": return <FileWorkbench id={id} />;
       case "changes": return (

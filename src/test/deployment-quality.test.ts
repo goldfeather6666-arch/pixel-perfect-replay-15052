@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { checkFailure, needsFinalCheck, preflightCommand, qualityBlocker } from "@/lib/deployment-quality";
+import { checkFailure, needsFinalCheck, preflightCommand, productionPolicy, qualityBlocker } from "@/lib/deployment-quality";
 
 function fixture(scripts: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "forge-preflight-"));
@@ -12,6 +12,16 @@ function fixture(scripts: Record<string, string>) {
   finally { rmSync(dir, { recursive: true, force: true }); }
 }
 describe("production checks", () => {
+  it("starts builds in production mode, never as a demo", () => {
+    expect(productionPolicy.buildMode).toBe("production");
+    expect(productionPolicy.allowDemo).toBe(false);
+  });
+  it("does not replace real integrations with mocks", () => {
+    expect(productionPolicy.allowMockIntegrations).toBe(false);
+  });
+  it("does not treat production-first building as release consent", () => {
+    expect(productionPolicy.automaticProductionRelease).toBe(false);
+  });
   it("runs omitted final checks but does not blindly repeat attempted checks", () => {
     const state = { changed: true, localPassed: false, linked: true, supervised: false };
     expect(needsFinalCheck(state)).toBe(true);
