@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 import { answerInput, describeAnswer, SUGGESTION_DECISIONS, validateAnswer, type QuestionInput } from "@/lib/engine/discovery";
 
-export type TaskQuestion = QuestionInput & { id: string; run_id: string | null; status: string; answer: unknown; created_at: string };
+export type TaskQuestion = QuestionInput & { id: string; run_id: string | null; status: string; answer: Json | null; created_at: string };
 export type TaskSuggestion = { id: string; title: string; description: string; requested_approach: string; recommended_approach: string; rationale: string; expected_benefit: string[]; complexity: string; risk: string; estimated_impact: string; status: string; created_at: string };
 
 /** Questions, suggestions and the latest specification of one task (owner-only via RLS). */
