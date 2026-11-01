@@ -9,6 +9,10 @@ export async function accountRow(sb: any, userId: string, provider: AccountProvi
 export async function accountToken(sb: any, userId: string, provider: AccountProvider, accounts?: unknown): Promise<string | null> {
   const row = await accountRow(sb, userId, provider, accounts);
   if (!row) return null;
+  if (row.auth_method === "oauth") {
+    const { freshOAuthToken } = await import("./deploy-oauth.server");
+    return freshOAuthToken(row);
+  }
   const { decryptSecret } = await import("./crypto.server");
   return decryptSecret(row.ciphertext, row.iv);
 }
