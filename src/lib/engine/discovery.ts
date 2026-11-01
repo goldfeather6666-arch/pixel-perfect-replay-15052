@@ -84,13 +84,23 @@ export type AnswerInput = z.infer<typeof answerInput>;
 
 /** Validates an answer against the exact stored question. Returns an error string or null. */
 export function validateAnswer(q: Pick<StoredQuestion, "type" | "options" | "required" | "allow_custom_answer" | "allow_skip">, a: AnswerInput): string | null {
-  if (a.skip) return q.allow_skip ? null : "This question cannot be skipped.";
+  if (a.skip) {
+    if (!q.allow_skip) return "This question cannot be skipped.";
+    if (a.option_ids.length || a.text.trim()) return "A skipped answer cannot include a selection or custom text.";
+    return null;
+  }
+  if (new Set(a.option_ids).size !== a.option_ids.length) return "Duplicate options are not allowed.";
+  const text = a.text.trim();
+  if (q.type === "text") {
+    if (a.option_ids.length) return "Text questions do not accept option selections.";
+    return text || !q.required ? null : "Please type an answer.";
+  }
+  if (q.type === "confirmation") {
+    return !text && a.option_ids.length === 1 && ["yes", "no"].includes(a.option_ids[0]!) ? null : "Choose yes or no.";
+  }
   const ids = new Set(q.options.map((o) => o.id));
   const bad = a.option_ids.find((id) => !ids.has(id));
   if (bad) return `Unknown option: ${bad}`;
-  const text = a.text.trim();
-  if (q.type === "text") return text || !q.required ? null : "Please type an answer.";
-  if (q.type === "confirmation") return a.option_ids.length === 1 && ["yes", "no"].includes(a.option_ids[0]!) ? null : "Choose yes or no.";
   if (text && !q.allow_custom_answer) return "Custom answers are not allowed for this question.";
   if (q.type === "single_select" && a.option_ids.length > 1) return "Choose one option.";
   if (!a.option_ids.length && !text) return q.required ? "Choose an option." : null;

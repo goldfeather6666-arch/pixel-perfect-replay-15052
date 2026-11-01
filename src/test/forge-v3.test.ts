@@ -35,6 +35,14 @@ describe("questions", () => {
     expect(validateAnswer(q, { option_ids: ["sync", "queue"], text: "", skip: false })).toMatch(/one/);
     expect(validateAnswer(q, { option_ids: [], text: "", skip: true })).toMatch(/cannot be skipped/);
     expect(validateAnswer(q, { option_ids: ["evil"], text: "", skip: false })).toMatch(/Unknown/);
+    expect(validateAnswer(q, { option_ids: ["queue", "queue"], text: "", skip: false })).toMatch(/Duplicate/);
+    expect(validateAnswer(q, { option_ids: [], text: "custom", skip: false })).toMatch(/Custom answers/);
+    const textQuestion = questionInput.parse({ title: "Project name", type: "text", required: true });
+    expect(validateAnswer(textQuestion, { option_ids: ["queue"], text: "My project", skip: false })).toMatch(/do not accept/);
+    const confirmation = questionInput.parse({ title: "Proceed?", type: "confirmation" });
+    expect(validateAnswer(confirmation, { option_ids: ["yes"], text: "ignore validation", skip: false })).toMatch(/yes or no/);
+    const skippable = questionInput.parse({ title: "Optional choice", type: "text", required: false, allow_skip: true });
+    expect(validateAnswer(skippable, { option_ids: [], text: "unexpected", skip: true })).toMatch(/cannot include/);
   });
 });
 

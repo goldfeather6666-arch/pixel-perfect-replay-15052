@@ -31,8 +31,12 @@ export const getRunEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ runId: z.string().uuid(), afterSeq: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(200).default(200) }))
   .handler(async ({ data, context }) => {
+    const { data: ownedRun } = await context.supabase.from("agent_runs")
+      .select("id").eq("id", data.runId).eq("user_id", context.userId).maybeSingle();
+    if (!ownedRun) throw new Error("Run not found");
     const { data: rows, error } = await context.supabase.from("agent_events")
-      .select("seq, type, payload, created_at").eq("run_id", data.runId).gt("seq", data.afterSeq).order("seq").limit(data.limit);
+      .select("seq, type, payload, created_at").eq("run_id", data.runId).eq("user_id", context.userId)
+      .gt("seq", data.afterSeq).order("seq").limit(data.limit);
     if (error) throw new Error("Could not load run events");
     return { events: rows ?? [], hasMore: (rows?.length ?? 0) === data.limit };
   });
@@ -41,7 +45,7 @@ export const searchErrors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ query: z.string().max(100).default(""), category: z.string().max(40).optional() }))
   .handler(async ({ data, context }) => {
-    let q = context.supabase.from("agent_error_logs").select("category, service, message, created_at, session_id").order("created_at", { ascending: false }).limit(50);
+    let q = context.supabase.from("agent_error_logs").select("category, service, message, created_at, session_id").eq("user_id", context.userId).order("created_at", { ascending: false }).limit(50);
     if (data.category) q = q.eq("category", data.category);
     if (data.query.trim()) q = q.ilike("message", `%${data.query.trim().replace(/[%_]/g, "")}%`);
     const { data: rows, error } = await q;
@@ -53,7 +57,7 @@ export const listMemories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ repo: z.string().min(1).max(200) }))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("project_memories").select("id, category, content, updated_at").eq("repo", data.repo).order("updated_at", { ascending: false }).limit(100);
+    const { data: rows, error } = await context.supabase.from("project_memories").select("id, category, content, updated_at").eq("user_id", context.userId).eq("repo", data.repo).order("updated_at", { ascending: false }).limit(100);
     if (error) throw new Error("Could not load memories");
     return rows ?? [];
   });
