@@ -1,8 +1,8 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Show Vercel unlink beside its account connection and offer saved-account or new-account connection choices.
+- [x] Show Vercel account unlink in the website section and offer saved/new account connection choices; explicit unlink disables fallback and preserves saved accounts/remote websites. Nine account tests passed; real-account browser flow remains unverified.
 
-- [ ] Add read-only preview/database/Vercel diagnosis, AI service inspection tool, and opt-in bounded auto-repair through chat approvals.
+- [x] Add read-only preview/database/Vercel diagnosis, AI service inspection tool, failed-network capture and opt-in auto-repair (three attempts, idle agents only, existing chat approvals). 24 preview tests passed; desktop/phone simulated failure verified service evidence in AI submission. No paid repair, SQL or deployment triggered; live service checks remain unverified.
 
 - [x] Fix account-switch project lists and stale linked projects; expose clear Vercel link/unlink controls. Eight account tests passed and preview compiles. Real-account browser verification blocked: injected account has no suitable task/two Vercel accounts; isolated browser check inconclusive. No deployment triggered.
 
