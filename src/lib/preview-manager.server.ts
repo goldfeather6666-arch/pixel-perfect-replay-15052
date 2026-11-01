@@ -83,8 +83,10 @@ async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: S
     let publicKey = saved?.publicKey ?? "";
     if (!publicKey) {
       // Fall back to the linked project's public key via the user's saved database token.
-      const { data: cred } = await (await admin()).from("provider_credentials").select("ciphertext, iv").eq("user_id", session.user_id).eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
-      if (cred?.length) {
+      const { accountRow } = await import("./accounts.server");
+      const row = await accountRow(await admin(), session.user_id, "supabase", (session as { accounts?: unknown }).accounts);
+      const cred = row ? [row] : [];
+      if (cred.length) {
         const { decryptSecret } = await import("./crypto.server");
         const { SupabaseMgmt } = await import("./integrations.server");
         publicKey = (await new SupabaseMgmt(await decryptSecret(cred[0]!.ciphertext, cred[0]!.iv)).anonKey(session.supabase_ref)) ?? "";
