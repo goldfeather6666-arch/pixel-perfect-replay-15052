@@ -41,7 +41,7 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
   const form = new URLSearchParams(body);
   if (p === "vercel") { form.set("client_id", c.id); form.set("client_secret", c.secret); }
   else headers["authorization"] = `Basic ${btoa(`${c.id}:${c.secret}`)}`;
-  const res = await fetch(url, { method: "POST", headers, body: form, redirect: "error", signal: AbortSignal.timeout(20_000) });
+  const res = await fetch(url, { method: "POST", headers, body: form, redirect: "manual", signal: AbortSignal.timeout(20_000) });
   const j = await res.json().catch(() => ({})) as any;
   if (!res.ok || !j.access_token) throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})`);
   return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null, installationId: j.installation_id ?? null };
@@ -97,10 +97,10 @@ export async function revokeOAuthAccount(row: any) {
     if (row.provider === "vercel") {
       const { unpackVercelToken, withTeam } = await import("./deploy-oauth");
       const { token, teamId } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
-      if (row.base_url) await fetch(`https://api.vercel.com${withTeam(`/v1/integrations/configuration/${encodeURIComponent(row.base_url)}`, teamId)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(15_000) });
+      if (row.base_url) await fetch(`https://api.vercel.com${withTeam(`/v1/integrations/configuration/${encodeURIComponent(row.base_url)}`, teamId)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
     } else if (row.provider === "supabase" && row.refresh_ciphertext) {
       const c = creds("supabase");
-      await fetch("https://api.supabase.com/v1/oauth/revoke", { method: "POST", headers: { "content-type": "application/json", authorization: `Basic ${btoa(`${c.id}:${c.secret}`)}` }, body: JSON.stringify({ client_id: c.id, client_secret: c.secret, refresh_token: await decryptSecret(row.refresh_ciphertext, row.refresh_iv) }), redirect: "error", signal: AbortSignal.timeout(15_000) });
+      await fetch("https://api.supabase.com/v1/oauth/revoke", { method: "POST", headers: { "content-type": "application/json", authorization: `Basic ${btoa(`${c.id}:${c.secret}`)}` }, body: JSON.stringify({ client_id: c.id, client_secret: c.secret, refresh_token: await decryptSecret(row.refresh_ciphertext, row.refresh_iv) }), redirect: "manual", signal: AbortSignal.timeout(15_000) });
     }
   } catch (e) { console.error("oauth revoke failed", row.provider, e instanceof Error ? e.message : "error"); }
 }
