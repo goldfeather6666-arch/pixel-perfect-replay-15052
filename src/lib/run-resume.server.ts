@@ -2,7 +2,7 @@
 // so a scheduled job can restart it after it dies while the user's app is closed.
 import { createClient } from "@supabase/supabase-js";
 import { STALE_MS } from "./task-run-status";
-import { HUMAN_WAIT_STAGES, MAX_AUTO_RESUMES, QUIET_MS, RECOVERY_COOLDOWN_MS, RESUME_MESSAGE, quietStopCandidates, resumeCandidates } from "./run-resume";
+import { MAX_AUTO_RESUMES, QUIET_MS, RECOVERY_COOLDOWN_MS, RESUME_MESSAGE, quietStopCandidates, resumeCandidates } from "./run-resume";
 
 async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
@@ -27,7 +27,7 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
   const db = await admin();
   const { decryptSecret } = await import("./crypto.server");
   const { data: secrets } = await db.from("run_resume_secrets").select("session_id, user_id, ciphertext, iv, attempts, updated_at").limit(100);
-  if (!secrets?.length) return { resumed: 0, cleaned: 0 };
+  if (!secrets?.length) return { resumed: 0, cleaned: 0, stopped: await stopQuietRuns(db, now, new Set()) };
   const { data: sessions } = await db.from("agent_sessions").select("id, user_id, running, stop_requested, updated_at, keeper_id, execution_id").in("id", secrets.map((s: any) => s.session_id));
   const { resume, clean } = resumeCandidates<{ session_id: string; user_id: string; ciphertext: string; iv: string; attempts: number; updated_at: string }>(secrets, sessions ?? [], now, STALE_MS);
   if (clean.length) await db.from("run_resume_secrets").delete().in("session_id", clean);
