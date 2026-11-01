@@ -27,7 +27,13 @@ export const getIntegrations = createServerFn({ method: "POST" })
     const s = await sessionRow(context, data.id);
     const { data: creds } = await context.supabase.from("provider_credentials").select("provider").in("provider", ["supabase", "vercel"]);
     const has = new Set((creds ?? []).map((c: { provider: string }) => c.provider));
+    const { data: all } = await context.supabase.from("provider_credentials").select("id, provider, label, last4, created_at").in("provider", ["github", "supabase", "vercel"]).order("created_at", { ascending: false });
+    const { resolveAccount, cleanAccounts } = await import("./accounts");
+    const chosen = cleanAccounts(s.accounts);
+    const pick = (p: "github" | "supabase" | "vercel") => resolveAccount((all ?? []) as any[], p, chosen)?.id ?? null;
     return {
+      accountOptions: ((all ?? []) as { id: string; provider: string; label: string; last4: string }[]).map((c) => ({ id: c.id, provider: c.provider, label: c.label || c.provider, last4: c.last4 })),
+      activeAccounts: { github: pick("github"), supabase: pick("supabase"), vercel: pick("vercel") },
       hasSupabase: has.has("supabase"),
       hasVercel: has.has("vercel"),
       supabase_ref: s.supabase_ref as string | null,
@@ -244,4 +250,19 @@ export const applyMigrations = createServerFn({ method: "POST" })
     if (!gt) throw new Error("Add a GitHub token in Settings first");
     const { applySessionMigrations } = await import("./migrations.server");
     return applySessionMigrations(context.supabase, s, gt, await need(context, "supabase", s.accounts));
+  });
+
+/** Chooses which saved GitHub / database / Vercel account this task (project) uses. */
+export const setTaskAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), provider: z.enum(["github", "supabase", "vercel"]), account: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await sessionRow(context, data.id);
+    const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.account).eq("provider", data.provider).eq("user_id", context.userId).maybeSingle();
+    if (!cred) throw new Error("That account isn't saved in your Settings");
+    const { cleanAccounts } = await import("./accounts");
+    const accounts = { ...cleanAccounts(s.accounts), [data.provider]: data.account };
+    const { error } = await context.supabase.from("agent_sessions").update({ accounts }).eq("id", data.id).eq("user_id", context.userId);
+    if (error) throw new Error("Could not save the account choice");
+    return { accounts };
   });
