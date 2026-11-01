@@ -63,15 +63,18 @@ export const saveCredential = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     // Validate with a real provider request before storing.
+    let label = data.label;
     if (data.provider === "github") {
       const { GitHub } = await import("./github.server");
       await new GitHub(data.key).user();
-    } else if (data.provider === "supabase") {
-      const { SupabaseMgmt } = await import("./integrations.server");
-      await new SupabaseMgmt(data.key).projects();
-    } else if (data.provider === "vercel") {
-      const { Vercel } = await import("./integrations.server");
-      await new Vercel(data.key).user();
+    } else if (data.provider === "supabase" || data.provider === "vercel") {
+      // Identify the real account behind the token; a second token for the same account is refused.
+      const { identifySaved, serviceClient } = await import("./account-identity.server");
+      const { identityLabel, sameAccount, duplicateTokenMessage } = await import("./account-identity");
+      const identity = await serviceClient(data.provider, data.key).identity();
+      const dup = sameAccount(await identifySaved(context.supabase, context.userId, data.provider), identity);
+      if (dup) throw new Error(duplicateTokenMessage(data.provider, identity, dup.last4));
+      label = identityLabel(data.provider, data.label, identity);
     } else {
       const { listProviderModels } = await import("./providers.server");
       const { pingChat } = await import("./providers.server");
@@ -87,7 +90,7 @@ export const saveCredential = createServerFn({ method: "POST" })
     const enc = await encryptSecret(data.key);
     const { error, data: saved } = await context.supabase.from("provider_credentials").insert({
       provider: data.provider,
-      label: data.label,
+      label,
       base_url: data.base_url,
       custom_models: data.custom_models,
       extra_body: (data.extra_body ?? null) as never,
