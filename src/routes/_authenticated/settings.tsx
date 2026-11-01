@@ -89,19 +89,11 @@ function SettingsPage() {
         </div>
         {tab === "tools" ? (
           <>
-            <section className="rounded-lg border bg-card p-5">
-              <h2 className="font-semibold">Skills</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Reusable instructions the agent follows, saved by you or imported from GitHub.</p>
-              <Button asChild variant="secondary" size="sm" className="mt-3"><Link to="/skills">Manage skills</Link></Button>
-            </section>
-            <McpConnections />
-          </>
-        ) : (<>
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="font-semibold">{tab === "ai" ? "Add an AI key" : "Add an account"}</h2>
+            <section className="panel rounded-2xl p-4 sm:p-6">
+          <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-primary"><ShieldCheck className="size-5" /></div><div><h2 className="font-semibold tracking-tight">{tab === "ai" ? "Connect an AI provider" : "Connect an account"}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {tab === "ai" ? "Keys are checked with the provider, encrypted and never shown again." : "Add as many GitHub, database and Vercel accounts as you like; each project picks its own in Deploy. GitHub needs a token with repo access; for the database use an access token with full access so Forge can fix sign-in links."}
-          </p>
+            {tab === "ai" ? "Keys are verified, encrypted and never displayed again." : "Connect your own GitHub, Supabase and Vercel accounts. Each project can use its own selected accounts."}
+          </p></div></div>
           <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
             <div className="space-y-1.5">
               <Label>Service</Label>
@@ -148,10 +140,14 @@ function SettingsPage() {
           </form>
         </section>
 
-        <section>
-          <h2 className="mb-3 font-semibold">{tab === "ai" ? "Saved AI keys" : "Saved accounts"}</h2>
-          {creds.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {shown?.length === 0 && <p className="text-sm text-muted-foreground">Nothing saved yet.</p>}
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 className="font-semibold tracking-tight">{tab === "ai" ? "Your AI providers" : "Your connected accounts"}</h2><p className="mt-0.5 text-xs text-muted-foreground">{shown?.length ?? 0} connection{shown?.length === 1 ? "" : "s"} shown</p></div>
+            <div className="relative w-full sm:max-w-xs"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search connections…" aria-label="Search connections" className="h-10 pl-9" /></div>
+          </div>
+          {creds.isLoading && <div className="panel flex items-center gap-3 p-4 text-sm text-muted-foreground"><RefreshCw className="size-4 animate-spin" />Loading your connections…</div>}
+          {creds.error && <div className="panel flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><span>Could not load connections: {(creds.error as Error).message}</span><Button size="sm" variant="outline" onClick={() => void creds.refetch()}>Try again</Button></div>}
+          {!creds.isLoading && !creds.error && shown?.length === 0 && <div className="panel p-6 text-center"><p className="text-sm font-medium">{search.trim() ? "No matching connections" : "Nothing connected yet"}</p><p className="mt-1 text-xs text-muted-foreground">{search.trim() ? "Try a different search term." : "Add a connection above to get started."}</p>{search.trim() && <Button className="mt-3" size="sm" variant="outline" onClick={() => setSearch("")}>Clear search</Button>}</div>}
           <ul className="space-y-2">
             {shown?.map((c) => (
               <li key={c.id} className="flex min-w-0 items-center gap-3 rounded-xl border bg-card/80 px-3 py-3 transition-colors hover:bg-accent/30 sm:px-4">
@@ -160,17 +156,11 @@ function SettingsPage() {
                   <p className="truncate font-mono text-[11px] text-muted-foreground sm:text-xs">{providerName(c.provider)} · ••••{c.last4}{c.base_url ? ` · ${c.base_url}` : ""}</p>
                   {!!c.custom_models?.length && <p className="truncate text-xs text-muted-foreground">Models: {c.custom_models.join(", ")}</p>}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Remove"
-                  onClick={async () => {
-                    await del({ data: { id: c.id } });
-                    qc.invalidateQueries({ queryKey: ["creds"] });
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <Button variant="ghost" size="icon" aria-label={`Remove ${c.label}`} onClick={async () => {
+                  if (!window.confirm(`Remove “${c.label}” from Forge? Existing tasks may need a replacement connection.`)) return;
+                  try { await del({ data: { id: c.id } }); await qc.invalidateQueries({ queryKey: ["creds"] }); toast.success("Connection removed"); }
+                  catch (error) { toast.error((error as Error).message); }
+                }}><Trash2 className="size-4" /></Button>
               </li>
             ))}
           </ul>
