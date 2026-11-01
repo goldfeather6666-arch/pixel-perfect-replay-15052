@@ -11,8 +11,8 @@ export function createResponsesCall(
   request: Request,
   config: { baseURL: string; apiKey: string; model: string },
   messages: ModelMessage[],
-  output?: Parameters<typeof streamText>[0]["output"],
   instructions?: string,
+  output?: Parameters<typeof streamText>[0]["output"],
 ) {
   const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
   const provider = createOpenAI({
@@ -27,7 +27,7 @@ export function createResponsesCall(
     // AI SDK 6 lacks `instructions`: rename this key to `system` there.
     ...(instructions ? { instructions } : {}),
     messages,
-    output,
+    ...(output ? { output } : {}),
     maxRetries: 0,
     abortSignal: request.signal,
     providerOptions: {
@@ -46,6 +46,7 @@ export function createResponsesCall(
   });
   return {
     result,
+    runIdFetch,
     response: () =>
       withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({ sendReasoning: true }), runIdFetch),
   };

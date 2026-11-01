@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, ImagePlus, Loader2, ScanEye, Square, Upload, Wrench, X } from "lucide-react";
+import { Check, Copy, ImagePlus, Loader2, ScanEye, Square, Wrench, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { screenshotError, VISUAL_BUCKET, visualFixPrompt, comparisonResult, type VisualComparison as Comparison, type VisualEvent } from "@/lib/visual-comparison";
 
 type Screenshot = { path: string; url: string; name: string; width: number; height: number };
-export function VisualComparison({ id, onSend, agentBusy }: { id: string; onSend?: (prompt: string) => void | Promise<void>; agentBusy: boolean }) {
+export function VisualComparison({ id, onSend, agentBusy }: { id: string; onSend: ((prompt: string) => void | Promise<void>) | undefined; agentBusy: boolean }) {
   const [open, setOpen] = useState(false);
   const [reference, setReference] = useState<Screenshot | null>(null);
   const [current, setCurrent] = useState<Screenshot | null>(null);
