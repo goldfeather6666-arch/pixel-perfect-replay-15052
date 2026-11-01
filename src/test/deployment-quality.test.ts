@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { checkFailure, needsFinalCheck, preflightCommand, productionPolicy, qualityBlocker } from "@/lib/deployment-quality";
+import { checkFailure, needsFinalCheck, preflightCommand, productionPolicy, qualityBlocker, previewDiagnosisSkill } from "@/lib/deployment-quality";
 
 function fixture(scripts: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "forge-preflight-"));
@@ -24,6 +25,13 @@ describe("production checks", () => {
     expect(productionInstructions).toContain("BYO customer resources");
     expect(productionInstructions).toContain("never fall back to the operator");
     expect(productionInstructions).toContain("process-alive or HTTP below 500 alone is insufficient");
+  });
+  it("auto-activates the built-in preview diagnosis skill for preview failures", () => {
+    const meta = parseSkill(previewDiagnosisSkill.name, previewDiagnosisSkill.instructions);
+    expect(meta.activation).toBe("auto");
+    expect(meta.triggers).toContain("preview");
+    const selected = selectSkills("Fix the live preview browser error", [meta]);
+    expect(selected.selected.map((item) => item.skill.name)).toContain("preview-diagnosis-and-repair");
   });
   it("does not replace real integrations with mocks", () => { expect(productionPolicy.allowMockIntegrations).toBe(false); });
   it("does not treat production-first building as release consent", () => { expect(productionPolicy.automaticProductionRelease).toBe(false); });
