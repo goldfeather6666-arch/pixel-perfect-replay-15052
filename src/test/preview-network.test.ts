@@ -11,9 +11,9 @@ describe("preview failed-request capture", () => {
       parent: { postMessage: (m: unknown) => messages.push(m) },
       addEventListener: () => {}, console: { error: () => {} }, fetch: async () => response,
     };
-    browser.window = browser;
+    browser["window"] = browser;
     runInNewContext(ERROR_BRIDGE.replace(/^<script>|<\/script>$/g, ""), browser);
-    const result = await browser.fetch("https://user:password@example.com/api/items?private=secret#token", { headers: { Authorization: "Bearer secret" }, body: "private body" });
+    const result = await browser["fetch"]("https://user:password@example.com/api/items?private=secret#token", { headers: { Authorization: "Bearer secret" }, body: "private body" });
     expect(result).toBe(response);
     expect(JSON.parse(JSON.stringify(messages))).toEqual([{ forgePreviewError: "HTTP 403 · /api/items", path: "/account" }]);
   });
@@ -21,9 +21,9 @@ describe("preview failed-request capture", () => {
     const messages: unknown[] = [];
     const failure = new Error("private provider detail");
     const browser: Record<string, any> = { URL, location: { href: "https://preview.example/", pathname: "/" }, parent: { postMessage: (m: unknown) => messages.push(m) }, addEventListener: () => {}, console: { error: () => {} }, fetch: async () => { throw failure; } };
-    browser.window = browser;
+    browser["window"] = browser;
     runInNewContext(ERROR_BRIDGE.replace(/^<script>|<\/script>$/g, ""), browser);
-    await expect(browser.fetch("/api/data?key=secret")).rejects.toBe(failure);
+    await expect(browser["fetch"]("/api/data?key=secret")).rejects.toBe(failure);
     expect(JSON.parse(JSON.stringify(messages))).toEqual([{ forgePreviewError: "Network request failed · /api/data", path: "/" }]);
   });
 });
