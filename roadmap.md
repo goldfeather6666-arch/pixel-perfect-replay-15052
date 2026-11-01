@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [x] Surface file/MCP approvals and pending database migrations in live chat; shared resolvers and inline confirmations retain consent safeguards. 30 focused tests passed; signed-in simulated MCP approval verified desktop/phone and status read-back without external actions. Database application not executed during verification.
+
 - [x] Reorganize built-in build/deployment guidance into a shared production-first contract for master, specialists, work splitting and repair briefs; preserve approvals and honest readiness claims. Focused checks passed; no paid model run triggered.
 - [x] Add a crashed-preview repair popup that sends captured status, browser errors and fresh server logs to the agent with credential redaction. Signed-in desktop/phone simulated-crash check verified popup and exact diagnostic submission; no paid repair or production deployment started.
 
