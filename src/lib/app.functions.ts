@@ -323,6 +323,23 @@ export const readFile = createServerFn({ method: "POST" })
     return f?.content ?? null;
   });
 
+/** Raw base64 file for chat downloads/previews of files the agent shared. */
+export const readFileRaw = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), path: z.string().min(1).max(500) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const gh = await github(context, s.accounts);
+    const branch = encodeURIComponent(s.work_branch);
+    const path = data.path.split("/").map(encodeURIComponent).join("/");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const f = await gh.req<any>(`repos/${s.repo}/contents/${path}?ref=${branch}`).catch(() => null);
+    if (!f || Array.isArray(f)) return null;
+    let b64 = String(f.content ?? "").replace(/\s/g, "");
+    if (!b64 && f.sha) b64 = String((await gh.req<any>(`repos/${s.repo}/git/blobs/${f.sha}`)).content ?? "").replace(/\s/g, ""); // >1 MB files
+    return { data: b64, size: f.size as number };
+  });
+
 export const getDiff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid() }))

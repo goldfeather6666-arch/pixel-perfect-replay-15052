@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
+import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { AutoFixButton } from "@/components/ProjectHealth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,7 +26,9 @@ import { SwarmMatrix } from "@/components/SwarmMatrix";
 import { KnowledgeDirector } from "@/components/KnowledgeDirector";
 import { FileWorkbench } from "@/components/FileWorkbench";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
-import { taskRunStatus } from "@/lib/task-run-status";
+import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
+import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
+import { SharedFiles } from "@/components/SharedFiles";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -101,17 +103,18 @@ function Workspace() {
     if (wasBgRunning.current && !sd?.running && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
     wasBgRunning.current = !!sd?.running;
   }, [sd?.running]);
-  const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > 120_000;
+  const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > STALE_MS;
   const bgRunning = !running && !!sd?.running && !stale;
   const runStart = useRef<number>(0);
   const runPlan = useRef(false);
   const [images, setImages] = useState<{ mediaType: string; data: string; name: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   async function addImages(files: FileList | null) {
-    for (const f of Array.from(files ?? []).slice(0, 4 - images.length)) {
-      if (!/^image\/(png|jpeg|webp|gif)$/.test(f.type) || f.size > 5_000_000) { toast.error(`${f.name}: use PNG/JPEG/WebP/GIF under 5 MB`); continue; }
+    for (const f of Array.from(files ?? []).slice(0, MAX_ATTACHMENTS - images.length)) {
+      const type = attachmentType(f.name, f.type);
+      if (!type || f.size > MAX_ATTACHMENT_BYTES) { toast.error(`${f.name}: use images, PDF, TXT, MD, CSV or JSON under 10 MB`); continue; }
       const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] ?? ""); r.onerror = rej; r.readAsDataURL(f); });
-      setImages((x) => [...x, { mediaType: f.type, data, name: f.name }]);
+      setImages((x) => [...x, { mediaType: type, data, name: f.name }]);
     }
   }
 
@@ -194,7 +197,7 @@ function Workspace() {
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
     setRunning(true);
     lastWasPlan.current = plan;
-    setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "", tools: [] }]);
+    setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${text}\n\n📎 ${sentImages.map((im) => im.name).join(", ")}` : text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
       setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
     const ac = new AbortController();
@@ -204,7 +207,7 @@ function Workspace() {
       // A fresh token gives the cloud-kept run a full hour of access.
       const refreshed = await supabase.auth.refreshSession().catch(() => null);
       const token = refreshed?.data.session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token;
-      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: images.map(({ mediaType, data }) => ({ mediaType, data })) }));
+      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
       // Prefer a cloud-kept run so work continues when the phone sleeps or switches apps.
       const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
       if (!bg.ok) throw new Error(await bg.text());
@@ -360,7 +363,7 @@ function Workspace() {
                 </div>
               )}
               {messages.map((m, i) => (
-                <MessageView key={i} m={m} live={running && i === messages.length - 1} />
+                <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
@@ -394,13 +397,15 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 2 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 text-xs text-destructive"><p className="min-w-0 flex-1">No update for over 15 minutes. Progress is saved.</p><Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stopWork} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button></div>}
             {sendError && <p role="alert" className="mx-auto mb-2 max-w-3xl break-words text-sm text-destructive">{sendError}</p>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
                 {images.map((im, i) => (
                   <span key={i} className="relative">
-                    <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-14 rounded border object-cover" />
+                    {im.mediaType.startsWith("image/")
+                      ? <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-14 rounded border object-cover" />
+                      : <span className="flex h-14 max-w-40 items-center gap-1.5 rounded border bg-secondary px-2 text-xs"><FileText className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{im.name}</span></span>}
                     <button type="button" aria-label={`Remove ${im.name}`} className="absolute -right-1 -top-1 rounded-full border bg-background p-0.5" onClick={() => setImages((x) => x.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button>
                   </span>
                 ))}
@@ -419,8 +424,8 @@ function Workspace() {
                 className="max-h-48 min-h-11 resize-none"
                 rows={1}
               />
-              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-              <Button type="button" size="icon" variant="ghost" aria-label="Attach image" disabled={images.length >= 4} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+              <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+              <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
               {running || bgRunning ? (
                 <Button type="button" size="icon" variant="secondary" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>
               ) : (
@@ -494,13 +499,14 @@ function Workspace() {
   );
 }
 
-function MessageView({ m, live }: { m: ChatMessage; live: boolean }) {
+function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
   if (m.role === "user")
     return <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg bg-secondary px-4 py-2.5 text-sm">{m.content}</div>;
   return (
     <div className="space-y-2 text-sm">
       {!!m.tools?.length && <ActivityView tools={m.tools} live={live} />}
       {m.content && <div className="prose-agent"><ReactMarkdown>{m.content}</ReactMarkdown></div>}
+      <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
     </div>
   );

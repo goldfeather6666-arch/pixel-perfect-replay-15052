@@ -10,6 +10,6 @@ describe("task execution status", () => {
   });
   it("does not show inactive or stale tasks as live", () => {
     expect(taskRunStatus({ ...fresh, running: false, keeper_id: "keeper" }, now)).toBe("idle");
-    expect(taskRunStatus({ ...fresh, updated_at: "2026-10-31T03:36:00Z", keeper_id: "keeper" }, now)).toBe("stale");
+    expect(taskRunStatus({ ...fresh, updated_at: "2026-10-31T03:20:00Z", keeper_id: "keeper" }, now)).toBe("stale");
   });
 });
