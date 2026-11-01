@@ -5,13 +5,14 @@ export type TaskAccounts = Partial<Record<AccountProvider, string | null>>;
 
 type Row = { id: string; provider: string; created_at: string };
 
-/** The task's pinned account when it still exists, otherwise the newest saved account of that service. */
+/** An explicit task pin is authoritative: if it is deleted or unavailable, never silently switch accounts. */
 export function resolveAccount<T extends Row>(rows: T[], provider: AccountProvider, accounts?: TaskAccounts | null): T | null {
   const mine = rows.filter((r) => r.provider === provider);
-  if (accounts?.[provider] === null) return null;
-  const pin = accounts?.[provider];
-  const pinned = pin ? mine.find((r) => r.id === pin) : undefined;
-  if (pinned) return pinned;
+  if (accounts && Object.prototype.hasOwnProperty.call(accounts, provider)) {
+    const pin = accounts[provider];
+    if (!pin) return null;
+    return mine.find((r) => r.id === pin) ?? null;
+  }
   return [...mine].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 }
 
