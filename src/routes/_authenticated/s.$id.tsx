@@ -80,7 +80,7 @@ function Workspace() {
     queryKey: ["session", id],
     queryFn: () => fetchSession({ data: { id } }),
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
-    refetchInterval: (q) => (stopping || (!running && (q.state.data as { running?: boolean } | undefined)?.running) ? 3000 : false),
+    refetchInterval: running ? false : 3000,
   });
   const sd = session.data;
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
@@ -143,7 +143,7 @@ function Workspace() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data]);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages.length, pending.length]);
   useEffect(() => { taRef.current?.focus(); }, [running]);
   useEffect(() => { if (!running && !sd?.running) setStopping(false); }, [running, sd?.running]);
 
@@ -365,6 +365,8 @@ function Workspace() {
               {messages.map((m, i) => (
                 <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
+              <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
+              <McpActionApprovals sessionId={id} chat />
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
@@ -631,16 +633,28 @@ function FilesView({ id }: { id: string }) {
   );
 }
 
-function ChangesView({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining?: PendingChange[]) => void }) {
-  const fetchDiff = useServerFn(getDiff);
+function PendingApprovals({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining: PendingChange[]) => void }) {
   const resolve = useServerFn(resolvePending);
-  const pr = useServerFn(openPullRequest);
-  const diff = useQuery({ queryKey: ["diff", id], queryFn: () => fetchDiff({ data: { id } }) });
   const resolveM = useMutation({
     mutationFn: (v: { approve: boolean; paths?: string[] }) => resolve({ data: { id, ...v } }),
     onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
+  if (!pending.length) return null;
+  return <section className="space-y-2" aria-label="File and data change approvals" aria-live="polite">
+    <div className="flex flex-wrap items-center gap-2">
+      <h3 className="flex-1 font-semibold">Changes awaiting approval · {pending.length}</h3>
+      <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Reject all</Button>
+      <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
+    </div>
+    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={() => resolveM.mutate({ approve: true, paths: [c.path] })} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+  </section>;
+}
+
+function ChangesView({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining?: PendingChange[]) => void }) {
+  const fetchDiff = useServerFn(getDiff);
+  const pr = useServerFn(openPullRequest);
+  const diff = useQuery({ queryKey: ["diff", id], queryFn: () => fetchDiff({ data: { id } }) });
   const restore = useServerFn(restoreCheckpoint);
   const restoreM = useMutation({
     mutationFn: (sha: string) => restore({ data: { id, sha } }),
@@ -656,20 +670,7 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-3">
       <McpActionApprovals sessionId={id} />
-      {pending.length > 0 && (
-        <section className="rounded-lg border border-primary/50 bg-card">
-          <div className="flex flex-wrap items-center gap-2 border-b p-3">
-            <h3 className="flex-1 font-semibold">Waiting for your approval</h3>
-            <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Discard</Button>
-            <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
-          </div>
-          {pending.map((c, i) => (
-            <PendingView key={i} c={c} busy={resolveM.isPending}
-              onAccept={() => resolveM.mutate({ approve: true, paths: [c.path] })}
-              onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />
-          ))}
-        </section>
-      )}
+      <PendingApprovals id={id} pending={pending} onResolved={onResolved} />
       <section>
         <div className="mb-2 flex items-center gap-2">
           <h3 className="flex-1 font-semibold">Committed on branch</h3>

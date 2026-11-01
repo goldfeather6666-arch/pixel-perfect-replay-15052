@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [ ] Surface all existing staged agent approvals directly in live chat with live refresh and approve/reject controls; retain consent safeguards.
+
 - [x] Reorganize built-in build/deployment guidance into a shared production-first contract for master, specialists, work splitting and repair briefs; preserve approvals and honest readiness claims. Focused checks passed; no paid model run triggered.
 - [x] Add a crashed-preview repair popup that sends captured status, browser errors and fresh server logs to the agent with credential redaction. Signed-in desktop/phone simulated-crash check verified popup and exact diagnostic submission; no paid repair or production deployment started.
 
