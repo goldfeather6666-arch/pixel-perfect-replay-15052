@@ -60,3 +60,5 @@
 
 - [x] Multi-project parallel work: 3-4 tasks at once, each with its own repo/database/Vercel, no re-setup per project
 - [ ] Live preview: Next.js runs + gateway verified; Artelie3d needs NEXT_PUBLIC_SUPABASE keys (database token lacks api_gateway_keys_read) — blocked on user; Vite app not yet live-tested
+- [x] Several GitHub/database/Vercel accounts, chosen per project
+- [x] Vite preview blocked host fixed

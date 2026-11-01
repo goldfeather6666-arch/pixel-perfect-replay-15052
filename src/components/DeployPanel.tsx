@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv, saveDatabaseSettings,
+  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv, saveDatabaseSettings, setTaskAccount,
 } from "@/lib/integrations.functions";
 
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
@@ -34,6 +34,7 @@ export function DeployPanel({ id }: { id: string }) {
           <li className="flex items-center gap-2"><StepBadge n={4} done={!!d.vercel_project_id} /> Choose a website for this task</li>
         </ul>
       </section>
+      <AccountsCard id={id} options={d.accountOptions} active={d.activeAccounts} onChange={() => { refresh(); qc.invalidateQueries({ queryKey: ["sb-opts", id] }); qc.invalidateQueries({ queryKey: ["vc-projects", id] }); }} />
       <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
       <VercelCard dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
@@ -41,6 +42,54 @@ export function DeployPanel({ id }: { id: string }) {
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
       )}
     </div>
+  );
+}
+
+type AccountOption = { id: string; provider: string; label: string; last4: string };
+const SERVICES = [
+  { key: "github", name: "GitHub" },
+  { key: "supabase", name: "Database (Supabase)" },
+  { key: "vercel", name: "Website (Vercel)" },
+] as const;
+
+/** Which saved account this project uses for each service; projects keep their own choice. */
+function AccountsCard({ id, options, active, onChange }: { id: string; options: AccountOption[]; active: Record<string, string | null>; onChange: () => void }) {
+  const save = useServerFn(setTaskAccount);
+  const [adding, setAdding] = useState<"Supabase" | "Vercel" | null>(null);
+  const m = useMutation({
+    mutationFn: (v: { provider: "github" | "supabase" | "vercel"; account: string }) => save({ data: { id, ...v } }),
+    onSuccess: () => { toast.success("Account saved for this project"); onChange(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!options.length) return null;
+  return (
+    <section className="min-w-0 rounded-lg border bg-card p-4">
+      <h2 className="font-semibold">Accounts for this project</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Each project remembers its own accounts, so tasks on different accounts can run at the same time.</p>
+      <div className="mt-3 space-y-3">
+        {SERVICES.map((svc) => {
+          const list = options.filter((o) => o.provider === svc.key);
+          if (!list.length) return null;
+          return (
+            <div key={svc.key} className="grid gap-1.5 sm:grid-cols-[10rem_1fr] sm:items-center">
+              <Label className="text-sm">{svc.name}</Label>
+              <Select value={active[svc.key] ?? ""} onValueChange={(v) => m.mutate({ provider: svc.key, account: v })} disabled={m.isPending || list.length < 2}>
+                <SelectTrigger className={trig}><SelectValue placeholder="Choose account" /></SelectTrigger>
+                <SelectContent>
+                  {list.map((o) => <SelectItem key={o.id} value={o.id}>{o.label} ···{o.last4}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={() => setAdding(adding === "Supabase" ? null : "Supabase")}>Add another database account</Button>
+        <Button variant="outline" size="sm" onClick={() => setAdding(adding === "Vercel" ? null : "Vercel")}>Add another Vercel account</Button>
+        <Button asChild variant="ghost" size="sm"><Link to="/settings">Add GitHub account in Settings</Link></Button>
+      </div>
+      {adding && <div className="mt-3 rounded-md border p-3"><NeedToken name={adding} onDone={() => { setAdding(null); onChange(); }} /></div>}
+    </section>
   );
 }
 
@@ -104,7 +153,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
   const [name, setName] = useState(`forge-${id.slice(0, 6)}`);
   const [org, setOrg] = useState("");
   const [region, setRegion] = useState("us-east-1");
-  const opts = useQuery({ queryKey: ["sb-opts"], queryFn: useServerFn(listSupabaseOptions), enabled: has && !linked });
+  const opts = useQuery({ queryKey: ["sb-opts", id], queryFn: useServerFn(listSupabaseOptions).bind(null, { data: { id } }), enabled: has && !linked });
   const orgId = org || opts.data?.orgs[0]?.id || "";
   const link = useServerFn(linkSupabase);
   const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000 });
@@ -182,7 +231,7 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
 function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
-  const projects = useQuery({ queryKey: ["vc-projects"], queryFn: useServerFn(listVercelProjects), enabled: has && !linked });
+  const projects = useQuery({ queryKey: ["vc-projects", id], queryFn: useServerFn(listVercelProjects).bind(null, { data: { id } }), enabled: has && !linked });
   const link = useServerFn(linkVercel);
   const deps = useQuery({ queryKey: ["deps", id, linked], queryFn: useServerFn(getDeployments).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 10000 });
   const linkM = useMutation({

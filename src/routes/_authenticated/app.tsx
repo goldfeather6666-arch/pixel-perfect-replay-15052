@@ -50,8 +50,13 @@ function Dashboard() {
   });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
   const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
-  const hasGh = creds.data?.some((c) => c.provider === "github");
-  const repos = useQuery({ queryKey: ["repos"], queryFn: () => fetchRepos(), enabled: !!hasGh });
+  const ghCreds = useMemo(() => creds.data?.filter((c) => c.provider === "github") ?? [], [creds.data]);
+  const hasGh = ghCreds.length > 0;
+  // Several GitHub accounts: the chosen one lists repos and is remembered by the new project.
+  const [ghAccount, setGhAccount] = useState("");
+  const ghId = ghAccount || ghCreds[0]?.id || "";
+  const ghData = ghId ? { account: ghId } : {};
+  const repos = useQuery({ queryKey: ["repos", ghId], queryFn: () => fetchRepos({ data: ghData }), enabled: !!hasGh });
 
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("");
@@ -61,7 +66,7 @@ function Dashboard() {
   const [manualModel, setManualModel] = useState("");
   const [mode, setMode] = useState<Autonomy>("supervised");
 
-  const branches = useQuery({ queryKey: ["branches", repo], queryFn: () => fetchBranches({ data: { repo } }), enabled: !!repo });
+  const branches = useQuery({ queryKey: ["branches", repo, ghId], queryFn: () => fetchBranches({ data: { repo, ...ghData } }), enabled: !!repo });
   const models = useQuery({ queryKey: ["models", credId], queryFn: () => fetchModels({ data: { id: credId } }), enabled: !!credId, retry: false });
 
   useEffect(() => {
@@ -78,7 +83,7 @@ function Dashboard() {
   const [newPrivate, setNewPrivate] = useState(true);
   const qc = useQueryClient();
   const createRepoM = useMutation({
-    mutationFn: () => makeRepo({ data: { name: newName.trim(), description: newDesc, private: newPrivate } }),
+    mutationFn: () => makeRepo({ data: { name: newName.trim(), description: newDesc, private: newPrivate, ...ghData } }),
     onSuccess: async (r) => {
       await qc.invalidateQueries({ queryKey: ["repos"] });
       await qc.refetchQueries({ queryKey: ["repos"] });
@@ -94,7 +99,7 @@ function Dashboard() {
 
   const createM = useMutation({
     mutationFn: () =>
-      create({ data: { repo, base_branch: branch, credential_id: credId, model: manualModel || model, mode, title: "New task" } }),
+      create({ data: { repo, base_branch: branch, credential_id: credId, model: manualModel || model, mode, title: "New task", accounts: ghId ? { github: ghId } : {} } }),
     onSuccess: (id) => { if (teamPrompt) sessionStorage.setItem(`forge:draft:${id}`, teamPrompt); return setupConnections ? setSetupId(id) : nav({ to: "/s/$id", params: { id } }); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -162,6 +167,15 @@ function Dashboard() {
             </div>
           ) : (
             <form className="mt-4 space-y-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
+              {ghCreds.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label>GitHub account</Label>
+                  <Select value={ghId} onValueChange={(v) => { setGhAccount(v); setRepo(""); setBranch(""); }}>
+                    <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate"><SelectValue placeholder="Choose account" /></SelectTrigger>
+                    <SelectContent>{ghCreds.map((c) => <SelectItem key={c.id} value={c.id}>{c.label || "GitHub"} ···{c.last4}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>Repository</Label>

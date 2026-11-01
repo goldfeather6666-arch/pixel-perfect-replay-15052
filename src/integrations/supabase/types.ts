@@ -201,6 +201,7 @@ export type Database = {
       }
       agent_sessions: {
         Row: {
+          accounts: Json
           applied_migrations: string[]
           base_branch: string
           created_at: string
@@ -227,6 +228,7 @@ export type Database = {
           work_branch: string
         }
         Insert: {
+          accounts?: Json
           applied_migrations?: string[]
           base_branch: string
           created_at?: string
@@ -253,6 +255,7 @@ export type Database = {
           work_branch: string
         }
         Update: {
+          accounts?: Json
           applied_migrations?: string[]
           base_branch?: string
           created_at?: string

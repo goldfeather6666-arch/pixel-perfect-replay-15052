@@ -1,3 +1,4 @@
+import { cleanAccounts } from "./accounts";
 import { AUTONOMY, type Autonomy } from "@/lib/engine/autonomy";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -13,15 +14,11 @@ async function loadSecret(ctx: Ctx, id: string) {
   return { row: data, key: await decryptSecret(data.ciphertext, data.iv) };
 }
 
-async function github(ctx: Ctx) {
-  const { data } = await ctx.supabase
-    .from("provider_credentials")
-    .select("id")
-    .eq("provider", "github")
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (!data?.length) throw new Error("Add a GitHub token in Settings first");
-  const { key } = await loadSecret(ctx, data[0].id);
+/** GitHub client for the task's chosen account (accounts.github) or, without one, the newest saved token. */
+async function github(ctx: Ctx, accounts?: unknown) {
+  const { accountToken } = await import("./accounts.server");
+  const key = await accountToken(ctx.supabase, ctx.userId, "github", accounts);
+  if (!key) throw new Error("Add a GitHub token in Settings first");
   const { GitHub } = await import("./github.server");
   return new GitHub(key);
 }
@@ -145,14 +142,15 @@ export const splitWork = createServerFn({ method: "POST" })
   });
 
 // ---------- GitHub ----------
-export const listRepos = createServerFn({ method: "GET" })
+export const listRepos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => (await github(context)).repos());
+  .inputValidator(z.object({ account: z.string().uuid().optional() }).default({}))
+  .handler(async ({ data, context }) => (await github(context, { github: data.account })).repos());
 
 export const listBranches = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ repo: z.string() }))
-  .handler(async ({ data, context }) => (await github(context)).branches(data.repo));
+  .inputValidator(z.object({ repo: z.string(), account: z.string().uuid().optional() }))
+  .handler(async ({ data, context }) => (await github(context, { github: data.account })).branches(data.repo));
 
 export const createRepo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -161,10 +159,11 @@ export const createRepo = createServerFn({ method: "POST" })
       name: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/, "Use letters, numbers, dots, dashes or underscores"),
       description: z.string().max(300).default(""),
       private: z.boolean(),
+      account: z.string().uuid().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    const gh = await github(context);
+    const gh = await github(context, { github: data.account });
     const r = await gh.createRepo(data.name, data.description, data.private);
     // GitHub initialises the first commit asynchronously; wait until the branch exists.
     for (let i = 0; i < 10; i++) {
@@ -179,6 +178,7 @@ export type SessionRow = {
   id: string;
   title: string;
   repo: string;
+  accounts?: Record<string, string> | null;
   base_branch: string;
   work_branch: string;
   credential_id: string | null;
@@ -223,16 +223,17 @@ export const createSession = createServerFn({ method: "POST" })
       model: z.string().min(1),
       mode: z.enum(AUTONOMY),
       title: z.string().max(120),
+      accounts: z.object({ github: z.string().uuid().optional(), supabase: z.string().uuid().optional(), vercel: z.string().uuid().optional() }).default({}),
     }),
   )
   .handler(async ({ data, context }) => {
-    const gh = await github(context);
+    const gh = await github(context, data.accounts);
     const work = `agent/${Date.now().toString(36)}`;
     await gh.createBranch(data.repo, data.base_branch, work);
     // Per-project links carry over: a new task on a repo reuses that repo's last database + Vercel links
     // (and its saved encrypted database settings), so parallel tasks never need re-setup.
     const { data: prev } = await context.supabase.from("agent_sessions")
-      .select("id, supabase_ref, vercel_project_id, applied_migrations")
+      .select("id, supabase_ref, vercel_project_id, applied_migrations, accounts")
       .eq("user_id", context.userId).eq("repo", data.repo)
       .or("supabase_ref.not.is.null,vercel_project_id.not.is.null")
       .order("updated_at", { ascending: false }).limit(1);
@@ -242,6 +243,8 @@ export const createSession = createServerFn({ method: "POST" })
       .insert({
         ...data, work_branch: work, user_id: context.userId,
         ...(link ? { supabase_ref: link.supabase_ref, vercel_project_id: link.vercel_project_id, applied_migrations: link.applied_migrations ?? [] } : {}),
+        // Same project = same accounts: inherit the repo's database/Vercel account unless chosen now.
+        accounts: { ...cleanAccounts(link?.accounts), ...cleanAccounts(data.accounts) },
       })
       .select("id")
       .single();
@@ -307,7 +310,7 @@ export const getTree = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    return (await github(context)).tree(s.repo, s.work_branch);
+    return (await github(context, s.accounts)).tree(s.repo, s.work_branch);
   });
 
 export const readFile = createServerFn({ method: "POST" })
@@ -315,7 +318,7 @@ export const readFile = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), path: z.string() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    const f = await (await github(context)).getFile(s.repo, s.work_branch, data.path);
+    const f = await (await github(context, s.accounts)).getFile(s.repo, s.work_branch, data.path);
     return f?.content ?? null;
   });
 
@@ -324,7 +327,7 @@ export const getDiff = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    return (await github(context)).compare(s.repo, s.base_branch, s.work_branch);
+    return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
   });
 
 export const resolvePending = createServerFn({ method: "POST" })
@@ -336,7 +339,7 @@ export const resolvePending = createServerFn({ method: "POST" })
     const chosen = data.paths ? s.pending.filter((c: { path: string }) => data.paths!.includes(c.path)) : s.pending;
     const rest = data.paths ? s.pending.filter((c: { path: string }) => !data.paths!.includes(c.path)) : [];
     if (data.approve) {
-      const gh = await github(context);
+      const gh = await github(context, s.accounts);
       for (const c of chosen) {
         const msg = data.message || `agent: ${c.action} ${c.path}`;
         if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, c.content ?? "", msg);
@@ -354,7 +357,7 @@ export const openPullRequest = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    return (await github(context)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
+    return (await github(context, s.accounts)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
   });
 
 // ---------- Checkpoints & editing ----------
@@ -363,7 +366,7 @@ export const restoreCheckpoint = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), sha: z.string().regex(/^[0-9a-f]{40}$/) }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    const gh = await github(context);
+    const gh = await github(context, s.accounts);
     const c = await gh.compare(s.repo, s.base_branch, s.work_branch);
     // Only allow rewinding to the branch's base or one of its own agent commits.
     if (data.sha !== c.base_sha && !c.commits.some((x) => x.sha === data.sha)) throw new Error("Not a checkpoint of this task");
@@ -376,7 +379,7 @@ export const saveFile = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), path: z.string().min(1), content: z.string(), message: z.string().max(200) }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    const sha = await (await github(context)).putFile(s.repo, s.work_branch, data.path, data.content, data.message || `edit ${data.path}`);
+    const sha = await (await github(context, s.accounts)).putFile(s.repo, s.work_branch, data.path, data.content, data.message || `edit ${data.path}`);
     return sha;
   });
 
@@ -475,9 +478,9 @@ export const runTerminal = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: s, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).eq("user_id", context.userId).single();
     if (error || !s) throw new Error("Task not found");
-    const { data: gh } = await context.supabase.from("provider_credentials").select("id").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
-    if (!gh?.length) throw new Error("Add a GitHub token in Settings first");
-    const { key } = await loadSecret(context, gh[0]!.id);
+    const { accountToken } = await import("./accounts.server");
+    const key = await accountToken(context.supabase, context.userId, "github", s.accounts);
+    if (!key) throw new Error("Add a GitHub token in Settings first");
     const { runInSandbox } = await import("./sandbox.server");
     return runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? []);
   });
@@ -489,9 +492,9 @@ export const startTerminal = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: s, error } = await context.supabase.from("agent_sessions").select("*").eq("id", data.id).eq("user_id", context.userId).single();
     if (error || !s) throw new Error("Task not found");
-    const { data: gh } = await context.supabase.from("provider_credentials").select("id").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
-    if (!gh?.length) throw new Error("Add a GitHub token in Settings first");
-    const { key } = await loadSecret(context, gh[0]!.id);
+    const { accountToken } = await import("./accounts.server");
+    const key = await accountToken(context.supabase, context.userId, "github", s.accounts);
+    if (!key) throw new Error("Add a GitHub token in Settings first");
     const { runInSandbox } = await import("./sandbox.server");
     const job = crypto.randomUUID();
     const r = await runInSandbox(context.supabase, s, key, data.command, (s.pending as PendingChange[]) ?? [], undefined, undefined, job);

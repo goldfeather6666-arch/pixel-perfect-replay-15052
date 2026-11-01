@@ -72,13 +72,10 @@ export const Route = createFileRoute("/api/agent")({
         if (!cred) return new Response("AI key missing — add one in Settings", { status: 400 });
         const modelError = modelConfigurationError(cred.base_url, s.model);
         if (modelError) return new Response(modelError, { status: 400 });
-        const { data: ghRows } = await sb
-          .from("provider_credentials")
-          .select("*")
-          .eq("provider", "github")
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (!ghRows?.length) return new Response("GitHub token missing — add one in Settings", { status: 400 });
+        const { accountRow } = await import("@/lib/accounts.server");
+        const ghRow = await accountRow(sb, s.user_id, "github", s.accounts);
+        const ghRows = ghRow ? [ghRow] : [];
+        if (!ghRows.length) return new Response("GitHub token missing — add one in Settings", { status: 400 });
 
         if (cred.provider === "compatible" && cred.base_url) {
           const { assertPublicEndpoint } = await import("@/lib/providers.server");
@@ -422,7 +419,7 @@ export const Route = createFileRoute("/api/agent")({
                   if (migrationNeedsApproval(autonomy, sql)) return { staged: true, note: `${f} contains a destructive statement (DROP/TRUNCATE/unscoped DELETE). Autonomous level waits for approval: the user applies it from the Deploy tab. Tell them.` };
                 }
               }
-              const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
+              const { data: st } = { data: [await (await import("@/lib/accounts.server")).accountRow(sb, s.user_id, "supabase", s.accounts)].filter(Boolean) };
               if (!st?.length) return { error: "No Supabase token saved in Settings." };
               const { applySessionMigrations } = await import("@/lib/migrations.server");
               return applySessionMigrations(sb, fresh as never, ghToken, await decryptSecret(st[0]!.ciphertext, st[0]!.iv));
@@ -435,7 +432,7 @@ export const Route = createFileRoute("/api/agent")({
               if (plan || !deployAllowed(autonomy)) return { error: "Deployment verification can sync settings/rebuild. Approve files and use the Deploy tab first; staged changes are not deployed." };
               const { data: fresh } = await sb.from("agent_sessions").select("vercel_project_id, supabase_ref").eq("id", sessionId).single();
               if (!fresh?.vercel_project_id) return { error: "No Vercel project linked to this task." };
-              const { data: vt } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "vercel").order("created_at", { ascending: false }).limit(1);
+              const { data: vt } = { data: [await (await import("@/lib/accounts.server")).accountRow(sb, s.user_id, "vercel", s.accounts)].filter(Boolean) };
               const vercelCred = vt?.[0];
               if (!vercelCred) return { error: "No Vercel token saved in Settings." };
               const { Vercel, DeployLimitError, startForgeDeploy, waitForDeployment } = await import("@/lib/integrations.server");
@@ -446,7 +443,7 @@ export const Route = createFileRoute("/api/agent")({
               quality.deploymentState = undefined;
               let envNote: string | undefined;
               if (fresh.supabase_ref && syncedRef !== fresh.supabase_ref) {
-                const { data: st } = await sb.from("provider_credentials").select("ciphertext, iv").eq("provider", "supabase").order("created_at", { ascending: false }).limit(1);
+                const { data: st } = { data: [await (await import("@/lib/accounts.server")).accountRow(sb, s.user_id, "supabase", s.accounts)].filter(Boolean) };
                 const databaseCred = st?.[0];
                 if (databaseCred) {
                   try { await syncTaskDatabase(s.user_id, sessionId, fresh.supabase_ref, fresh.vercel_project_id, await decryptSecret(databaseCred.ciphertext, databaseCred.iv), vToken); syncedRef = fresh.supabase_ref; envRebuildNeeded = true; envNote = "Database settings synced into Vercel production and preview; this build includes them."; }

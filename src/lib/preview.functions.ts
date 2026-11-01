@@ -16,11 +16,11 @@ async function ownedPreview(ctx: Ctx, taskId: string) {
   return latestPreview(ctx.supabase, taskId);
 }
 
-async function githubToken(ctx: Ctx) {
-  const { data } = await ctx.supabase.from("provider_credentials").select("ciphertext, iv").eq("provider", "github").order("created_at", { ascending: false }).limit(1);
-  if (!data?.length) throw new Error("Add a GitHub token in Settings first");
-  const { decryptSecret } = await import("./crypto.server");
-  return decryptSecret(data[0].ciphertext, data[0].iv);
+async function githubToken(ctx: Ctx, accounts?: unknown) {
+  const { accountToken } = await import("./accounts.server");
+  const key = await accountToken(ctx.supabase, ctx.userId, "github", accounts);
+  if (!key) throw new Error("Add a GitHub token in Settings first");
+  return key;
 }
 
 /** Client-safe view of a preview row (no internal sandbox host or tokens). */
@@ -52,7 +52,7 @@ export const startPreviewFn = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     const s = await ownedTask(context, data.id);
     const { startPreview } = await import("./preview-manager.server");
-    return view(await startPreview(context.supabase, s, await githubToken(context), { ...(data.command ? { command: data.command } : {}), ...(data.port ? { port: data.port } : {}) }));
+    return view(await startPreview(context.supabase, s, await githubToken(context, s.accounts), { ...(data.command ? { command: data.command } : {}), ...(data.port ? { port: data.port } : {}) }));
   });
 
 export const previewActionFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
