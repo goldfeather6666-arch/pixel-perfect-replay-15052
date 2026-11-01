@@ -1,5 +1,5 @@
 /** Silence, not elapsed task duration, determines whether an execution is stuck. */
-export const NO_PROGRESS_MS = 15 * 60_000;
+export const NO_PROGRESS_MS = 2 * 60_000;
 
 export function agentLiveness(now = Date.now()) {
   let lastProgress = now;
