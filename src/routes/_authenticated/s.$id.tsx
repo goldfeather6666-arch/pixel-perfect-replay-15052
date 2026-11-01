@@ -29,6 +29,7 @@ import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-reque
 import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
 import { SharedFiles } from "@/components/SharedFiles";
+import { DatabaseApproval } from "@/components/DatabaseApproval";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -367,6 +368,7 @@ function Workspace() {
               ))}
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
               <McpActionApprovals sessionId={id} chat />
+              <DatabaseApproval id={id} linked={!!s?.supabase_ref} busy={running || bgRunning || stopping} />
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
