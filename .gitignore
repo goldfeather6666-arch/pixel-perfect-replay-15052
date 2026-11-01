@@ -16,6 +16,12 @@ dist-ssr
 .nitro
 *.local
 
+# Environment files (commit only explicit, empty examples)
+.env
+.env.*
+!.env.example
+!.env.template
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
