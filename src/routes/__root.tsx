@@ -123,6 +123,27 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  // Stale page files after an update can fail outside the error boundary
+  // (route preloads, Vite preload errors); reload once with a fresh copy.
+  useEffect(() => {
+    const onPreload = (e: Event) => {
+      if (recoverChunkLoad()) e.preventDefault();
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      if (isChunkLoadError(e.reason) && recoverChunkLoad()) e.preventDefault();
+    };
+    const onError = (e: ErrorEvent) => {
+      if (isChunkLoadError(e.error ?? e.message) && recoverChunkLoad()) e.preventDefault();
+    };
+    window.addEventListener("vite:preloadError", onPreload);
+    window.addEventListener("unhandledrejection", onRejection);
+    window.addEventListener("error", onError);
+    return () => {
+      window.removeEventListener("vite:preloadError", onPreload);
+      window.removeEventListener("unhandledrejection", onRejection);
+      window.removeEventListener("error", onError);
+    };
+  }, []);
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
