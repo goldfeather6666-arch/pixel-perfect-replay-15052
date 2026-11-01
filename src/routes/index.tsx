@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { GitBranch, KeyRound, ShieldCheck, Terminal } from "lucide-react";
+import { Eye, GitBranch, KeyRound, Plug, Rocket, ShieldCheck, Terminal, Users } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,7 +20,11 @@ const features = [
   { icon: KeyRound, title: "Your keys", body: "OpenAI, Anthropic, Gemini, OpenRouter or any compatible endpoint. Encrypted at rest." },
   { icon: GitBranch, title: "Real repos", body: "The agent reads and edits your GitHub code on its own branch, then opens a pull request." },
   { icon: ShieldCheck, title: "You approve", body: "Supervised mode stages every edit for review. Autonomous mode commits as it goes." },
-  { icon: Terminal, title: "Terminal next", body: "Sandboxed commands and test runs are on the roadmap." },
+  { icon: Terminal, title: "Cloud terminal", body: "Run installs, builds and tests in a private cloud workspace, or ask AI to write the command." },
+  { icon: Eye, title: "Live preview", body: "See your site running while the agent works, on phone, tablet or desktop sizes." },
+  { icon: Users, title: "Agent teams", body: "A master agent splits big tasks across parallel helpers that keep running when you close the app." },
+  { icon: Rocket, title: "One-tap deploy", body: "Connect GitHub, your database and Vercel once. Forge syncs settings and checks the live site." },
+  { icon: Plug, title: "Tools & skills", body: "Plug in external tools like Framer and Motion, and reusable skill packs from GitHub." },
 ];
 
 function Index() {
