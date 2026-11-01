@@ -73,7 +73,7 @@ async function killTree(box: import("e2b").Sandbox, id: string, port: number) {
   await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && { kill -TERM -- -$p 2>/dev/null; pkill -TERM -P $p 2>/dev/null; kill $p 2>/dev/null; }; sleep 1; fuser -k ${port}/tcp 2>/dev/null; true`);
 }
 
-/** Gives the dev server the task's PUBLIC database settings (never the service key), kept outside the repo. */
+/** Gives the private dev server the task's database settings, kept outside the repo and never sent to the browser. The server-only key is included only when the user saved it in guided setup, mirroring Vercel's server env. */
 async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: Session & { supabase_ref?: string | null }) {
   if (!session.supabase_ref) return;
   try {
@@ -93,8 +93,8 @@ async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: S
       }
     }
     if (!publicKey || !isPublicDatabaseKey(publicKey)) return;
-    const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey) as Record<string, string>;
-    const lines = Object.entries(env).filter(([k]) => !/SERVICE|SECRET/i.test(k)).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
+    const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey, saved?.serviceRoleKey) as Record<string, string>;
+    const lines = Object.entries(env).filter(([k, v]) => !!v && (k === "SUPABASE_SERVICE_ROLE_KEY" || !/SERVICE|SECRET/i.test(k))).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
     await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
     await sh(box, `chmod 600 ${dirOf(id)}/env`);
   } catch { /* preview still starts; app may show its own missing-config error */ }
