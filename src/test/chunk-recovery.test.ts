@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { chunkRecoveryUrl, isChunkLoadError } from "@/lib/chunk-recovery";
+import { chunkRecoveryUrl, isChunkLoadError, isRecoverableModuleError } from "@/lib/chunk-recovery";
 
 describe("stale route recovery", () => {
+  it("recovers mixed-generation React dispatchers but not ordinary null state errors", () => {
+    const error = new TypeError("Cannot read properties of null (reading 'useState')");
+    error.stack = "at exports.useState (/node_modules/.vite/deps/react.js?v=old:748:30)\nat VisualComparison";
+    expect(isRecoverableModuleError(error)).toBe(true);
+    error.stack = "at app (/src/lib/app.ts:4:1)";
+    expect(isRecoverableModuleError(error)).toBe(false);
+    expect(isRecoverableModuleError(new Error("Invalid hook call"))).toBe(false);
+  });
   it("recognizes module failures without retrying unrelated errors", () => {
     expect(isChunkLoadError(new TypeError("Failed to fetch dynamically imported module: /assets/route-old.js"))).toBe(true);
     expect(isChunkLoadError(new Error("Database permission denied"))).toBe(false);
