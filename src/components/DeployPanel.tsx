@@ -20,7 +20,12 @@ const trig = "h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left";
 export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
   const qc = useQueryClient();
   const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }) });
-  const refresh = () => qc.invalidateQueries({ queryKey: ["integrations", id] });
+  const refresh = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ["integrations", id] }),
+    qc.invalidateQueries({ queryKey: ["session", id] }),
+    qc.invalidateQueries({ queryKey: ["deps", id] }),
+    qc.invalidateQueries({ queryKey: ["migr", id] }),
+  ]);
   if (!info.data) return <p className="p-4 text-sm text-muted-foreground">{info.error ? (info.error as Error).message : "Loading…"}</p>;
   const d = info.data;
   return (
@@ -37,9 +42,9 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
       </section>
       <ConnectSyncCard id={id} {...(onSend ? { onSend } : {})} />
       <AccountsCard id={id} options={d.accountOptions} active={d.activeAccounts} onChange={() => { refresh(); qc.invalidateQueries({ queryKey: ["sb-opts", id] }); qc.invalidateQueries({ queryKey: ["vc-projects", id] }); }} />
-      <SupabaseCard id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
+      <SupabaseCard key={`sb-${d.activeAccounts.supabase}`} account={d.activeAccounts.supabase} id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
-      <VercelCard dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
+      <VercelCard key={`vc-${d.activeAccounts.vercel}`} account={d.activeAccounts.vercel} dbLinked={!!d.supabase_ref} id={id} has={d.hasVercel} linked={d.vercel_project_id} onChange={refresh} />
       {d.supabase_ref && d.vercel_project_id && (
         <p className="text-xs text-muted-foreground">Linked together: your database address and public key are added to the Vercel project automatically.</p>
       )}
@@ -74,9 +79,9 @@ function AccountsCard({ id, options, active, onChange }: { id: string; options: 
           if (!list.length) return null;
           return (
             <div key={svc.key} className="grid gap-1.5 sm:grid-cols-[10rem_1fr] sm:items-center">
-              <Label className="text-sm">{svc.name}</Label>
+              <Label htmlFor={`account-${svc.key}`} className="text-sm">{svc.name}</Label>
               <Select value={active[svc.key] ?? ""} onValueChange={(v) => m.mutate({ provider: svc.key, account: v })} disabled={m.isPending || list.length < 2}>
-                <SelectTrigger className={trig}><SelectValue placeholder="Choose account" /></SelectTrigger>
+                <SelectTrigger id={`account-${svc.key}`} className={trig}><SelectValue placeholder="Choose account" /></SelectTrigger>
                 <SelectContent>
                   {list.map((o) => <SelectItem key={o.id} value={o.id}>{o.label} ···{o.last4}</SelectItem>)}
                 </SelectContent>
@@ -149,13 +154,13 @@ function StepBadge({ done, n }: { done: boolean; n: number }) {
   return <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-accent"}`}>{done ? <Check className="h-3.5 w-3.5" /> : n}</span>;
 }
 
-function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean; linked: string | null; onChange: () => void }) {
+function SupabaseCard({ id, account, has, linked, onChange }: { id: string; account: string | null; has: boolean; linked: string | null; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
   const [name, setName] = useState(`forge-${id.slice(0, 6)}`);
   const [org, setOrg] = useState("");
   const [region, setRegion] = useState("us-east-1");
-  const opts = useQuery({ queryKey: ["sb-opts", id], queryFn: useServerFn(listSupabaseOptions).bind(null, { data: { id } }), enabled: has && !linked });
+  const opts = useQuery({ queryKey: ["sb-opts", id, account], queryFn: useServerFn(listSupabaseOptions).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: has && !linked });
   const orgId = org || opts.data?.orgs[0]?.id || "";
   const link = useServerFn(linkSupabase);
   const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000 });
@@ -230,12 +235,12 @@ function SupabaseCard({ id, has, linked, onChange }: { id: string; has: boolean;
   );
 }
 
-function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
+function VercelCard({ id, account, has, linked, onChange, dbLinked }: { account: string | null; dbLinked?: boolean; id: string; has: boolean; linked: string | null; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
-  const projects = useQuery({ queryKey: ["vc-projects", id], queryFn: useServerFn(listVercelProjects).bind(null, { data: { id } }), enabled: has && !linked });
+  const projects = useQuery({ queryKey: ["vc-projects", id, account], queryFn: useServerFn(listVercelProjects).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: has && !linked });
   const link = useServerFn(linkVercel);
-  const deps = useQuery({ queryKey: ["deps", id, linked], queryFn: useServerFn(getDeployments).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 10000 });
+  const deps = useQuery({ queryKey: ["deps", id, linked, account], queryFn: useServerFn(getDeployments).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 10000 });
   const linkM = useMutation({
     mutationFn: (v: Parameters<typeof link>[0]["data"]) => link({ data: v }),
     onSuccess: (r) => { onChange(); if (r.syncError) toast.error(r.syncError); else toast.success("Website updated"); },
@@ -257,9 +262,10 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
     <Card icon={<Rocket className="h-4 w-4 shrink-0" />} title="Vercel website">
       {!has ? <NeedToken name="Vercel" onDone={onChange} /> : linked ? (
         <div className="space-y-3 text-sm">
+          <p className="break-all font-mono text-xs text-muted-foreground">Linked website · {linked}</p>
           <div className="flex items-center justify-between gap-2">
             <span className={`font-medium ${color}`}>{latest ? status : deps.isLoading ? "checking…" : "no deploy for this task yet"}</span>
-            <Button size="sm" variant="ghost" onClick={() => linkM.mutate({ id, unlink: true })}>Unlink</Button>
+            <Button size="sm" variant="outline" disabled={linkM.isPending} onClick={() => linkM.mutate({ id, unlink: true })}>{linkM.isPending ? "Unlinking…" : "Unlink website"}</Button>
           </div>
           {latest?.state === "READY" && (
             <Button asChild className="h-11 w-full"><a href={latest.url} target="_blank" rel="noreferrer"><ExternalLink /> Open preview</a></Button>
@@ -284,16 +290,17 @@ function VercelCard({ id, has, linked, onChange, dbLinked }: { dbLinked?: boolea
           {projects.error && <p className="text-xs text-destructive">{(projects.error as Error).message}</p>}
           {mode === "existing" ? (
             <>
-              <Select value={pick} onValueChange={setPick}>
+              <Select value={pick} onValueChange={setPick} disabled={projects.isFetching || linkM.isPending}>
                 <SelectTrigger className={trig}><SelectValue placeholder={projects.isLoading ? "Loading…" : "Choose a project"} /></SelectTrigger>
                 <SelectContent className="max-w-[calc(100vw-2rem)]">{projects.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.repo ? ` · ${p.repo}` : ""}</SelectItem>)}</SelectContent>
               </Select>
-              <Button className="h-11 w-full" disabled={!pick || linkM.isPending} onClick={() => linkM.mutate({ id, projectId: pick })}>Link project</Button>
+              <Button className="h-11 w-full" disabled={!pick || projects.isFetching || !projects.data?.some((p) => p.id === pick) || linkM.isPending} onClick={() => linkM.mutate({ id, projectId: pick })}>{linkM.isPending ? "Linking…" : "Link Vercel project"}</Button>
+              {!projects.isFetching && !projects.error && projects.data?.length === 0 && <p className="text-xs text-muted-foreground">No projects in this Vercel account.</p>}
             </>
           ) : (
             <>
               <Button className="h-11 w-full" disabled={linkM.isPending} onClick={() => linkM.mutate({ id, create: true })}>
-                {linkM.isPending ? "Creating…" : "Create my website"}
+                {linkM.isPending ? "Creating…" : "Create & link website"}
               </Button>
               <p className="text-xs text-muted-foreground">If this fails with a GitHub error, Vercel needs permission to see your repo: <a className="text-primary underline" href="https://github.com/apps/vercel/installations/new" target="_blank" rel="noreferrer">allow Vercel on GitHub</a>, then try again.</p>
             </>
@@ -330,9 +337,9 @@ function ModeSwitch({ mode, setMode }: { mode: "existing" | "new"; setMode: (m: 
   return (
     <div className="grid grid-cols-2 gap-2">
       {(["existing", "new"] as const).map((m) => (
-        <button key={m} type="button" onClick={() => setMode(m)} className={`h-11 rounded-md border text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
+        <Button key={m} type="button" variant="outline" onClick={() => setMode(m)} className={`h-11 text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
           {m === "existing" ? "I already have one" : "Create new"}
-        </button>
+        </Button>
       ))}
     </div>
   );

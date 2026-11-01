@@ -127,7 +127,7 @@ export const syncDeployEnv = createServerFn({ method: "POST" })
     const s = await sessionRow(context, data.id);
     if (!s.supabase_ref || !s.vercel_project_id) throw new Error("Link both Supabase and Vercel first");
     const { Vercel, DeployLimitError, startForgeDeploy } = await import("./integrations.server");
-    const vt = await need(context, "vercel");
+    const vt = await need(context, "vercel", s.accounts);
     await wireEnv(context, data.id, s.supabase_ref, s.vercel_project_id);
     let redeployed: string | null = null;
     if (data.redeploy) {
@@ -175,7 +175,7 @@ export const linkSupabase = createServerFn({ method: "POST" })
     let syncError: string | null = null;
     try { await wireEnv(context, data.id, ref, s.vercel_project_id); } catch { syncError = "Database linked, but Vercel settings did not sync. Use Sync to retry."; }
     // Keep sign-in return links in step with the linked site (fixes login/logout after deploy).
-    try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
+    if (ref) try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
     return { ref, syncError };
   });
 
@@ -206,7 +206,7 @@ export const linkVercel = createServerFn({ method: "POST" })
     let syncError: string | null = null;
     try { await wireEnv(context, data.id, s.supabase_ref, pid); } catch { syncError = "Website linked, but database settings did not sync. Use Sync to retry."; }
     // Keep sign-in return links in step with the linked site (fixes login/logout after deploy).
-    try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
+    if (pid) try { const { syncProject } = await import("./connect.server"); await syncProject(context.supabase, await sessionRow(context, data.id)); } catch { /* shown on next Sync */ }
     if (pid) { const { Vercel } = await import("./integrations.server"); await new Vercel(await need(context, "vercel", s.accounts)).ensureBuildGate(pid).catch(() => {}); }
     return { projectId: pid, syncError };
   });
@@ -262,11 +262,14 @@ export const setTaskAccount = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), provider: z.enum(["github", "supabase", "vercel"]), account: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await sessionRow(context, data.id);
+    if (s.running) throw new Error("Stop the active task before changing its accounts");
     const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.account).eq("provider", data.provider).eq("user_id", context.userId).maybeSingle();
     if (!cred) throw new Error("That account isn't saved in your Settings");
-    const { cleanAccounts } = await import("./accounts");
-    const accounts = { ...cleanAccounts(s.accounts), [data.provider]: data.account };
-    const { error } = await context.supabase.from("agent_sessions").update({ accounts }).eq("id", data.id).eq("user_id", context.userId);
-    if (error) throw new Error("Could not save the account choice");
-    return { accounts };
+    const { accountRow } = await import("./accounts.server");
+    const current = await accountRow(context.supabase, context.userId, data.provider, s.accounts);
+    const { accountSwitchPatch } = await import("./accounts");
+    const patch = accountSwitchPatch(s.accounts, data.provider, data.account, current?.id ?? null);
+    const { error, data: saved } = await context.supabase.from("agent_sessions").update(patch).eq("id", data.id).eq("user_id", context.userId).eq("updated_at", s.updated_at).eq("running", false).select("id");
+    if (error || !saved?.length) throw new Error("Task changed while saving the account; refresh and retry");
+    return { accounts: patch.accounts };
   });

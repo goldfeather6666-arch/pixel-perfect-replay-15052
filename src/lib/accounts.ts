@@ -22,3 +22,12 @@ export function cleanAccounts(v: unknown): TaskAccounts {
   }
   return out;
 }
+
+/** Account-bound links must not carry over to a different saved credential. */
+export function accountSwitchPatch(accounts: unknown, provider: AccountProvider, account: string, currentAccount: string | null) {
+  const next = { accounts: { ...cleanAccounts(accounts), [provider]: account } };
+  if (currentAccount === account) return next;
+  if (provider === "vercel") return { ...next, vercel_project_id: null };
+  if (provider === "supabase") return { ...next, supabase_ref: null, applied_migrations: [] };
+  return next;
+}
