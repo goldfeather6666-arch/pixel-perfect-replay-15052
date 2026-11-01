@@ -1,5 +1,8 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [x] Post-sync verification: checkout current through PR #26, build OK, 325/325 tests pass (gave the real-process production-script tests a 30s limit; they were timing out at 5s only under full-suite load), migration 0024 screenshot-access policies live, signed-in workspace and task pages render, published site renders with no backend-configuration error. No paid run, deployment or external change triggered.
+- [ ] Stale cloud run holds its sandbox — a run silent since 22:20 (Newproject, stage VERIFYING) keeps `running=true` and a live keeper sandbox indefinitely; nothing closes it unless a browser visits and auto-recovery or Stop runs. Needs the owner's decision on an automatic silence cutoff, since a legitimately long verification step must not be killed.
+
 - [x] Screenshot comparison in Preview: private reference/current uploads, authenticated AI Gateway comparison, prioritized layout findings, selected-fix brief for Chat. Real signed-in upload/comparison returned HTTP 200 and identified the intended header-height difference; targeted fixes are opt-in, no code changes or deployment triggered by verification.
 
 - [x] Set inactivity detection to two minutes; manual Stop atomically fences the owner’s execution, marks it inactive and cancels browser waiting without heartbeat races. 26 focused tests pass; real signed-in Stop on the stuck Newproject task remained stopped after reload. No paid model run started; active model/shell cancellation remains covered by isolated tests.
