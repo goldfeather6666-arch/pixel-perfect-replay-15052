@@ -13,10 +13,12 @@ export const listInteractions = createServerFn({ method: "GET" })
   .inputValidator(z.object({ sessionId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
+    const { data: ownedSession } = await sb.from("agent_sessions").select("id").eq("id", data.sessionId).eq("user_id", context.userId).maybeSingle();
+    if (!ownedSession) throw new Error("Task not found");
     const [q, sg, sp] = await Promise.all([
-      sb.from("task_questions").select("*").eq("session_id", data.sessionId).order("created_at").order("position").limit(100),
-      sb.from("task_suggestions").select("*").eq("session_id", data.sessionId).order("created_at").limit(50),
-      sb.from("task_specifications").select("version, task_class, spec, created_at").eq("session_id", data.sessionId).order("version", { ascending: false }).limit(1).maybeSingle(),
+      sb.from("task_questions").select("*").eq("session_id", data.sessionId).eq("user_id", context.userId).order("created_at").order("position").limit(100),
+      sb.from("task_suggestions").select("*").eq("session_id", data.sessionId).eq("user_id", context.userId).order("created_at").limit(50),
+      sb.from("task_specifications").select("version, task_class, spec, created_at").eq("session_id", data.sessionId).eq("user_id", context.userId).order("version", { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (q.error) throw new Error(q.error.message);
     return { questions: (q.data ?? []) as unknown as TaskQuestion[], suggestions: (sg.data ?? []) as unknown as TaskSuggestion[], spec: sp.data ?? null };
@@ -31,7 +33,7 @@ export const answerQuestion = createServerFn({ method: "POST" })
   .inputValidator(z.object({ questionId: z.string().uuid(), key: z.string().min(8).max(80), answer: answerInput }))
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
-    const { data: q } = await sb.from("task_questions").select("*").eq("id", data.questionId).maybeSingle();
+    const { data: q } = await sb.from("task_questions").select("*").eq("id", data.questionId).eq("user_id", context.userId).maybeSingle();
     if (!q) throw new Error("Question not found.");
     if (q.status !== "open") return { changed: false, resume: null as string | null, remaining: 0 };
     const err = validateAnswer(q as never, data.answer);
