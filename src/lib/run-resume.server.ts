@@ -41,6 +41,12 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
         .eq("session_id", s.session_id).eq("attempts", s.attempts).eq("updated_at", s.updated_at)
         .lte("updated_at", new Date(now - RECOVERY_COOLDOWN_MS).toISOString()).select("session_id");
       if (!lease?.length) continue;
+      const { data: lastRun } = await db.from("agent_runs").select("stage, ended_at").eq("session_id", s.session_id).order("started_at", { ascending: false }).limit(1).maybeSingle();
+      // Never turn an approval wait, provider denial/failure, or finished run into unattended work.
+      if (lastRun && (lastRun.ended_at || ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL"].includes(lastRun.stage))) {
+        await db.from("run_resume_secrets").delete().eq("session_id", s.session_id);
+        continue;
+      }
       const task = sessions?.find((t: any) => t.id === s.session_id && t.user_id === s.user_id);
       if (!task) continue;
       // Fence the old execution before terminating its keeper. A late heartbeat/final save cannot overwrite recovery.
