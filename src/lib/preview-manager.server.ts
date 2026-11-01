@@ -9,7 +9,7 @@ import { detectFramework, detectPackageManager, devCommand, gatewayBase, install
 const REPO_DIR = "/home/user/repo";
 const TTL_MS = 15 * 60_000;
 const MAX_AUTO_RESTARTS = 3;
-const RUN_ENV = "NODE_OPTIONS=--max-old-space-size=2560 npm_config_audit=false npm_config_fund=false NEXT_TELEMETRY_DISABLED=1 BROWSER=none";
+const RUN_ENV = "NODE_OPTIONS=--max-old-space-size=2560 npm_config_audit=false npm_config_fund=false NEXT_TELEMETRY_DISABLED=1 BROWSER=none __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.e2b.app";
 
 type Session = { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null; pending?: unknown };
 export type PreviewRow = {
@@ -151,7 +151,7 @@ export async function previewStatus(sb: any, row: PreviewRow, opts: { autoRestar
   }
   await box.setTimeout(TTL_MS).catch(() => {});
   const dir = dirOf(row.id);
-  const r = await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); alive=0; [ -n "$p" ] && kill -0 $p 2>/dev/null && alive=1; [ -f ${dir}/exit ] && alive=0; code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:${row.port}${row.preview_url && (row.framework === "vite" || row.framework === "astro") ? row.preview_url : "/"}); echo "$alive|$code|$(cat ${dir}/exit 2>/dev/null)"; tail -c 4000 ${dir}/out.log 2>/dev/null`);
+  const r = await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); alive=0; [ -n "$p" ] && kill -0 $p 2>/dev/null && alive=1; [ -f ${dir}/exit ] && alive=0; code=$(curl -s -o /dev/null -m 5 -H 'Host: health.e2b.app' -w '%{http_code}' http://127.0.0.1:${row.port}${row.preview_url && (row.framework === "vite" || row.framework === "astro") ? row.preview_url : "/"}); echo "$alive|$code|$(cat ${dir}/exit 2>/dev/null)"; tail -c 4000 ${dir}/out.log 2>/dev/null`);
   const [head = "", ...rest] = r.out.split("\n");
   const [alive, codeStr, exitStr] = head.split("|");
   const code = Number(codeStr) || 0;

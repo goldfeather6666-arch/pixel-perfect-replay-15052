@@ -73,5 +73,5 @@ export function installCommand(pm: PackageManager, fw: Framework) {
 
 /** Health: a dev server is "up" once it answers with any status below 500. */
 export function isHealthy(code: number) {
-  return code > 0 && code < 500;
+  return code > 0 && code < 500 && code !== 403;
 }
