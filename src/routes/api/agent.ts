@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { checkFailure, deploymentSkill, needsFinalCheck, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
-import { agentRequest, requestError } from "@/lib/agent-request";
+import { agentRequest, attachmentPart, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
 import { isRateLimit, modelConfigurationError, providerRequestError } from "@/lib/provider-request-error";
 import { ACTIVE_TEAM_WORKERS, CHECKER_ROLES, ROLE_BRIEF, WRITER_ROLES, scheduleWaves, parallelMap, ownsPath, proposalConflict, sleep, teamSchema, type CodeProposal } from "@/lib/agent-team";
@@ -14,7 +14,6 @@ import { sharedReads } from "@/lib/shared-reads";
 import { asAutonomy, deployAllowed, migrationNeedsApproval, writeNeedsApproval } from "@/lib/engine/autonomy";
 import { costUsd, estimateTokens, fitToBudget, modelCaps } from "@/lib/engine/model-registry";
 import { finalStage } from "@/lib/engine/lifecycle";
-import { attachmentPart } from "@/lib/agent-request";
 import { contentHash, parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import type { Recorder } from "@/lib/engine/recorder.server";
 
