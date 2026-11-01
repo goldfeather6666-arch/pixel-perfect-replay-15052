@@ -20,7 +20,7 @@ export async function openMcp(url: string, token?: string, transport: "http" | "
 }
 
 export async function inspectMcp(client: MCPClient, url: string, allowActions = false) {
-  const definitions = await client.listTools();
+  const definitions = (await runMcpOperation(() => client.listTools(), { readOnly: true })).value;
   const filtered = { ...definitions, tools: definitions.tools.filter((t) => allowActions || allowedMcpTool(url, t)) };
   const sdkTools = client.toolsFromDefinitions(filtered);
   return { definitions: filtered.tools, sdkTools };
@@ -59,7 +59,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
       let all: CachedTool[];
       if (cached) all = cached;
       else {
-        const listed = (await (await getClient(row)).listTools()).tools as CachedTool[];
+        const listed = (await runMcpOperation(() => getClient(row).then((client) => client.listTools()), { readOnly: true })).value.tools as CachedTool[];
         all = listed;
         const compact = toCache(listed);
         bestEffort(() => sb.from("mcp_connections").update({ tool_cache: compact as unknown as Json, tool_cache_url: compact ? row.url : null, tool_cache_at: compact ? new Date().toISOString() : null }).eq("id", row.id).eq("user_id", userId));
@@ -127,9 +127,9 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         if (!row) return { error: "Unknown or unavailable external server", servers: rows.map((r) => r.name) };
         try {
           const c = await getClient(row);
-          if (action === "list") { const r = await c.listResources(); return capped({ resources: r.resources.slice(0, 100).map((x) => ({ uri: x.uri, name: x.name, description: x.description, mimeType: x.mimeType })) }); }
+          if (action === "list") { const r = (await runMcpOperation(() => c.listResources(), { readOnly: true })).value; return capped({ resources: r.resources.slice(0, 100).map((x) => ({ uri: x.uri, name: x.name, description: x.description, mimeType: x.mimeType })) }); }
           if (!uri) return { error: "uri is required for read" };
-          return capped(await c.readResource({ uri }));
+          return capped((await runMcpOperation(() => c.readResource({ uri }), { readOnly: true })).value);
         } catch { return { error: "This server does not offer resources, or the request failed" }; }
       },
     }),
@@ -141,9 +141,9 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         if (!row) return { error: "Unknown or unavailable external server", servers: rows.map((r) => r.name) };
         try {
           const c = await getClient(row);
-          if (action === "list") { const r = await c.experimental_listPrompts(); return capped({ prompts: r.prompts.slice(0, 100).map((x) => ({ name: x.name, description: x.description, arguments: x.arguments })) }); }
+          if (action === "list") { const r = (await runMcpOperation(() => c.experimental_listPrompts(), { readOnly: true })).value; return capped({ prompts: r.prompts.slice(0, 100).map((x) => ({ name: x.name, description: x.description, arguments: x.arguments })) }); }
           if (!name) return { error: "name is required for get" };
-          return capped(await c.experimental_getPrompt({ name, arguments: args ?? {} }));
+          return capped((await runMcpOperation(() => c.experimental_getPrompt({ name, arguments: args ?? {} }), { readOnly: true })).value);
         } catch { return { error: "This server does not offer prompts, or the request failed" }; }
       },
     }),
