@@ -66,3 +66,12 @@ export const deleteMemory = createServerFn({ method: "POST" })
     if (error) throw new Error("Could not delete memory");
     return { ok: true };
   });
+
+export const addMemory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ repo: z.string().min(1).max(200), category: z.enum(["project", "preference", "decision", "error"]), content: z.string().trim().min(3).max(2000) }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("project_memories").insert({ user_id: context.userId, repo: data.repo, category: data.category, content: data.content, source: "user" });
+    if (error) throw new Error("Could not save memory");
+    return { ok: true };
+  });
