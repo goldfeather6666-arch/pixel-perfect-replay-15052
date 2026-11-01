@@ -31,7 +31,7 @@ export function PreviewPanel({ id }: { id: string }) {
   const q = useQuery({
     queryKey: ["preview", id],
     queryFn: () => fetchPreview({ data: { id } }),
-    refetchInterval: (query) => { const s = query.state.data?.status; return s === "starting" || s === "unhealthy" ? 3000 : s === "ready" ? 20000 : false; },
+    refetchInterval: (query) => { const s = query.state.data?.status; return s === "starting" || s === "unhealthy" ? 1500 : s === "ready" ? 20000 : false; },
   });
   const p = q.data;
   const running = !!p && ["starting", "ready", "unhealthy", "error"].includes(p.status);
