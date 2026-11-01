@@ -16,7 +16,7 @@ describe("production checks", () => {
     expect(productionPolicy.buildMode).toBe("production");
     expect(productionPolicy.allowDemo).toBe(false);
   });
-  it("does not replace real integrations with mocks", () => {
+  it("teaches agents the exact Forge-synced Supabase env contract for Next.js, Vite and server runtimes", async () => {\n    const { productionInstructions } = await import("@/lib/deployment-quality");\n    for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);\n    expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");\n    expect(productionInstructions).toContain("Connect & sync/Auto-fix");\n  });\n  it("does not replace real integrations with mocks", () => {
     expect(productionPolicy.allowMockIntegrations).toBe(false);
   });
   it("does not treat production-first building as release consent", () => {
