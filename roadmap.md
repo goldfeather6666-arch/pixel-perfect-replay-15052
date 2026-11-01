@@ -1,6 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
-- [ ] Screenshot comparison in Preview: upload reference/current images, compare with AI Gateway, show targeted layout suggestions and explicitly send selected fixes to Chat.
+- [x] Screenshot comparison in Preview: private reference/current uploads, authenticated AI Gateway comparison, prioritized layout findings, selected-fix brief for Chat. Real signed-in upload/comparison returned HTTP 200 and identified the intended header-height difference; targeted fixes are opt-in, no code changes or deployment triggered by verification.
 
 - [x] Set inactivity detection to two minutes; manual Stop atomically fences the owner’s execution, marks it inactive and cancels browser waiting without heartbeat races. 26 focused tests pass; real signed-in Stop on the stuck Newproject task remained stopped after reload. No paid model run started; active model/shell cancellation remains covered by isolated tests.
 

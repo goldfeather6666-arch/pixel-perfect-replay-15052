@@ -46,8 +46,9 @@ export async function handleVisualComparison(request: Request, config: { url: st
     { type: "image", image: new URL(reference) }, { type: "image", image: new URL(current) },
   ] }], INSTRUCTIONS, Output.object({ schema: comparisonResult }));
   const iterator = result.fullStream[Symbol.asyncIterator]();
-  // Read the first upstream event so terminal HTTP failures retain their actual status.
-  const first = await iterator.next();
+  // Ignore SDK-local start events before deciding the upstream HTTP status.
+  let first = await iterator.next();
+  while (!first.done && (first.value.type === "start" || first.value.type === "start-step")) first = await iterator.next();
   const errorInfo = (error: unknown) => {
     const e = error as { statusCode?: number; responseBody?: string };
     let message = "Comparison could not finish. Your screenshots are preserved.";
