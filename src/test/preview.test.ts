@@ -32,6 +32,7 @@ describe("preview detection", () => {
     expect(isHealthy(200)).toBe(true);
     expect(isHealthy(404)).toBe(true);
     expect(isHealthy(502)).toBe(false);
+    expect(isHealthy(403)).toBe(false);
     expect(isHealthy(0)).toBe(false);
   });
 });
