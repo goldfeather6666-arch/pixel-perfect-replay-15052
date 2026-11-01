@@ -150,7 +150,7 @@ function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: (acc
   const g = GUIDES[name];
   const m = useMutation({
     mutationFn: () => save({ data: { provider: name === "Supabase" ? "supabase" : "vercel", label: name, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
-    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); await onDone(r.id); },
+    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); qc.invalidateQueries({ queryKey: ["account-identities"] }); await onDone(r.id); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
@@ -329,6 +329,7 @@ function VercelCard({ id, options, account, has, linked, onChange, dbLinked }: {
           {projects.error && <p className="text-xs text-destructive">{(projects.error as Error).message}</p>}
           {mode === "existing" ? (
             <>
+              <p className="text-xs text-muted-foreground">Projects from <span className="font-medium text-foreground">{options.find((o) => o.id === account)?.label ?? "Vercel"} ···{options.find((o) => o.id === account)?.last4}</span></p>
               <Select value={pick} onValueChange={setPick} disabled={projects.isFetching || linkM.isPending}>
                 <SelectTrigger className={trig}><SelectValue placeholder={projects.isLoading ? "Loading…" : "Choose a project"} /></SelectTrigger>
                 <SelectContent className="max-w-[calc(100vw-2rem)]">{projects.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.repo ? ` · ${p.repo}` : ""}</SelectItem>)}</SelectContent>
