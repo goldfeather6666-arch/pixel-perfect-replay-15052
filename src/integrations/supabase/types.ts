@@ -717,6 +717,41 @@ export type Database = {
         }
         Relationships: []
       }
+      run_resume_secrets: {
+        Row: {
+          attempts: number
+          ciphertext: string
+          iv: string
+          session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          ciphertext: string
+          iv: string
+          session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          ciphertext?: string
+          iv?: string
+          session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_resume_secrets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skill_executions: {
         Row: {
           created_at: string
