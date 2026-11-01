@@ -47,7 +47,8 @@ function Dashboard() {
     queryKey: ["sessions"],
     queryFn: () => fetchSessions(),
     // Poll even when idle so runs started on another device become visible.
-    refetchInterval: 3000,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
   const creds = useQuery({ queryKey: ["creds"], queryFn: () => fetchCreds() });
   const aiCreds = useMemo(() => creds.data?.filter((c) => isAiProvider(c.provider)) ?? [], [creds.data]);
@@ -127,10 +128,10 @@ function Dashboard() {
   return (
     <div className="bg-aurora min-h-screen">
       <AppHeader />
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-3 pb-10 sm:p-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-5 p-3 pb-10 sm:gap-7 sm:p-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:p-8">
         <section className="min-w-0 space-y-4">
           <div>
-            <h1 className="text-gradient text-2xl font-semibold sm:text-3xl">What do you want to build?</h1>
+            <h1 className="text-gradient text-2xl font-semibold tracking-tight sm:text-3xl">What would you like to build?</h1>
             <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
               {([["AI key", aiCreds.length > 0, true], ["GitHub", hasGh, true], ["Database", hasDb, false], ["Vercel", hasVercel, false]] as const).map(([label, ok, required]) => (
                 <Link key={label} to="/settings" className={`flex items-center gap-1 rounded-full border px-2.5 py-1 ${ok ? "border-primary/40 text-foreground" : required ? "border-destructive/60 text-destructive" : "text-muted-foreground"}`}>
@@ -139,7 +140,7 @@ function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="panel p-4 sm:p-6">
+          <div className="panel rounded-2xl p-4 shadow-lg shadow-black/10 sm:p-6">
             {creds.data && !ready ? (
               <div className="space-y-3 text-sm">
                 <p>Two quick things first: {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"}.</p>
@@ -236,9 +237,9 @@ function Dashboard() {
             )}
           </div>
         </section>
-        <aside className="min-w-0">
+        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Your tasks</h2>
+            <div className="min-w-0"><h2 className="font-semibold tracking-tight">Your projects</h2><p className="mt-0.5 text-xs text-muted-foreground">Pick up where you left off</p></div>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search tasks" className="h-8 w-32 rounded-md border bg-card/70 px-2 text-xs outline-none focus:border-primary" />
           </div>
           <div className="mb-3 flex gap-1 overflow-x-auto text-xs">
@@ -246,11 +247,15 @@ function Dashboard() {
               <button key={k} type="button" onClick={() => setFilter(k)} className={`shrink-0 rounded-full border px-3 py-1 ${filter === k ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>{label} <span className="tabular-nums opacity-70">{counts[k]}</span></button>
             ))}
           </div>
-          {sessions.data?.length === 0 && <div className="panel p-6 text-center text-sm text-muted-foreground">No tasks yet. Describe what you want to build to start.</div>}
-          <ul className="max-h-[32rem] space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-12rem)]">
+          
+          {sessions.isLoading && <div className="panel space-y-3 p-4" role="status" aria-live="polite"><div className="h-3 w-28 animate-pulse rounded bg-muted" /><div className="h-3 w-4/5 animate-pulse rounded bg-muted" /><div className="h-3 w-2/3 animate-pulse rounded bg-muted" /><span className="sr-only">Loading your projects…</span></div>}
+          {sessions.error && <div className="panel p-4 text-sm"><p className="font-medium">Projects could not be loaded</p><p className="mt-1 text-xs text-muted-foreground">{(sessions.error as Error).message}</p><Button className="mt-3" size="sm" variant="outline" onClick={() => void sessions.refetch()}>Try again</Button></div>}
+          {!sessions.isLoading && !sessions.error && sessions.data?.length === 0 && <div className="panel p-6 text-center"><div className="mx-auto grid size-10 place-items-center rounded-xl bg-accent text-primary"><GitBranch className="size-5" /></div><p className="mt-3 text-sm font-medium text-foreground">Your workspace starts here</p><p className="mt-1 text-xs text-muted-foreground">Start a task and your projects will appear here.</p></div>}
+          {!sessions.isLoading && !sessions.error && sessions.data && sessions.data.length > 0 && shown.length === 0 && <div className="panel p-5 text-center text-sm"><p className="font-medium">No matching projects</p><p className="mt-1 text-xs text-muted-foreground">Try another search or clear the current filter.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { setQ(""); setFilter("all"); }}>Clear filters</Button></div>}
+          <ul className="max-h-[32rem] space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-16rem)]">
             {shown.map(({ s, st, kind }) => (
               <li key={s.id}>
-                <Link to="/s/$id" params={{ id: s.id }} className={`panel block p-3 transition-colors hover:border-primary ${kind === "running" ? "border-primary/50" : ""}`}>
+                <Link to="/s/$id" params={{ id: s.id }} className={`panel block rounded-xl p-3.5 transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-primary/50" : ""}`}>
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.title}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${kind === "running" ? "bg-accent text-primary" : kind === "needs" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
