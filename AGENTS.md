@@ -27,7 +27,7 @@
 - Sandboxes probe remote HEAD before fetching, reset tracked edits, keep tokens env-only; run-scoped shared reads are invalidated by writes. Why: speed without stale checks.
 - repo_memory (one note per user+repo via save_memory) plus typed project_memories are injected into prompts. Why: avoid rescans.
 - Guided setup: encrypted owner tokens and service-only task DB settings; sync to Vercel envs (privileged keys server-only); GitHub gets only a blank env template; migrations are ordered supabase/migrations/*.sql tracked per task. Why: no credential commits.
-- Teams: master dispatches up to 12 specialist jobs (four active) in dependency waves; writer roles propose only exclusive assigned paths; only the master merges non-stale proposals; shared sandbox/dispatch serialize per session; workers cannot delegate or cause external effects; throttling backs off. Why: parallelism without conflicts or quota storms.
+- Teams: master dispatches specialist jobs sized by engine/reasoning.ts teamPolicy (max 12 jobs, four active) in dependency waves; writer roles propose only exclusive assigned paths; only the master merges non-stale proposals; shared sandbox/dispatch serialize per session; workers cannot delegate or cause external effects; throttling backs off. Why: parallelism without conflicts or quota storms.
 - Skills (saved or GitHub-imported with source pointer) are inert instruction text, caller-scoped; load errors never look like empty skills. Why: untrusted content stays data.
 - MCP schemas use a non-eval interpreter; unsupported tools are isolated. Why: cloud forbids codegen.
 - Chunk failures do bounded cache-busted reloads. Why: stale manifests.
