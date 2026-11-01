@@ -1,7 +1,8 @@
 import { createMCPClient, type MCPClient, type OAuthClientProvider } from "@ai-sdk/mcp";
 import { tool } from "ai";
 import { z } from "zod";
-import { publicMcpUrl, allowedMcpTool } from "./mcp-policy";
+import { publicMcpUrl, allowedMcpTool, readOnlyTool } from "./mcp-policy";
+import { runMcpOperation } from "./mcp-resilience";
 import { guardedMcpFetch, verifyPublicTarget } from "./mcp-network.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -72,6 +73,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         const policy = policies[def.name] ?? "allow";
         // Denied tools are never offered to the model.
         if (policy === "deny") continue;
+        const isReadOnly = readOnlyTool(def);
         const needsApproval = policy === "ask" || !allowedMcpTool(row.url, def);
         let validate;
         try { validate = compileMcpSchema(def.inputSchema as Record<string, unknown>); }
@@ -95,7 +97,8 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
             }
             const started = Date.now();
             try {
-              const out = await (await getClient(row)).callTool({ name: def.name, arguments: args });
+              const result = await runMcpOperation(() => getClient(row).then((client) => client.callTool({ name: def.name, arguments: args })), { readOnly: isReadOnly });
+              const out = result.value;
               audit({ server: row.name, tool: def.name, decision: "executed", ok: true, ms: Date.now() - started });
               return out;
             } catch (e) {
