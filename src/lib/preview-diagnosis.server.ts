@@ -51,7 +51,12 @@ export async function diagnosePreview(sb: any, task: { id: string; user_id: stri
       if (project.repo?.toLowerCase() !== task.repo.toLowerCase()) return { state: "warn", detail: "Vercel repository link differs from this task; review it in Deploy." };
       const latest = builds[0];
       if (!latest) return { state: "warn", detail: "Project accessible; no deployment for this task branch. No deployment started." };
-      if (latest.state === "ERROR") return { state: "error", detail: `Build failed:\n${await v.buildLog(latest.id)}` };
+      if (latest.state === "ERROR") {
+        const log = await v.buildLog(latest.id);
+        const { diagnoseDeploymentFailure } = await import("./deployment-diagnosis");
+        const diagnosis = diagnoseDeploymentFailure(log);
+        return { state: "error", detail: `Build failed. Diagnosis: ${diagnosis.summary}\nCategory: ${diagnosis.category}; confidence: ${diagnosis.confidence}\nEvidence:\n${diagnosis.evidence.join("\n") || "No matching error lines captured."}\nRecommended next actions:\n${diagnosis.nextActions.map((action, i) => `${i + 1}. ${action}`).join("\n")}` };
+      }
       if (latest.state === "READY") {
         const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
         const health = await checkDeploymentRuntime(latest.url);
