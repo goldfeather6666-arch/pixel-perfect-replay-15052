@@ -325,7 +325,7 @@ function Workspace() {
               {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
             </select>
             <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} disabled={running || bgRunning} />
-            <AutoFixButton id={id} onSend={autoFixSend} compact={!desktop} disabled={running || bgRunning} />
+            {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
                 <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
@@ -372,6 +372,7 @@ function Workspace() {
           </div>
           <form className="glass border-t p-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
+              {!desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
               <button type="button" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
                 className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 ${planMode ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>
                 <ListChecks className="h-3 w-3" /> Plan first
