@@ -43,7 +43,7 @@ const words = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9][a-z0-9.+-]{
  * Choose which skills to fully load for a request, with the reason. Dependencies of selected skills
  * are pulled in; unknown dependencies are reported rather than silently ignored.
  */
-export function selectSkills(request: string, skills: SkillMeta[]): { selected: { skill: SkillMeta; reason: string }[]; missingDeps: string[] } {
+export function selectSkills(request: string, skills: SkillMeta[], stats?: Map<string, { loaded: number; completed: number }>): { selected: { skill: SkillMeta; reason: string }[]; missingDeps: string[] } {
   const req = request.toLowerCase();
   const reqWords = words(request);
   const byName = new Map(skills.map((s) => [s.name.toLowerCase(), s]));
@@ -55,7 +55,11 @@ export function selectSkills(request: string, skills: SkillMeta[]): { selected: 
     if (trig) { chosen.set(s.name, `request mentions "${trig}"`); continue; }
     if (req.includes(s.name.toLowerCase())) { chosen.set(s.name, "named in your request"); continue; }
     const overlap = [...words(`${s.name.replace(/[-_]/g, " ")} ${s.description}`)].filter((w) => reqWords.has(w));
-    if (overlap.length >= 2) chosen.set(s.name, `matches ${overlap.slice(0, 3).join(", ")}`);
+    const st = stats?.get(s.name);
+    const rate = st && st.loaded >= 4 ? st.completed / st.loaded : null;
+    const track = rate === null ? "" : ` (${Math.round(rate * 100)}% of ${st!.loaded} past runs completed)`;
+    if (overlap.length >= 2 && (rate === null || rate >= 0.25)) chosen.set(s.name, `matches ${overlap.slice(0, 3).join(", ")}${track}`);
+    else if (overlap.length === 1 && rate !== null && rate >= 0.7) chosen.set(s.name, `matches ${overlap[0]} and has a strong track record${track}`);
   }
   const missingDeps: string[] = [];
   const queue = [...chosen.keys()];

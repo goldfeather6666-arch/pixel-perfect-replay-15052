@@ -88,5 +88,5 @@
 - [x] Suggestions with Accept / Keep mine / Discuss; versioned task specs
 - [x] Reasoning profiles (auto/speed/balanced/deep) sent only where supported
 - [x] Role model routing (coding/reviewer) + adaptive team sizing
-- [ ] Measured speed benchmark vs baseline (needs paid real-key runs)
-- [ ] Repository tree cache across runs, per-skill effectiveness scoring, structured worker report schema
+- [ ] Measured speed benchmark vs baseline (blocked: needs your OK to spend AI credits on repeat runs)
+- [x] Repository tree cache across runs, per-skill effectiveness scoring, structured worker report schema
