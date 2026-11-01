@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { productionInstructions } from "./deployment-quality";
 
 export const MAX_SPLIT_TASK_CHARS = 20_000;
 export const WORK_ROLES = ["master", "explorer", "coder", "tester"] as const;
@@ -18,7 +19,8 @@ export const workSplitSchema = z.object({
 });
 export type WorkSplit = z.infer<typeof workSplitSchema>;
 
-export const SPLIT_SYSTEM = `You divide a coding task for a team of AI agents. Roles:
+export const SPLIT_SYSTEM = `${productionInstructions}
+You divide a production implementation into coordinated work, never a demo-first milestone. Include real integration, security, production configuration and acceptance verification in the relevant assignments. Roles:
 - master: coordinates, merges coder proposals, final verification. Exactly one master item, first.
 - explorer: read-only investigation of the repository.
 - coder: edits files. Each coder owns distinct file paths; never assign the same path to two coders.
