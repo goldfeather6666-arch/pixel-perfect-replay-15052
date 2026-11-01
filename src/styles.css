@@ -27,6 +27,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
   --color-success: var(--success);
   --color-added: var(--added);
   --color-removed: var(--removed);
@@ -67,6 +68,7 @@
   --accent-foreground: oklch(0.95 0.012 85);
   --destructive: oklch(0.65 0.2 28);
   --destructive-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.8 0.15 80);
   --success: oklch(0.8 0.17 145);
   --added: oklch(0.32 0.07 145);
   --removed: oklch(0.32 0.08 25);
