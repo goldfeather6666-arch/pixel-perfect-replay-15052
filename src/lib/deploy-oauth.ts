@@ -7,7 +7,7 @@ export const REFRESH_SKEW_MS = 2 * 60_000;
 
 export function callbackPath(p: DeployOAuthProvider) { return `/api/public/oauth/${p}/callback`; }
 
-export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string }) {
+export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string | undefined }) {
   if (p === "vercel") {
     if (!o.vercelSlug) throw new Error("Vercel integration slug is not configured");
     const u = new URL(`https://vercel.com/integrations/${encodeURIComponent(o.vercelSlug)}/new`);

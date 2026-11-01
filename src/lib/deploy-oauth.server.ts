@@ -40,7 +40,7 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
   const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
   const form = new URLSearchParams(body);
   if (p === "vercel") { form.set("client_id", c.id); form.set("client_secret", c.secret); }
-  else headers.authorization = `Basic ${btoa(`${c.id}:${c.secret}`)}`;
+  else headers["authorization"] = `Basic ${btoa(`${c.id}:${c.secret}`)}`;
   const res = await fetch(url, { method: "POST", headers, body: form, redirect: "error", signal: AbortSignal.timeout(20_000) });
   const j = await res.json().catch(() => ({})) as any;
   if (!res.ok || !j.access_token) throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})`);
