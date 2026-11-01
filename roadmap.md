@@ -1,5 +1,7 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
 
+- [x] Automatic liveness watchdog: 15-min silence detection, existing 5-min recovery schedule, three-retry cap, saved progress, atomic leases and execution fencing; Stop and approvals preserved. 23 focused tests passed, including simulated stop-and-resend; real paid recovery not triggered.
+
 - [x] Show Vercel account unlink in the website section and offer saved/new account connection choices; explicit unlink disables fallback and preserves saved accounts/remote websites. Nine account tests passed; real-account browser flow remains unverified.
 
 - [x] Add read-only preview/database/Vercel diagnosis, AI service inspection tool, failed-network capture and opt-in auto-repair (three attempts, idle agents only, existing chat approvals). 24 preview tests passed; desktop/phone simulated failure verified service evidence in AI submission. No paid repair, SQL or deployment triggered; live service checks remain unverified.

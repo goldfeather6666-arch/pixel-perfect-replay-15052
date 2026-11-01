@@ -9,13 +9,16 @@ type Result = { ok: true } | { ok: false; status: number; message: string };
  * Starts a dedicated, short-lived E2B sandbox that only holds the agent stream open.
  * It never contains the repository, so repo code cannot read the user's session token.
  */
-export async function startKeeper(opts: { sb: any; userId: string; sessionId: string; origin: string; token: string; body: string }): Promise<Result | null> {
+export async function startKeeper(opts: { sb: any; userId: string; sessionId: string; origin: string; token: string; body: string; recovery?: boolean }): Promise<Result | null> {
   const apiKey = process.env["E2B_API_KEY"];
   if (!apiKey) return null;
   const { Sandbox } = await import("e2b");
   const box = await Sandbox.create({ apiKey, timeoutMs: KEEPER_TIMEOUT_MS, metadata: { keeper: opts.sessionId } });
   try {
-    await opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId }).eq("id", opts.sessionId).eq("user_id", opts.userId);
+    let pin = opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId }).eq("id", opts.sessionId).eq("user_id", opts.userId);
+    if (opts.recovery) pin = pin.eq("stop_requested", false).eq("running", true);
+    const { data: pinned, error } = await pin.select("id");
+    if (error || !pinned?.length) { await box.kill(); return { ok: false, status: 409, message: "Task stopped or changed before recovery" }; }
     await box.files.write("/tmp/req.json", opts.body);
     await box.commands.run(KEEPER_SCRIPT, {
       background: true,
