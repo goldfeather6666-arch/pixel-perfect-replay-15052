@@ -1,5 +1,6 @@
 // Clients for the user's own Supabase (Management API) and Vercel accounts.
 // Hosts are fixed, so no user-controlled network targets.
+import type { AccountIdentity } from "./account-identity";
 
 async function call<T>(base: string, token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${base}${path}`, {
@@ -27,6 +28,14 @@ export class SupabaseMgmt {
   async orgs() {
     const r = await this.req<any[]>("/organizations");
     return r.map((o) => ({ id: o.id as string, name: o.name as string }));
+  }
+  /** Who this token belongs to: its organizations identify the account. */
+  async identity(): Promise<AccountIdentity> {
+    const orgs = (await this.orgs()).sort((a, b) => a.id.localeCompare(b.id));
+    if (orgs.length) return { key: `org:${orgs.map((o) => o.id).join(",")}`, name: orgs.map((o) => o.name).join(", ") };
+    // No visible organizations: fall back to the projects it can see; an empty account can't be compared.
+    const ps = (await this.projects()).sort((a, b) => a.ref.localeCompare(b.ref));
+    return { key: ps.length ? `projects:${ps.map((p) => p.ref).join(",")}` : "", name: ps.length ? `${ps[0]!.name}${ps.length > 1 ? ` +${ps.length - 1}` : ""}` : "Supabase account" };
   }
   async createProject(name: string, orgId: string, region: string) {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -60,6 +69,12 @@ export class Vercel {
   constructor(private token: string) {}
   private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, p, i); }
   user() { return this.req("/v2/user"); }
+  /** Who this token belongs to (Vercel user id + username/email). */
+  async identity(): Promise<AccountIdentity> {
+    const r = await this.req<any>("/v2/user");
+    const u = r?.user ?? {};
+    return { key: String(u.id ?? u.uid ?? ""), name: String(u.username || u.email || u.name || "Vercel account") };
+  }
   async projects() {
     const r = await this.req<any>("/v9/projects?limit=100");
     return (r.projects as any[]).map((p) => ({ id: p.id as string, name: p.name as string, repo: (p.link?.org && p.link?.repo ? `${p.link.org}/${p.link.repo}` : null) as string | null }));

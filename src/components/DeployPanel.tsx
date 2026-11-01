@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Database, ExternalLink, Rocket } from "lucide-react";
 import { saveCredential } from "@/lib/app.functions";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv, saveDatabaseSettings, setTaskAccount,
+  applyMigrations, getDeployments, getIntegrations, getMigrationStatus, identifyAccounts, linkSupabase, linkVercel, listSupabaseOptions, listVercelProjects, syncDeployEnv, saveDatabaseSettings, setTaskAccount,
 } from "@/lib/integrations.functions";
 
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
@@ -41,6 +41,7 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
         </ul>
       </section>
       <ConnectSyncCard id={id} {...(onSend ? { onSend } : {})} />
+      <SameAccountWarning onRenamed={refresh} />
       <AccountsCard id={id} options={d.accountOptions} active={d.activeAccounts} onChange={() => { refresh(); qc.invalidateQueries({ queryKey: ["sb-opts", id] }); qc.invalidateQueries({ queryKey: ["vc-projects", id] }); }} />
       <SupabaseCard key={`sb-${d.activeAccounts.supabase}`} account={d.activeAccounts.supabase} id={id} has={d.hasSupabase} linked={d.supabase_ref} onChange={refresh} />
       {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
@@ -53,6 +54,28 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
 }
 
 type AccountOption = { id: string; provider: string; label: string; last4: string };
+
+/** Tells the user when two saved tokens are really the same Vercel/Supabase account (they would list identical projects). */
+function SameAccountWarning({ onRenamed }: { onRenamed: () => void }) {
+  const q = useQuery({ queryKey: ["account-identities"], queryFn: useServerFn(identifyAccounts), staleTime: 5 * 60_000 });
+  const renamed = q.data?.renamed;
+  useEffect(() => { if (renamed) onRenamed(); }, [renamed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dups = q.data?.duplicates ?? [];
+  const broken = (q.data?.accounts ?? []).filter((a) => !a.reachable);
+  if (!dups.length && !broken.length) return null;
+  return (
+    <section role="alert" className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm">
+      {dups.map((g) => (
+        <p key={g.provider + g.name} className="mb-2">
+          <span className="font-semibold">Same {g.provider === "vercel" ? "Vercel" : "Supabase"} account saved twice.</span>{" "}
+          Tokens {g.last4.map((l) => `···${l}`).join(" and ")} both belong to <span className="font-medium">{g.name}</span>, so switching between them shows the same projects.
+          To use another account: sign out of {g.provider === "vercel" ? "Vercel" : "Supabase"}, sign in to the other account, create a token there, then remove the duplicate in Settings → Accounts.
+        </p>
+      ))}
+      {broken.map((a) => <p key={a.id} className="text-xs">Token ···{a.last4} ({a.label}) no longer works. Remove it in Settings → Accounts and add a fresh one.</p>)}
+    </section>
+  );
+}
 const SERVICES = [
   { key: "github", name: "GitHub" },
   { key: "supabase", name: "Database (Supabase)" },
@@ -127,7 +150,7 @@ function NeedToken({ name, onDone }: { name: "Supabase" | "Vercel"; onDone: (acc
   const g = GUIDES[name];
   const m = useMutation({
     mutationFn: () => save({ data: { provider: name === "Supabase" ? "supabase" : "vercel", label: name, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
-    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); await onDone(r.id); },
+    onSuccess: async (r) => { toast.success(`${name} connected`); setKey(""); qc.invalidateQueries({ queryKey: ["creds"] }); qc.invalidateQueries({ queryKey: ["account-identities"] }); await onDone(r.id); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
@@ -306,6 +329,7 @@ function VercelCard({ id, options, account, has, linked, onChange, dbLinked }: {
           {projects.error && <p className="text-xs text-destructive">{(projects.error as Error).message}</p>}
           {mode === "existing" ? (
             <>
+              <p className="text-xs text-muted-foreground">Projects from <span className="font-medium text-foreground">{options.find((o) => o.id === account)?.label ?? "Vercel"} ···{options.find((o) => o.id === account)?.last4}</span></p>
               <Select value={pick} onValueChange={setPick} disabled={projects.isFetching || linkM.isPending}>
                 <SelectTrigger className={trig}><SelectValue placeholder={projects.isLoading ? "Loading…" : "Choose a project"} /></SelectTrigger>
                 <SelectContent className="max-w-[calc(100vw-2rem)]">{projects.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.repo ? ` · ${p.repo}` : ""}</SelectItem>)}</SelectContent>

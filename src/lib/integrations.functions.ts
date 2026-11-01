@@ -275,3 +275,28 @@ export const setTaskAccount = createServerFn({ method: "POST" })
     if (error || !saved?.length) throw new Error("Task changed while saving the account; refresh and retry");
     return { accounts: patch.accounts };
   });
+
+/** Checks which real Vercel/Supabase account each saved token belongs to; names generic labels and reports duplicates. */
+export const identifyAccounts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { identifySaved } = await import("./account-identity.server");
+    const { identityLabel, isGenericLabel, duplicateGroups } = await import("./account-identity");
+    const out: { id: string; provider: "vercel" | "supabase"; label: string; last4: string; reachable: boolean }[] = [];
+    const duplicates: { provider: "vercel" | "supabase"; name: string; last4: string[] }[] = [];
+    let renamed = false;
+    for (const provider of ["vercel", "supabase"] as const) {
+      const rows = await identifySaved(context.supabase, context.userId, provider);
+      for (const r of rows) {
+        let label = r.label;
+        if (r.identity && isGenericLabel(r.label)) {
+          label = identityLabel(provider, r.label, r.identity);
+          const { error } = await context.supabase.from("provider_credentials").update({ label }).eq("id", r.id).eq("user_id", context.userId);
+          if (!error) renamed = true;
+        }
+        out.push({ id: r.id, provider, label, last4: r.last4, reachable: !!r.identity });
+      }
+      for (const g of duplicateGroups(rows)) duplicates.push({ provider, name: g[0]!.identity!.name, last4: g.map((t) => t.last4) });
+    }
+    return { accounts: out, duplicates, renamed };
+  });
