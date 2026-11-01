@@ -2,7 +2,7 @@
 // so a scheduled job can restart it after it dies while the user's app is closed.
 import { createClient } from "@supabase/supabase-js";
 import { STALE_MS } from "./task-run-status";
-import { MAX_AUTO_RESUMES, RECOVERY_COOLDOWN_MS, RESUME_MESSAGE, resumeCandidates } from "./run-resume";
+import { HUMAN_WAIT_STAGES, MAX_AUTO_RESUMES, QUIET_MS, RECOVERY_COOLDOWN_MS, RESUME_MESSAGE, quietStopCandidates, resumeCandidates } from "./run-resume";
 
 async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
@@ -32,6 +32,7 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
   const { resume, clean } = resumeCandidates<{ session_id: string; user_id: string; ciphertext: string; iv: string; attempts: number; updated_at: string }>(secrets, sessions ?? [], now, STALE_MS);
   if (clean.length) await db.from("run_resume_secrets").delete().in("session_id", clean);
   let resumed = 0;
+  const resumedIds = new Set<string>();
   const { startKeeper, stopKeeper } = await import("./background-run.server");
   for (const s of resume.slice(0, 4)) {
     try {
@@ -65,10 +66,38 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
       const { data, error } = await anon.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
       if (error || !data.session || data.user?.id !== s.user_id) continue;
       const r = await startKeeper({ sb: userClient(data.session.access_token), userId: s.user_id, sessionId: s.session_id, origin, token: data.session.access_token, recovery: true, body: JSON.stringify({ sessionId: s.session_id, message: RESUME_MESSAGE }) });
-      if (r?.ok) resumed++;
+      if (r?.ok) { resumed++; resumedIds.add(s.session_id); }
     } catch (e) {
       console.error("auto-resume failed", s.session_id, e instanceof Error ? e.message : "error");
     }
   }
-  return { resumed, cleaned: clean.length, max: MAX_AUTO_RESUMES };
+  // Recovery had its chance; a run still silent past the quiet limit gives its sandbox back.
+  const stopped = await stopQuietRuns(db, now, resumedIds);
+  return { resumed, cleaned: clean.length, stopped, max: MAX_AUTO_RESUMES };
+}
+
+/** Releases sandboxes held by runs that stopped reporting, sparing anything a person still owes. */
+async function stopQuietRuns(db: any, now: number, skip: Set<string>) {
+  const cutoff = new Date(now - QUIET_MS).toISOString();
+  const { data: rows } = await db.from("agent_sessions")
+    .select("id, user_id, running, stop_requested, updated_at")
+    .eq("running", true).eq("stop_requested", false).lte("updated_at", cutoff)
+    .order("updated_at", { ascending: true }).limit(25);
+  if (!rows?.length) return 0;
+  const candidates: any[] = [];
+  for (const r of rows) {
+    if (skip.has(r.id)) continue;
+    const { data: lastRun } = await db.from("agent_runs").select("stage").eq("session_id", r.id)
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+    candidates.push({ ...r, last_stage: lastRun?.stage ?? null });
+  }
+  const doomed = quietStopCandidates(candidates, now, QUIET_MS);
+  if (!doomed.length) return 0;
+  const { stopAgentSession } = await import("./session-stop.server");
+  let stopped = 0;
+  for (const s of doomed) {
+    try { await stopAgentSession(db, s.id, s.user_id); stopped++; }
+    catch (e) { console.error("quiet-run stop failed", s.id, e instanceof Error ? e.message : "error"); }
+  }
+  return stopped;
 }
