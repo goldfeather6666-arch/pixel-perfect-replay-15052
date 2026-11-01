@@ -112,6 +112,20 @@ export class GitHub {
       return n.sha as string;
     });
   }
+  /** Writes many files as ONE commit (a fixed 4–5 API calls instead of two per file). */
+  putFiles(repo: string, branch: string, files: { path: string; content: string }[], message: string) {
+    return commitSafely(repo, branch, async () => {
+      const head = await this.headSha(repo, branch);
+      const c = await this.req<any>(`repos/${repo}/git/commits/${head}`);
+      const t = await this.req<any>(`repos/${repo}/git/trees`, {
+        method: "POST",
+        body: JSON.stringify({ base_tree: c.tree.sha, tree: files.map((f) => ({ path: f.path, mode: "100644", type: "blob", content: f.content })) }),
+      });
+      const n = await this.req<any>(`repos/${repo}/git/commits`, { method: "POST", body: JSON.stringify({ message, tree: t.sha, parents: [head] }) });
+      await this.req(`repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { method: "PATCH", body: JSON.stringify({ sha: n.sha }) });
+      return n.sha as string;
+    });
+  }
   async openPr(repo: string, base: string, head: string, title: string, body: string) {
     const p = await this.req<any>(`repos/${repo}/pulls`, { method: "POST", body: JSON.stringify({ title, body, head, base }) });
     return p.html_url as string;

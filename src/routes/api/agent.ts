@@ -260,6 +260,26 @@ export const Route = createFileRoute("/api/agent")({
               return { committed: sha.slice(0, 7) };
             },
           }),
+          write_files: tool({
+            description: "Create or overwrite several files (2–30) with complete new content in ONE commit. Much faster than repeated write_file; prefer it whenever you change more than one file.",
+            inputSchema: z.object({ files: z.array(z.object({ path: z.string().min(1), content: z.string() })).min(1).max(30), commit_message: z.string() }),
+            execute: async ({ files, commit_message }) => {
+              const direct: { path: string; content: string }[] = [];
+              let staged = 0;
+              for (const f of files) {
+                const original = autonomy === "significant" ? await readCurrent(f.path) : undefined;
+                if (supervised || writeNeedsApproval(autonomy, { path: f.path, action: "write", content: f.content, original })) {
+                  pending.push({ path: f.path, action: "write", content: f.content, original: await readCurrent(f.path) });
+                  staged++;
+                } else direct.push(f);
+              }
+              invalidateChecks();
+              if (!direct.length) return { staged, note: "Staged for user approval." };
+              const sha = await gh.putFiles(repo, branch, direct, commit_message);
+              treeCache = null;
+              return { committed: sha.slice(0, 7), files: direct.length, staged };
+            },
+          }),
           delete_file: tool({
             description: "Delete a file.",
             inputSchema: z.object({ path: z.string(), commit_message: z.string() }),
