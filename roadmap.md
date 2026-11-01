@@ -82,3 +82,11 @@
 - [x] Phase C: home reorganise
 - [x] Phase D: Settings sections
 - [x] Knowledge panel: Rules/Memories/Tools tabs show nothing and don't update live
+
+## Forge V3 master prompt
+- [x] Discovery: task classes, question tool, durable Q&A (AWAITING_INPUT, idempotent answers, resume)
+- [x] Suggestions with Accept / Keep mine / Discuss; versioned task specs
+- [x] Reasoning profiles (auto/speed/balanced/deep) sent only where supported
+- [x] Role model routing (coding/reviewer) + adaptive team sizing
+- [ ] Measured speed benchmark vs baseline (needs paid real-key runs)
+- [ ] Repository tree cache across runs, per-skill effectiveness scoring, structured worker report schema

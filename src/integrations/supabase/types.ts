@@ -204,6 +204,7 @@ export type Database = {
           accounts: Json
           applied_migrations: string[]
           base_branch: string
+          coding_model: string | null
           created_at: string
           credential_id: string | null
           execution_id: string | null
@@ -214,7 +215,9 @@ export type Database = {
           mode: string
           model: string
           pending: Json
+          reasoning_profile: string
           repo: string
+          reviewer_model: string | null
           running: boolean
           sandbox_id: string | null
           stop_requested: boolean
@@ -232,6 +235,7 @@ export type Database = {
           accounts?: Json
           applied_migrations?: string[]
           base_branch: string
+          coding_model?: string | null
           created_at?: string
           credential_id?: string | null
           execution_id?: string | null
@@ -242,7 +246,9 @@ export type Database = {
           mode?: string
           model?: string
           pending?: Json
+          reasoning_profile?: string
           repo: string
+          reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null
           stop_requested?: boolean
@@ -260,6 +266,7 @@ export type Database = {
           accounts?: Json
           applied_migrations?: string[]
           base_branch?: string
+          coding_model?: string | null
           created_at?: string
           credential_id?: string | null
           execution_id?: string | null
@@ -270,7 +277,9 @@ export type Database = {
           mode?: string
           model?: string
           pending?: Json
+          reasoning_profile?: string
           repo?: string
+          reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null
           stop_requested?: boolean
@@ -861,11 +870,198 @@ export type Database = {
           },
         ]
       }
+      task_questions: {
+        Row: {
+          allow_custom_answer: boolean
+          allow_skip: boolean
+          answer: Json | null
+          answer_key: string | null
+          answered_at: string | null
+          created_at: string
+          description: string
+          id: string
+          options: Json
+          position: number
+          recommendation_reason: string
+          recommended_option_ids: string[]
+          required: boolean
+          run_id: string | null
+          safe_default: string | null
+          session_id: string
+          status: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          allow_custom_answer?: boolean
+          allow_skip?: boolean
+          answer?: Json | null
+          answer_key?: string | null
+          answered_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          options?: Json
+          position?: number
+          recommendation_reason?: string
+          recommended_option_ids?: string[]
+          required?: boolean
+          run_id?: string | null
+          safe_default?: string | null
+          session_id: string
+          status?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          allow_custom_answer?: boolean
+          allow_skip?: boolean
+          answer?: Json | null
+          answer_key?: string | null
+          answered_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          options?: Json
+          position?: number
+          recommendation_reason?: string
+          recommended_option_ids?: string[]
+          required?: boolean
+          run_id?: string | null
+          safe_default?: string | null
+          session_id?: string
+          status?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_questions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_specifications: {
+        Row: {
+          created_at: string
+          id: string
+          run_id: string | null
+          session_id: string
+          spec: Json
+          task_class: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          run_id?: string | null
+          session_id: string
+          spec: Json
+          task_class: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          run_id?: string | null
+          session_id?: string
+          spec?: Json
+          task_class?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_specifications_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_suggestions: {
+        Row: {
+          complexity: string
+          created_at: string
+          decided_at: string | null
+          description: string
+          estimated_impact: string
+          expected_benefit: string[]
+          id: string
+          rationale: string
+          recommended_approach: string
+          requested_approach: string
+          risk: string
+          run_id: string | null
+          session_id: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          complexity: string
+          created_at?: string
+          decided_at?: string | null
+          description?: string
+          estimated_impact: string
+          expected_benefit?: string[]
+          id?: string
+          rationale?: string
+          recommended_approach: string
+          requested_approach?: string
+          risk?: string
+          run_id?: string | null
+          session_id: string
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          complexity?: string
+          created_at?: string
+          decided_at?: string | null
+          description?: string
+          estimated_impact?: string
+          expected_benefit?: string[]
+          id?: string
+          rationale?: string
+          recommended_approach?: string
+          requested_approach?: string
+          risk?: string
+          run_id?: string | null
+          session_id?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_suggestions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      answer_task_question: {
+        Args: { _answer: Json; _key: string; _question: string; _skip: boolean }
+        Returns: Json
+      }
       engine_event: {
         Args: { _payload: Json; _run: string; _type: string }
         Returns: number

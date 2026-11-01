@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 const FLOW: Stage[] = ["RECEIVED", "DISCOVERING", "PLANNING", "EXECUTING", "VERIFYING", "REPAIRING"];
 const LABEL: Record<string, string> = {
   RECEIVED: "Received", DISCOVERING: "Reading project, skills & tools", PLANNING: "Planning", EXECUTING: "Working",
-  VERIFYING: "Checking", REPAIRING: "Fixing", AWAITING_APPROVAL: "Waiting for your approval", COMPLETED: "Completed",
+  VERIFYING: "Checking", REPAIRING: "Fixing", AWAITING_APPROVAL: "Waiting for your approval", AWAITING_INPUT: "Waiting for your answers", COMPLETED: "Completed",
   FAILED: "Failed", CANCELLED: "Stopped", BLOCKED: "Blocked",
 };
 type Ev = { seq: number; type: string; payload: Record<string, unknown>; created_at: string };
@@ -69,7 +69,7 @@ export function RunTimeline({ sessionId, repo, running }: { sessionId: string; r
 
   const reached = [...new Set(["RECEIVED", ...overview.data!.transitions.map((t) => t.to_stage)])] as Stage[];
   const current = run.stage as Stage;
-  const terminal = ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL"].includes(current);
+  const terminal = ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL", "AWAITING_INPUT"].includes(current);
   const pct = stageProgress(reached);
   const m = (run.metrics ?? {}) as Record<string, unknown> & { tools?: Record<string, { n: number; ms: number; failed: number }>; usage?: { input: number; output: number } };
   const lines = events.map((e) => ({ e, text: describe(e) })).filter((x) => x.text);
@@ -83,7 +83,7 @@ export function RunTimeline({ sessionId, repo, running }: { sessionId: string; r
       )}
       <section className="space-y-2 rounded-md border p-3">
         <div className="flex items-center gap-2">
-          {current === "COMPLETED" ? <CheckCircle2 className="h-4 w-4 text-primary" /> : current === "FAILED" || current === "CANCELLED" ? <XCircle className="h-4 w-4 text-destructive" /> : current === "BLOCKED" || current === "AWAITING_APPROVAL" ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : <Loader2 className="h-4 w-4 animate-spin" />}
+          {current === "COMPLETED" ? <CheckCircle2 className="h-4 w-4 text-primary" /> : current === "FAILED" || current === "CANCELLED" ? <XCircle className="h-4 w-4 text-destructive" /> : current === "BLOCKED" || current === "AWAITING_APPROVAL" || current === "AWAITING_INPUT" ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : <Loader2 className="h-4 w-4 animate-spin" />}
           <span className="font-medium">{LABEL[current] ?? current}</span>
           <span className="ml-auto text-xs text-muted-foreground">{pct}%</span>
         </div>

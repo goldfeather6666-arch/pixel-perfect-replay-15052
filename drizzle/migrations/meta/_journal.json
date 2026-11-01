@@ -148,6 +148,13 @@
       "when": 1793520869679,
       "tag": "0020_agent_execution_fencing",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793560139105,
+      "tag": "0021_forge_v3_discovery",
+      "breakpoints": true
     }
   ]
 }

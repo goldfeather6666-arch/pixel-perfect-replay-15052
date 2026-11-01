@@ -188,6 +188,9 @@ export type SessionRow = {
   model: string;
   mode: Autonomy;
   fallback_model?: string | null;
+  reasoning_profile?: string | null;
+  coding_model?: string | null;
+  reviewer_model?: string | null;
   messages: ChatMessage[];
   pending: PendingChange[];
   updated_at: string;
@@ -273,11 +276,23 @@ export const updateSession = createServerFn({ method: "POST" })
       model: z.string().trim().min(1).max(200).optional(),
       mode: z.enum(AUTONOMY).optional(),
       fallback_model: z.string().trim().max(200).nullable().optional(),
+      reasoning_profile: z.enum(["auto", "speed", "balanced", "deep"]).optional(),
+      coding_model: z.string().trim().max(200).nullable().optional(),
+      reviewer_model: z.string().trim().max(200).nullable().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    const patch: { model?: string; mode?: string; credential_id?: string; fallback_model?: string | null } = {};
+    const { validateRoleModel } = await import("@/lib/engine/reasoning");
+    const patch: { model?: string; mode?: string; credential_id?: string; fallback_model?: string | null; reasoning_profile?: string; coding_model?: string | null; reviewer_model?: string | null } = {};
     if (data.fallback_model !== undefined) patch.fallback_model = data.fallback_model || null;
+    if (data.reasoning_profile) patch.reasoning_profile = data.reasoning_profile;
+    for (const role of ["coding", "reviewer"] as const) {
+      const v = data[`${role}_model`];
+      if (v === undefined) continue;
+      const err = v ? validateRoleModel(role, v) : null;
+      if (err) throw new Error(err);
+      patch[`${role}_model`] = v || null;
+    }
     if (data.credential_id) {
       if (!data.model) throw new Error("Choose a model for the new provider.");
       // Owner check: RLS only returns the caller's own saved keys.

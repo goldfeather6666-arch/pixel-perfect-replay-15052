@@ -43,7 +43,7 @@ export async function resumeStaleRuns(origin: string, now = Date.now()) {
       if (!lease?.length) continue;
       const { data: lastRun } = await db.from("agent_runs").select("stage, ended_at").eq("session_id", s.session_id).order("started_at", { ascending: false }).limit(1).maybeSingle();
       // Never turn an approval wait, provider denial/failure, or finished run into unattended work.
-      if (lastRun && (lastRun.ended_at || ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL"].includes(lastRun.stage))) {
+      if (lastRun && (lastRun.ended_at || ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED", "AWAITING_APPROVAL", "AWAITING_INPUT"].includes(lastRun.stage))) {
         await db.from("run_resume_secrets").delete().eq("session_id", s.session_id);
         continue;
       }
