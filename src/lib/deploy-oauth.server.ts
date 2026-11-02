@@ -43,7 +43,11 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
   else headers["authorization"] = `Basic ${btoa(`${c.id}:${c.secret}`)}`;
   const res = await fetch(url, { method: "POST", headers, body: form, redirect: "manual", signal: AbortSignal.timeout(20_000) });
   const j = await res.json().catch(() => ({})) as any;
-  if (!res.ok || !j.access_token) throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})`);
+  if (!res.ok || !j.access_token) {
+    // Provider error codes/descriptions are safe to show (never contain our secret); keep them short and single-line.
+    const why = String(j.error_description ?? j.error?.message ?? j.message ?? j.error ?? "").replace(/[\r\n]+/g, " ").slice(0, 200);
+    throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})${why ? `: ${why}` : ""}`);
+  }
   return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null, installationId: j.installation_id ?? null };
 }
 
