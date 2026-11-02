@@ -19,20 +19,31 @@ export function mergeAllowList(existing: string | null | undefined, required: st
   return { value: [...have, ...added].join(","), added };
 }
 
-/** Site address: keep a real one; replace empty/localhost with the live domain. */
+/** Only a registered Vercel production domain determines the final site address. */
 export function pickSiteUrl(current: string | null | undefined, domains: string[]): string | null {
-  const live = domains[0] ? `https://${domains[0].toLowerCase()}` : null;
+  const assigned = orderDomains(domains).find((d) => /^[a-z0-9-]+\.vercel\.app$/.test(d));
+  const live = assigned ? `https://${assigned}` : null;
   if (!live) return null;
-  if (!current || /localhost|127\.0\.0\.1/.test(current)) return live;
-  return null;
+  return current?.replace(/\/$/, "") === live ? null : live;
 }
 
-/** Prefer a custom domain, then the shortest *.vercel.app production alias. */
+/** Prefer the registered Vercel production alias, then additional custom domains. */
 export function orderDomains(domains: string[]): string[] {
   const uniq = [...new Set(domains.map((d) => d.toLowerCase()))];
   const custom = uniq.filter((d) => !d.endsWith(".vercel.app"));
   const vercel = uniq.filter((d) => d.endsWith(".vercel.app")).sort((a, b) => a.length - b.length);
-  return [...custom, ...vercel];
+  return [...vercel, ...custom];
+}
+
+/** A narrow Management API patch leaves signup, passwords and all other protections untouched. */
+export function customerAuthPatch(cfg: { site_url?: string; uri_allow_list?: string; mailer_autoconfirm?: boolean }, domains: string[]) {
+  const merged = mergeAllowList(cfg.uri_allow_list, requiredAuthUrls(domains));
+  const site = pickSiteUrl(cfg.site_url, domains);
+  return {
+    ...(cfg.mailer_autoconfirm !== true ? { mailer_autoconfirm: true } : {}),
+    ...(merged.added.length ? { uri_allow_list: merged.value } : {}),
+    ...(site ? { site_url: site } : {}),
+  };
 }
 
 export function overall(steps: SyncStep[]): StepState {

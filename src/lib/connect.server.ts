@@ -1,6 +1,6 @@
 // "Connect & sync": one pass that wires GitHub + database + Vercel together and reports health.
 import { accountToken } from "./accounts.server";
-import { mergeAllowList, orderDomains, overall, pickSiteUrl, requiredAuthUrls, type SyncStep } from "./connect";
+import { orderDomains, overall, type SyncStep } from "./connect";
 
 type Session = {
   id: string; user_id: string; repo: string; work_branch: string; mode: string; accounts?: unknown;
@@ -23,7 +23,7 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
     accountToken(sb, s.user_id, "supabase", s.accounts),
     accountToken(sb, s.user_id, "vercel", s.accounts),
   ]);
-  const { SupabaseMgmt, Vercel } = await import("./integrations.server");
+  const { Vercel } = await import("./integrations.server");
 
   steps.push(gt ? { key: "github", label: "GitHub", state: "ok", note: `Working on ${s.repo}` } : { key: "github", label: "GitHub", state: "fail", note: "Add a GitHub account in Settings" });
 
@@ -60,12 +60,9 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
   // Sign-in return links (the usual reason login/logout break after deploy)
   if (s.supabase_ref && st) {
     try {
-      const m = new SupabaseMgmt(st);
-      const cfg = await m.authConfig(s.supabase_ref);
-      const merged = mergeAllowList(cfg.uri_allow_list, requiredAuthUrls(domains));
-      const site = pickSiteUrl(cfg.site_url, domains);
-      if (merged.added.length || site) await m.patchAuth(s.supabase_ref, { uri_allow_list: merged.value, ...(site ? { site_url: site } : {}) });
-      steps.push({ key: "auth", label: "Sign-in links", state: "ok", note: merged.added.length || site ? `Updated: ${[site && "site address", merged.added.length && `${merged.added.length} return links`].filter(Boolean).join(", ")}` : "Already correct" });
+      const { syncCustomerAuth } = await import("./customer-auth.server");
+      await syncCustomerAuth(s.supabase_ref, st, domains);
+      steps.push({ key: "auth", label: "Signup and sign-in", state: "ok", note: "Email confirmation off; sign-in return links checked" });
     } catch (e) { steps.push({ key: "auth", label: "Sign-in links", state: "warn", note: `Couldn't check: ${safe(e)}. Use a database token with full access.` }); }
   }
 

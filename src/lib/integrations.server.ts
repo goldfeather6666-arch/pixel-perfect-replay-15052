@@ -48,8 +48,8 @@ export class SupabaseMgmt {
   runSql(ref: string, query: string) {
     return this.req<any>(`/projects/${ref}/database/query`, { method: "POST", body: JSON.stringify({ query }) });
   }
-  authConfig(ref: string) { return this.req<{ site_url?: string; uri_allow_list?: string }>(`/projects/${ref}/config/auth`); }
-  patchAuth(ref: string, body: { site_url?: string; uri_allow_list?: string }) {
+  authConfig(ref: string) { return this.req<{ site_url?: string; uri_allow_list?: string; mailer_autoconfirm?: boolean }>(`/projects/${ref}/config/auth`); }
+  patchAuth(ref: string, body: { site_url?: string; uri_allow_list?: string; mailer_autoconfirm?: boolean }) {
     return this.req(`/projects/${ref}/config/auth`, { method: "PATCH", body: JSON.stringify(body) });
   }
   async anonKey(ref: string) {
