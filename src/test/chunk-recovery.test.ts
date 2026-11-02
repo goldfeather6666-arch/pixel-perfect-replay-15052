@@ -14,6 +14,10 @@ describe("stale route recovery", () => {
     expect(isChunkLoadError(new TypeError("Failed to fetch dynamically imported module: /assets/route-old.js"))).toBe(true);
     expect(isChunkLoadError(new Error("Database permission denied"))).toBe(false);
   });
+  it("reloads pages calling server functions from before a server restart", () => {
+    expect(isRecoverableModuleError(new Error("Invalid server function ID: eyJmaWxlIjoi"))).toBe(true);
+    expect(isRecoverableModuleError(new Error("Unauthorized"))).toBe(false);
+  });
   it("changes the document URL while preserving task, query and hash", () => {
     const url = new URL(chunkRecoveryUrl("https://forge.test/s/task?tab=deploy#saved", 100_000, 0) ?? "https://invalid.test");
     expect(url.pathname).toBe("/s/task");
