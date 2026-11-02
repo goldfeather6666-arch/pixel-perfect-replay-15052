@@ -300,3 +300,35 @@ export const identifyAccounts = createServerFn({ method: "POST" })
     }
     return { accounts: out, duplicates, renamed };
   });
+
+/** What the task's Vercel account can actually reach: its websites, the teams it may act on, and why a list is empty. */
+export const vercelAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid().optional(), account: z.string().uuid().optional() }).default({}))
+  .handler(async ({ data, context }) => {
+    const s = { accounts: data.account ? { vercel: data.account } : data.id ? (await sessionRow(context, data.id)).accounts : null };
+    const packed = await need(context, "vercel", s.accounts);
+    const { Vercel } = await import("./integrations.server");
+    const v = new Vercel(packed);
+    const projects = await v.projects();
+    // An app without team permission is refused there; that is a setup gap, not an empty account.
+    const teams = await v.teams().catch(() => null);
+    const { unpackVercelToken, websiteVerdict } = await import("./deploy-oauth");
+    return { projects, teams, hasTeam: !!unpackVercelToken(packed).teamId, verdict: websiteVerdict(projects, teams) };
+  });
+
+/** Remember which Vercel team this saved account works in; every call then carries it. */
+export const setVercelTeam = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ account: z.string().uuid(), teamId: z.string().min(1).max(120) }))
+  .handler(async ({ data, context }) => {
+    const { data: row } = await context.supabase.from("provider_credentials").select("id, ciphertext, iv").eq("id", data.account).eq("provider", "vercel").eq("user_id", context.userId).maybeSingle();
+    if (!row) throw new Error("That Vercel account isn't saved here");
+    const { decryptSecret, encryptSecret } = await import("./crypto.server");
+    const { packVercelToken, unpackVercelToken } = await import("./deploy-oauth");
+    const { token } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
+    const a = await encryptSecret(packVercelToken(token, data.teamId));
+    const { error } = await context.supabase.from("provider_credentials").update({ ciphertext: a.ciphertext, iv: a.iv }).eq("id", row.id).eq("user_id", context.userId);
+    if (error) throw new Error("Couldn't remember that team");
+    return { ok: true };
+  });
