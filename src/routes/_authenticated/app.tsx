@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+import { PromptAssistance } from "@/components/PromptAssistance";
+import forgeMark from "@/assets/forge-mark.png";
 
 const PRESETS = [
   { title: "Landing page", hint: "Modern, animated", icon: LayoutTemplate, prompt: "Build a modern, responsive, animated landing page for this project. Match the existing stack, keep it mobile-friendly, then run deployment_preflight." },
@@ -128,19 +130,21 @@ function Dashboard() {
   return (
     <div className="bg-aurora min-h-screen">
       <AppHeader />
-      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-5 p-3 pb-10 sm:gap-7 sm:p-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:p-8">
-        <section className="min-w-0 space-y-4">
-          <div>
-            <h1 className="text-gradient text-2xl font-semibold tracking-tight sm:text-3xl">What would you like to build?</h1>
-            <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+      <main className="mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-8 sm:pt-12">
+        <section className="mx-auto mb-12 max-w-3xl space-y-5">
+          <div className="text-center">
+            <img src={forgeMark} alt="Forge" width={72} height={72} className="mx-auto mb-3 size-16 object-contain" />
+            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">What will you build today?</h1>
+            <p className="mt-3 text-sm text-muted-foreground">Your ideas. Your code. A little help from Forge.</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs">
               {([["AI key", aiCreds.length > 0, true], ["GitHub", hasGh, true], ["Database", hasDb, false], ["Vercel", hasVercel, false]] as const).map(([label, ok, required]) => (
-                <Link key={label} to="/settings" className={`flex items-center gap-1 rounded-full border px-2.5 py-1 ${ok ? "border-primary/40 text-foreground" : required ? "border-destructive/60 text-destructive" : "text-muted-foreground"}`}>
-                  {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> : <CircleDashed className="h-3.5 w-3.5" />}{label}{!ok && !required && <span className="opacity-70">· optional</span>}
+                <Link key={label} to="/settings" className={`flex items-center gap-1.5 py-1 ${ok ? "text-muted-foreground" : required ? "text-destructive" : "text-muted-foreground"}`}>
+                  {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <CircleDashed className="h-3.5 w-3.5" />}{label}{!ok && !required && <span className="opacity-70">· optional</span>}
                 </Link>
               ))}
             </div>
           </div>
-          <div className="panel rounded-2xl p-4 shadow-lg shadow-black/10 sm:p-6">
+          <div className="rounded-lg border bg-card p-4 shadow-glow sm:p-6">
             {creds.data && !ready ? (
               <div className="space-y-3 text-sm">
                 <p>Two quick things first: {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"}.</p>
@@ -148,14 +152,15 @@ function Dashboard() {
               </div>
             ) : (
               <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
-                <Textarea value={goal} onChange={(e) => { setGoal(e.target.value); setPreset(null); }} rows={4} className="min-h-28 text-base"
-                  placeholder="e.g. A booking site for my salon with sign-in, a calendar and payments" aria-label="What to build" />
+                <Textarea value={goal} onChange={(e) => { setGoal(e.target.value); setPreset(null); }} rows={3} className="min-h-28 resize-none border-0 bg-transparent p-0 text-base leading-relaxed shadow-none focus-visible:ring-0"
+                  placeholder="Ask Forge to build something you’ve been imagining…" aria-label="What to build" />
+                <PromptAssistance draft={goal} onChange={setGoal} disabled={createM.isPending} />
                 <div className="flex flex-wrap gap-2">
                   {PRESETS.map((p) => (
-                    <button key={p.title} type="button" onClick={() => { const on = preset === p.title; setPreset(on ? null : p.title); setGoal(on ? "" : p.prompt); }}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors hover:border-primary ${preset === p.title ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>
+                    <Button key={p.title} type="button" variant="outline" size="sm" onClick={() => { const on = preset === p.title; setPreset(on ? null : p.title); setGoal(on ? "" : p.prompt); }}
+                      className={`h-8 gap-1.5 text-xs shadow-none ${preset === p.title ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>
                       <p.icon className="h-3.5 w-3.5" />{p.title}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {ghCreds.length > 1 && (
@@ -167,10 +172,10 @@ function Dashboard() {
                     </Select>
                   </div>
                 )}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 border-t pt-4">
                   <div className="flex items-center justify-between">
-                    <Label>Project (GitHub repository)</Label>
-                    <button type="button" className="shrink-0 py-1 text-sm text-primary underline" onClick={() => setShowNew((v) => !v)}>{showNew ? "Use existing" : "+ New project"}</button>
+                    <Label>Project</Label>
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setShowNew((v) => !v)}>{showNew ? "Use existing" : "+ New project"}</Button>
                   </div>
                   {showNew ? (
                     <div className="space-y-2 rounded-md border bg-background p-3">
@@ -238,21 +243,21 @@ function Dashboard() {
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={setupConnections} onChange={(e) => setSetupConnections(e.target.checked)} /> Connect database & website first</label>
                 {createM.error && <p role="alert" className="text-sm text-destructive">{(createM.error as Error).message}</p>}
                 <Button disabled={!repo || !branch || !credId || !(model || manualModel) || !goal.trim() || createM.isPending || !!setupId} className="h-12 w-full text-base">
-                  <Plus /> {createM.isPending ? "Creating your workspace…" : "Start building"}
+                  {createM.isPending ? "Creating your workspace…" : "Let’s build"}<ArrowUpRight />
                 </Button>
                 {!goal.trim() && <p className="text-center text-xs text-muted-foreground">Describe what you want to build to start a task.</p>}
               </form>
             )}
           </div>
         </section>
-        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="min-w-0"><h2 className="font-semibold tracking-tight">Your projects</h2><p className="mt-0.5 text-xs text-muted-foreground">Pick up where you left off</p></div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search tasks" className="h-8 w-32 rounded-md border bg-card/70 px-2 text-xs outline-none focus:border-primary" />
+        <section className="min-w-0 border-t pt-7" aria-label="Your projects">
+          <div className="mb-5 flex items-center justify-between gap-2">
+            <div className="min-w-0"><h2 className="text-lg font-semibold">Your projects</h2><p className="mt-1 text-sm text-muted-foreground">Pick up where you left off.</p></div>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search projects" aria-label="Search tasks" className="h-9 w-36 bg-card text-xs sm:w-52" />
           </div>
           <div className="mb-3 flex gap-1 overflow-x-auto text-xs">
             {([["all", "All"], ["running", "Running"], ["needs", "Needs you"], ["done", "Done"]] as const).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setFilter(k)} className={`shrink-0 rounded-full border px-3 py-1 ${filter === k ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>{label} <span className="tabular-nums opacity-70">{counts[k]}</span></button>
+              <Button key={k} type="button" variant="ghost" size="sm" aria-pressed={filter === k} onClick={() => setFilter(k)} className={`shrink-0 ${filter === k ? "bg-secondary text-foreground" : "text-muted-foreground"}`}>{label} <span className="tabular-nums opacity-70">{counts[k]}</span></Button>
             ))}
           </div>
           
@@ -260,12 +265,12 @@ function Dashboard() {
           {sessions.error && <div className="panel p-4 text-sm"><p className="font-medium">Projects could not be loaded</p><p className="mt-1 text-xs text-muted-foreground">{(sessions.error as Error).message}</p><Button className="mt-3" size="sm" variant="outline" onClick={() => void sessions.refetch()}>Try again</Button></div>}
           {!sessions.isLoading && !sessions.error && sessions.data?.length === 0 && <div className="panel p-6 text-center"><div className="mx-auto grid size-10 place-items-center rounded-xl bg-accent text-primary"><GitBranch className="size-5" /></div><p className="mt-3 text-sm font-medium text-foreground">Your workspace starts here</p><p className="mt-1 text-xs text-muted-foreground">Start a task and your projects will appear here.</p></div>}
           {!sessions.isLoading && !sessions.error && sessions.data && sessions.data.length > 0 && shown.length === 0 && <div className="panel p-5 text-center text-sm"><p className="font-medium">No matching projects</p><p className="mt-1 text-xs text-muted-foreground">Try another search or clear the current filter.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { setQ(""); setFilter("all"); }}>Clear filters</Button></div>}
-          <ul className="max-h-[32rem] space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-16rem)]">
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map(({ s, st, kind }) => (
               <li key={s.id}>
-                <Link to="/s/$id" params={{ id: s.id }} className={`panel block rounded-xl p-3.5 transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-primary/50" : ""}`}>
+                <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-lg border bg-card p-5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
                   <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.title}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.title}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${kind === "running" ? "bg-accent text-primary" : kind === "needs" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
                       {st === "cloud" ? "Running in cloud" : st === "browser" ? "Running" : st === "stale" ? "Stopped reporting" : s.pendingCount > 0 ? `${s.pendingCount} to approve` : "Idle"}
                     </span>
@@ -275,11 +280,12 @@ function Dashboard() {
                     {s.supabase_ref && <span title="Database linked"><Database className="h-3 w-3" /></span>}
                     {s.vercel_project_id && <span title="Website linked"><Rocket className="h-3 w-3" /></span>}
                   </div>
+                  <ArrowUpRight className="mt-4 size-4 text-muted-foreground transition-colors group-hover:text-primary" />
                 </Link>
               </li>
             ))}
           </ul>
-        </aside>
+        </section>
       </main>
       <Dialog open={!!setupId} onOpenChange={(open) => { if (!open && setupId) void nav({ to: "/s/$id", params: { id: setupId } }); }}>
         <DialogContent className="max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto p-4">
