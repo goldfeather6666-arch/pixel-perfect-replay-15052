@@ -56,12 +56,10 @@ export async function handlePromptAssistance(
     await assertPublicEndpoint(credential.base_url);
   const secret = await decryptSecret(credential.ciphertext, credential.iv);
   const context = Array.isArray(task.messages)
-    ? task.messages
-        .slice(-4)
-        .map((m: { role?: string; content?: string }) => ({
-          role: m.role,
-          content: redact(String(m.content ?? ""), 2000),
-        }))
+    ? task.messages.slice(-4).map((m: { role?: string; content?: string }) => ({
+        role: m.role,
+        content: redact(String(m.content ?? ""), 2000),
+      }))
     : [];
   const encoder = new TextEncoder();
   const modelAbort = new AbortController();
