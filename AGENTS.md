@@ -27,7 +27,6 @@
 - Edits invalidate deploy checks; omitted final preflight runs once; Vercel READY requires current commit and entry probe; agent/* disables git deploys and uses one API deploy; quota refusal is LIMITED. Why: avoid stale readiness and double deploys.
 - accounts.ts pins task GitHub/database/Vercel IDs; missing inherits latest repo links, null means none, account switches clear links atomically only while idle; tokens label/dedupe real account identities. Why: truthful multi-account tasks.
 - Connect & sync is the single wiring path for env sync, auth allow-list merge (never remove links), migrations and build/live probe; Auto-fix syncs then sends real blockers to agents. Why: one repair path.
-- deployment-env.ts emits Vite/browser and server database names without Next public aliases; customer-auth.server verifies narrow signup/site patches during authorized task sync, while Vercel production domains define the final public URL; privileged keys stay server-only. Missing-env repairs verify pinned links and Connect & sync before manual values, then rebuild/probe. Guided setup stores encrypted owner tokens/service-only DB settings, syncs Vercel targets, commits blank env templates and ordered task-tracked migrations SQL. Why: secure portable setup.
 - Chat/Preview/Deploy are primary; Changes/Files/Terminal/Run/Agents/Knowledge live under More. Why: simple by default.
 
 ## Customer-owned infrastructure
