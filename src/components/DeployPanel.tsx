@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   applyMigrations, getDeployments, getIntegrations, getMigrationStatus, identifyAccounts, linkSupabase, linkVercel,
-  listSupabaseOptions, listVercelProjects, saveDatabaseSettings, setTaskAccount, syncDeployEnv,
+  listSupabaseOptions, saveDatabaseSettings, setTaskAccount, setVercelTeam, syncDeployEnv, vercelAccess,
 } from "@/lib/integrations.functions";
 
 type Svc = "supabase" | "vercel";
@@ -31,7 +31,7 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
   const qc = useQueryClient();
   const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }) });
   const refresh = () => {
-    for (const k of ["integrations", "session", "deps", "migr", "sb-opts", "vc-projects"]) qc.invalidateQueries({ queryKey: [k, id] });
+    for (const k of ["integrations", "session", "deps", "migr", "sb-opts", "vc-access"]) qc.invalidateQueries({ queryKey: [k, id] });
   };
   if (!info.data) return <p className="p-4 text-sm text-muted-foreground">{info.error ? (info.error as Error).message : "Loading…"}</p>;
   const d = info.data;
@@ -292,7 +292,14 @@ function DatabaseStep({ id, account, linked, onChange }: { id: string; account: 
 function WebsiteStep({ id, account, linked, dbLinked, onChange }: { id: string; account: string | null; linked: string | null; dbLinked: boolean; onChange: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("new");
   const [pick, setPick] = useState("");
-  const projects = useQuery({ queryKey: ["vc-projects", id, account], queryFn: useServerFn(listVercelProjects).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: !linked });
+  const qc = useQueryClient();
+  const access = useQuery({ queryKey: ["vc-access", id, account], queryFn: useServerFn(vercelAccess).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: !linked });
+  const setTeam = useServerFn(setVercelTeam);
+  const teamM = useMutation({
+    mutationFn: (teamId: string) => setTeam({ data: { account: account!, teamId } }),
+    onSuccess: () => { toast.success("Team remembered for this account"); qc.invalidateQueries({ queryKey: ["vc-access"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const deps = useQuery({ queryKey: ["deps", id, linked, account], queryFn: useServerFn(getDeployments).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 10000 });
   const link = useServerFn(linkVercel);
   const sync = useServerFn(syncDeployEnv);
@@ -341,15 +348,27 @@ function WebsiteStep({ id, account, linked, dbLinked, onChange }: { id: string; 
   return (
     <div className="space-y-3">
       <Choice mode={mode} setMode={setMode} />
-      {projects.error && <p className="text-xs text-destructive">{(projects.error as Error).message}</p>}
+      {access.error && <p className="text-xs text-destructive">{(access.error as Error).message}</p>}
+      {account && access.data?.teams?.length && !access.data.hasTeam && (
+        <Select value="" onValueChange={(t) => teamM.mutate(t)} disabled={teamM.isPending}>
+          <SelectTrigger className={trig}><SelectValue placeholder="Which team are your websites in?" /></SelectTrigger>
+          <SelectContent className="max-w-[calc(100vw-2rem)]">{access.data.teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}{t.slug ? ` · ${t.slug}` : ""}</SelectItem>)}</SelectContent>
+        </Select>
+      )}
       {mode === "existing" ? (
         <>
-          <Select value={pick} onValueChange={setPick} disabled={projects.isFetching || linkM.isPending}>
-            <SelectTrigger className={trig}><SelectValue placeholder={projects.isLoading ? "Loading…" : "Choose a project"} /></SelectTrigger>
-            <SelectContent className="max-w-[calc(100vw-2rem)]">{projects.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.repo ? ` · ${p.repo}` : ""}</SelectItem>)}</SelectContent>
+          <Select value={pick} onValueChange={setPick} disabled={access.isFetching || linkM.isPending}>
+            <SelectTrigger className={trig}><SelectValue placeholder={access.isLoading ? "Loading…" : "Choose a project"} /></SelectTrigger>
+            <SelectContent className="max-w-[calc(100vw-2rem)]">{access.data?.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.repo ? ` · ${p.repo}` : ""}</SelectItem>)}</SelectContent>
           </Select>
-          {!projects.isFetching && !projects.error && projects.data?.length === 0 && <p className="text-xs text-muted-foreground">No projects in this Vercel account yet.</p>}
-          <Button className="h-11 w-full" disabled={!pick || !projects.data?.some((p) => p.id === pick) || linkM.isPending} onClick={() => linkM.mutate({ id, projectId: pick })}>{linkM.isPending ? "Linking…" : "Link website"}</Button>
+          {!access.isFetching && !access.error && access.data?.projects.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              {access.data.verdict === "limited"
+                ? "Your Vercel app has no permissions yet, so Forge can't see any of its websites. In Vercel, open your app's settings and switch on Projects, Deployments and Environment Variables, then connect again."
+                : "No websites in this Vercel account yet."}
+            </p>
+          )}
+          <Button className="h-11 w-full" disabled={!pick || !access.data?.projects.some((p) => p.id === pick) || linkM.isPending} onClick={() => linkM.mutate({ id, projectId: pick })}>{linkM.isPending ? "Linking…" : "Link website"}</Button>
         </>
       ) : (
         <>

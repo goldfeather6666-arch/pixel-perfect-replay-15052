@@ -49,6 +49,26 @@ export function withTeam(path: string, teamId: string | null) {
   return `${path}${path.includes("?") ? "&" : "?"}teamId=${encodeURIComponent(teamId)}`;
 }
 
+export type VercelTeam = { id: string; name: string; slug: string };
+
+/** A single-team account has one obvious place its websites live; several teams need the user to choose. */
+export function soleTeam(teams: VercelTeam[]): string | null {
+  return teams.length === 1 ? teams[0]!.id : null;
+}
+
+/** Why a website list came back empty: the app can't see the account's teams at all (permissions), or the account really has none. */
+export function websiteVerdict(projects: unknown[], teams: VercelTeam[] | null): "ok" | "limited" | "empty" {
+  if (projects.length) return "ok";
+  return teams === null ? "limited" : "empty";
+}
+
+/** A refreshed Vercel token must keep the team the previous one was acting on. */
+export function refreshedVercelToken(current: string, freshAccess: string, provider: string) {
+  if (provider !== "vercel") return freshAccess;
+  return packVercelToken(freshAccess, unpackVercelToken(current).teamId);
+}
+
+
 function b64url(bytes: Uint8Array) {
   let s = ""; for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

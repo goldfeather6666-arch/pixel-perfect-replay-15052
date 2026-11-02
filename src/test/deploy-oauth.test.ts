@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeUrl, needsRefresh, packVercelToken, redirectUriFor, unpackVercelToken, withTeam } from "@/lib/deploy-oauth";
+import { authorizeUrl, needsRefresh, packVercelToken, redirectUriFor, refreshedVercelToken, soleTeam, unpackVercelToken, websiteVerdict, withTeam } from "@/lib/deploy-oauth";
 
 describe("one-click deploy sign-in", () => {
   it("database sign-in uses PKCE S256 and the exact callback", () => {
@@ -34,5 +34,21 @@ describe("one-click deploy sign-in", () => {
     expect(u).toEqual({ token: "tok", teamId: "team_1" });
     expect(withTeam("/v9/projects?limit=100", u.teamId)).toBe("/v9/projects?limit=100&teamId=team_1");
     expect(unpackVercelToken("plain")).toEqual({ token: "plain", teamId: null });
+  });
+  it("picks a team only when the account has exactly one", () => {
+    expect(soleTeam([{ id: "team_1", name: "One", slug: "one" }])).toBe("team_1");
+    expect(soleTeam([])).toBeNull();
+    expect(soleTeam([{ id: "team_1", name: "One", slug: "one" }, { id: "team_2", name: "Two", slug: "two" }])).toBeNull();
+  });
+  it("tells a permission-limited account apart from one with no websites", () => {
+    expect(websiteVerdict([{ id: "prj_1" }], null)).toBe("ok");
+    expect(websiteVerdict([], null)).toBe("limited");
+    expect(websiteVerdict([], [])).toBe("empty");
+    expect(websiteVerdict([], [{ id: "team_1", name: "One", slug: "one" }])).toBe("empty");
+  });
+  it("keeps the acting team when a Vercel token is refreshed", () => {
+    expect(refreshedVercelToken(packVercelToken("old", "team_1"), "new", "vercel")).toBe(packVercelToken("new", "team_1"));
+    expect(refreshedVercelToken("old", "new", "vercel")).toBe("new");
+    expect(refreshedVercelToken("old", "new", "supabase")).toBe("new");
   });
 });

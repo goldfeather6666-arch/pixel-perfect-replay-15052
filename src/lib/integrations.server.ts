@@ -1,4 +1,4 @@
-import { unpackVercelToken, withTeam } from "./deploy-oauth";
+import { unpackVercelToken, withTeam, type VercelTeam } from "./deploy-oauth";
 // Clients for the user's own Supabase (Management API) and Vercel accounts.
 // Hosts are fixed, so no user-controlled network targets.
 import type { AccountIdentity } from "./account-identity";
@@ -72,6 +72,11 @@ export class Vercel {
   constructor(packed: string) { const u = unpackVercelToken(packed); this.token = u.token; this.teamId = u.teamId; }
   private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, withTeam(p, this.teamId), i); }
   user() { return this.req("/v2/user"); }
+  /** Teams this token may act on; an Apps token whose app has no permissions is refused here. */
+  async teams(): Promise<VercelTeam[]> {
+    const r = await this.req<any>("/v2/teams");
+    return ((r.teams ?? []) as any[]).map((t) => ({ id: String(t.id), name: String(t.name ?? t.id), slug: String(t.slug ?? "") }));
+  }
   /** Apps OAuth tokens identify their owner through OIDC, not the management REST API. */
   async oauthIdentity(): Promise<AccountIdentity> {
     const res = await fetch("https://api.vercel.com/login/oauth/userinfo", {
