@@ -594,6 +594,7 @@ export const Route = createFileRoute("/api/agent")({
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during runtime verification. Check the new commit." };
               quality.deploymentState = verifiedState;
               const log = await v.buildLog(latest.id).catch(() => null);
+              if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) { quality.deploymentState = undefined; return { state: "STALE", note: "The branch changed while reading build issues. Check the new commit." }; }
               buildFindings = log === null ? [] : vercelBuildFindings(log);
               reviewedBuildCommit = log === null ? null : commitSha;
               quality.buildReviewIssue = log === null ? "Vercel build log could not be read; successful-build issue review remains unverified. Check the pinned account's access." : buildFindings.length ? `Review ${buildFindings.length} Vercel build issue(s) with review_vercel_issues, fix actionable findings and verify the new commit.` : undefined;
