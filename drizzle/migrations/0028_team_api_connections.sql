@@ -1,0 +1,3 @@
+ALTER TABLE public.agent_sessions ADD COLUMN coding_credential_id uuid, ADD COLUMN reviewer_credential_id uuid;
+COMMENT ON COLUMN public.agent_sessions.coding_credential_id IS 'Owner-selected coding team AI credential; NULL inherits the lead connection.';
+COMMENT ON COLUMN public.agent_sessions.reviewer_credential_id IS 'Owner-selected review team AI credential; NULL inherits the lead connection.';
