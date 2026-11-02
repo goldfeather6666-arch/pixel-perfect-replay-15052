@@ -47,7 +47,7 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
     // Provider error codes/descriptions are safe to show (never contain our secret); keep them short and single-line.
     const why = String(j.error_description ?? j.error?.message ?? j.message ?? j.error ?? "").replace(/[\r\n]+/g, " ").slice(0, 200);
     // The return address is the usual cause of a refusal, so record the one we sent (it is not a secret).
-    console.error(`${p} token exchange refused`, res.status, `redirect_uri=${body.redirect_uri ?? ""}`, why);
+    console.error(`${p} token exchange refused`, res.status, `redirect_uri=${body["redirect_uri"] ?? ""}`, why);
     throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})${why ? `: ${why}` : ""}`);
   }
   return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null, installationId: j.installation_id ?? null };
