@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { NightModeToggle } from "@/components/AppearanceProvider";
 import { Eye, GitBranch, KeyRound, Plug, Rocket, ShieldCheck, Terminal, Users } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -35,9 +36,9 @@ function Index() {
           <span className="font-mono text-sm font-semibold tracking-tight">
             <span className="text-primary">▲</span> forge
           </span>
-          <Button asChild variant="outline" size="sm">
+          <div className="flex items-center gap-2"><NightModeToggle /><Button asChild variant="outline" size="sm">
             <Link to="/auth">Sign in</Link>
-          </Button>
+          </Button></div>
         </header>
         <section className="py-20 sm:py-28">
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">open source · byok</p>

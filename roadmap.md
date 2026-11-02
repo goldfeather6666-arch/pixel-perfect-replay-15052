@@ -1,4 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
+- [ ] Keep the saved task plan available on demand instead of repeating it beneath chat.
+- [ ] Add a persistent night-mode switch and verify light/dark appearance on desktop and phone.
 - [x] Repair stale approval/question requests at the shared RPC boundary: inspect errors before deserialization, bounded refresh without mutation replay, inline poll failures. Eight tests pass; reported task loads without failures and an injected stale HTML response refreshes once into usable chat; build OK.
 - [x] Refresh dashboard, shared tokens/header and AI Elements chat presentation; signed-in desktop/phone verified, no horizontal overflow or browser errors, build OK.
 - [x] Add contextual typing hints and explicit-request streamed BYOK refinement with optional acceptance, clarification questions, cancellation and stale-draft protection; 18 focused tests passed, new assistance files lint clean. Acceptance flow verified with simulated output; no coding run started.

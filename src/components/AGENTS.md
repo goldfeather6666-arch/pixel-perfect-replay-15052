@@ -1,3 +1,5 @@
 # Presentation rules
 - Chat presentation uses AI Elements around Forge’s existing NDJSON transport and persisted messages; shared semantic tokens style workspace screens. Why: consistent controls without changing execution or history.
 - PromptAssistance shows local hints while typing and explicit-request streamed BYOK refinement; proposals never replace changed drafts or execute tools. Why: useful drafting without hidden charges or consent changes.
+- AppearanceProvider owns the persisted light/dark preference and shared night toggle; global CSS supplies both semantic palettes. Why: all screens and overlays share one appearance without hydration flashes.
+- TaskInteractions exposes the latest saved specification on demand, keeping questions and approvals inline. Why: avoid repeating plan content under the conversation without hiding consent requests.
