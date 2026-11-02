@@ -19,12 +19,16 @@ export const Route = createFileRoute("/api/public/oauth/$provider/callback")({
         const state = url.searchParams.get("state");
         const code = url.searchParams.get("code");
         if (!state || !code) return back(`connect_error=${encodeURIComponent("Sign-in was cancelled.")}`);
+        // The provider only sends browsers back to an address its own console allows, so this origin is a trusted
+        // copy of the configured return address (the tab's own origin can be a preview or localhost one).
+        const origin = url.origin;
+        const installation = url.searchParams.get("installationId") ?? undefined;
         try {
           const { completeOAuth } = await import("@/lib/deploy-oauth.server");
           const bound = cookie(request, `forge-deploy-${p}`);
           // Cookie dropped by the provider's install flow: let the signed-in Settings page finish it for its own user.
-          if (!bound) return back(`finish=${p}&state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`);
-          const r = await completeOAuth(p, state, code, { cookieDigest: bound });
+          if (!bound) return back(`finish=${p}&state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}${installation ? `&installation=${encodeURIComponent(installation)}` : ""}`);
+          const r = await completeOAuth(p, state, code, { cookieDigest: bound }, { origin, configurationId: installation });
           return back(`connected=${p}&account=${encodeURIComponent(r.label)}`);
         } catch (e) {
           console.error("deploy oauth callback failed", p, e instanceof Error ? e.message : "error");
