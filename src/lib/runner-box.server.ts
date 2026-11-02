@@ -1,6 +1,7 @@
 // E2B-compatible workspace adapter. Workspaces run on the owner's paired runner when healthy,
 // falling back to E2B. Callers use the same small surface (commands/files/kill/getHost/...).
 import { isRunnerBoxId, parseRunnerBoxId, runnerBoxId, runnerUsable, signRequest } from "./runner-protocol";
+import { COOLDOWN_MS, e2bKeysFrom, isQuotaError, keyOrder } from "./e2b-pool";
 
 type RunOpts = { cwd?: string; envs?: Record<string, string>; timeoutMs?: number; background?: boolean };
 export type CommandResult = { exitCode: number; stdout: string; stderr: string; pid?: number };
@@ -69,18 +70,50 @@ class RunnerBox implements Box {
   getHost(port: number) { return `${this.host}/__preview/${this.box}/${port}`; }
 }
 
+/** The owner's own paired server, else the platform-wide shared server (FORGE_SHARED_RUNNER_OWNER). */
 async function runnerFor(userId: string): Promise<RunnerRow | null> {
-  const { data } = await (await admin()).from("owner_runners").select("*").eq("user_id", userId).maybeSingle();
-  return (data as RunnerRow | null) ?? null;
+  const db = await admin();
+  const { data } = await db.from("owner_runners").select("*").eq("user_id", userId).maybeSingle();
+  const own = (data as RunnerRow | null) ?? null;
+  if (own && runnerUsable(own)) return own;
+  const shared = process.env["FORGE_SHARED_RUNNER_OWNER"]?.trim();
+  if (shared && shared !== userId) {
+    const { data: s } = await db.from("owner_runners").select("*").eq("user_id", shared).maybeSingle();
+    if (s) return s as RunnerRow;
+  }
+  return own;
 }
 
-async function e2bKey() {
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) throw new Error("Workspaces are not configured: pair your own server in Settings or add an E2B key.");
-  return apiKey;
+// ---- E2B account pool (several free accounts rotated; quota failures cool a key for 15 min) ----
+let cursor = 0;
+const coolingUntil = new Map<string, number>();
+const e2bKeys = () => e2bKeysFrom(process.env as Record<string, string | undefined>);
+import { hasE2b } from "./e2b-pool";
+export { hasE2b };
+
+async function createE2b(opts: { timeoutMs: number; metadata: Record<string, string>; privateTraffic?: boolean }) {
+  const keys = e2bKeys();
+  if (!keys.length) throw new Error("Workspaces are not configured: pair your own server in Settings or add an E2B key.");
+  const { Sandbox } = await import("e2b");
+  const order = keyOrder(keys.length, cursor, (i) => (coolingUntil.get(keys[i]!) ?? 0) > Date.now());
+  let last: unknown;
+  for (const i of order) {
+    const key = keys[i]!;
+    try {
+      const box = await Sandbox.create({ apiKey: key, timeoutMs: opts.timeoutMs, metadata: opts.metadata, ...(opts.privateTraffic ? { network: { allowPublicTraffic: false } } : {}) });
+      cursor = (i + 1) % keys.length;
+      return box as unknown as Box;
+    } catch (e) {
+      last = e;
+      if (!isQuotaError((e as Error).message ?? "")) throw e;
+      coolingUntil.set(key, Date.now() + COOLDOWN_MS);
+      console.warn(`[e2b] account ${i + 1}/${keys.length} is at its limit; trying the next`);
+    }
+  }
+  throw last instanceof Error ? new Error(`All ${keys.length} E2B accounts are at their limit: ${last.message}`) : new Error("All E2B accounts are at their limit");
 }
 
-/** Creates a workspace: owner's runner first, E2B if the runner is offline, full or failing. */
+/** Creates a workspace: owner's (or shared) server first, E2B pool if offline, full or failing. */
 export async function createBox(userId: string, opts: { timeoutMs: number; metadata: Record<string, string>; privateTraffic?: boolean }): Promise<Box> {
   const row = await runnerFor(userId);
   if (row && runnerUsable(row)) {
@@ -93,11 +126,10 @@ export async function createBox(userId: string, opts: { timeoutMs: number; metad
       await (await admin()).from("owner_runners").update({ status: "degraded", updated_at: new Date().toISOString() }).eq("id", row.id);
     }
   }
-  const { Sandbox } = await import("e2b");
-  return (await Sandbox.create({ apiKey: await e2bKey(), timeoutMs: opts.timeoutMs, metadata: opts.metadata, ...(opts.privateTraffic ? { network: { allowPublicTraffic: false } } : {}) })) as unknown as Box;
+  return createE2b(opts);
 }
 
-/** Reconnects to an existing workspace by id; null if it is gone. */
+/** Reconnects to an existing workspace by id; null if it is gone. Tries each pooled E2B account. */
 export async function connectBox(id: string, timeoutMs = 15 * 60_000): Promise<Box | null> {
   if (isRunnerBoxId(id)) {
     const p = parseRunnerBoxId(id);
@@ -111,18 +143,20 @@ export async function connectBox(id: string, timeoutMs = 15 * 60_000): Promise<B
       return new RunnerBox(row.endpoint, secret, p.box, row.key_id, r.traffic ?? null);
     } catch { return null; }
   }
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) return null;
+  const keys = e2bKeys();
+  if (!keys.length) return null;
   const { Sandbox } = await import("e2b");
-  return (await Sandbox.connect(id, { apiKey, timeoutMs }).catch(() => null)) as unknown as Box | null;
+  for (const apiKey of keys) {
+    const b = await Sandbox.connect(id, { apiKey, timeoutMs }).catch(() => null);
+    if (b) return b as unknown as Box;
+  }
+  return null;
 }
 
 export async function killBox(id: string) {
   if (isRunnerBoxId(id)) { const b = await connectBox(id, 60_000); await b?.kill().catch(() => {}); return; }
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) return;
   const { Sandbox } = await import("e2b");
-  await Sandbox.kill(id, { apiKey }).catch(() => {});
+  for (const apiKey of e2bKeys()) if (await Sandbox.kill(id, { apiKey }).catch(() => false)) return;
 }
 
-export const hasAnyWorkspaceProvider = async (userId: string) => !!process.env["E2B_API_KEY"] || runnerUsable(await runnerFor(userId));
+export const hasAnyWorkspaceProvider = async (userId: string) => hasE2b() || runnerUsable(await runnerFor(userId));

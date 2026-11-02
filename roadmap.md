@@ -12,6 +12,9 @@
 - [x] Repair stale approval/question requests at the shared RPC boundary: inspect errors before deserialization, bounded refresh without mutation replay, inline poll failures. Eight tests pass; reported task loads without failures and an injected stale HTML response refreshes once into usable chat; build OK.
 - [x] Refresh dashboard, shared tokens/header and AI Elements chat presentation; signed-in desktop/phone verified, no horizontal overflow or browser errors, build OK.
 - [x] Add contextual typing hints and explicit-request streamed BYOK refinement with optional acceptance, clarification questions, cancellation and stale-draft protection; 18 focused tests passed, new assistance files lint clean. Acceptance flow verified with simulated output; no coding run started.
+- [x] Step 1: E2B multi-account pool + platform-shared Oracle server.
+- [ ] Step 1b: previews-only-on-Oracle split (previews currently share the task workspace).
+- [ ] Step 2: self-healing typecheck loop. Step 3: automatic vision QA. Step 4: @file/@skill/@mcp mentions.
 - [ ] Real BYOK refinement completion — selected provider did not return within the browser check; cancelled, no automatic retry or model substitution. Live output remains unverified; full-project lint has existing errors outside the new assistance files.
 - [ ] One-click Vercel sign-in — connected and identified (hasshan761-5718); the Vercel app itself still has no resource permissions, so it lists zero websites. Forge now says so in the Website step, probes teams, remembers the acting team and keeps it across token refreshes. Waiting on: permissions switched on in the Vercel app (Projects, Deployments, Environment Variables), then reconnect and relist.
 
