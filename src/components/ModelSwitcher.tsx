@@ -59,11 +59,11 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile 
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Lead agent</h3>
             <Select value={cred} onValueChange={(v) => { setCred(v); setM(""); setFb(''); if (!cc) setCm(''); if (!rc) setRm(''); }}>
-              <SelectTrigger aria-label="Lead API connection" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={creds.isLoading ? "Loading…" : "Choose AI key"} /></SelectTrigger>
+              <SelectTrigger aria-label="Lead API connection" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={creds.isLoading ? "Loading…" : "Choose AI key"}>{cred ? (creds.data?.find(c=>c.id===cred)?.label || 'Selected API connection') : undefined}</SelectValue></SelectTrigger>
               <SelectContent>{creds.data?.filter(c => aiConnection(c.provider)).map((c) => <SelectItem key={c.id} value={c.id}>{c.label || c.provider} · {c.provider} ···{c.last4}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={m} onValueChange={setM} disabled={!cred}>
-              <SelectTrigger aria-label="Lead model" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"} /></SelectTrigger>
+              <SelectTrigger aria-label="Lead model" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"}>{m || undefined}</SelectValue></SelectTrigger>
               <SelectContent className="max-w-[calc(100vw-2rem)]">{models.data?.map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
             </Select>
             {models.isError && <p className="text-xs text-destructive">Could not load models for this key.</p>}
@@ -98,11 +98,11 @@ function RoleModel({ label, leadCredential, credential, model, credentials, open
   return <div className="space-y-2 border-t pt-3">
     <h3 className="text-sm font-medium">{label}</h3>
     <Select value={credential || 'inherit'} onValueChange={v=>{onCredential(v==='inherit'?'':v);onModel('');}}>
-      <SelectTrigger aria-label={`${label} API connection`} className="h-11 w-full [&>span]:truncate"><SelectValue /></SelectTrigger>
+      <SelectTrigger aria-label={`${label} API connection`} className="h-11 w-full [&>span]:truncate"><SelectValue>{credential ? (credentials.find(c=>c.id===credential)?.label || 'Selected API connection') : 'Lead API connection'}</SelectValue></SelectTrigger>
       <SelectContent><SelectItem value="inherit">Lead API connection</SelectItem>{credentials.filter(c=>aiConnection(c.provider)).map(c=><SelectItem value={c.id} key={c.id}>{c.label || c.provider} · {c.provider} ···{c.last4}</SelectItem>)}</SelectContent>
     </Select>
     <Select value={model || 'inherit'} onValueChange={v=>onModel(v==='inherit'?'':v)} disabled={!id}>
-      <SelectTrigger aria-label={`${label} model`} className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={models.isLoading?'Loading…':'Choose model'} /></SelectTrigger>
+      <SelectTrigger aria-label={`${label} model`} className="h-11 w-full [&>span]:truncate"><SelectValue>{model || (credential ? 'Choose model' : 'Lead model')}</SelectValue></SelectTrigger>
       <SelectContent className="max-w-[calc(100vw-2rem)]">{!credential && <SelectItem value="inherit">Lead model</SelectItem>}{models.data?.map(m=><SelectItem key={m} value={m} className="break-all">{m}</SelectItem>)}</SelectContent>
     </Select>
     {models.isError && <p role="alert" className="text-xs text-destructive">Could not load models for this connection.</p>}
