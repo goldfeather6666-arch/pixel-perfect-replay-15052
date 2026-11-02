@@ -1,4 +1,5 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
+- [ ] Review Vercel issues even after successful builds, feed findings to agents, enforce reviewed fixes or precise blockers, and reverify the current commit.
 - [x] Prevent promise-only replies from marking coding work completed: saved reported run confirmed one model step/zero tools, now one same-model tool-required follow-up is allowed, repeated promises become BLOCKED. 68 focused tests passed, preview build OK, signed-in task loads without 500s. Live provider continuation not exercised; no customer deployment or stopped run resumed during verification.
 - [x] Verified reported failures were outdated function IDs during preview restart; fresh signed-in task has no 500s. Database approval/status failures stay local with Retry, stale 404 responses recover without replay, 10 regression tests passed and injected connection failure recovered without blanking chat.
 - [x] Keep the saved task plan available on demand instead of repeating it beneath chat; signed-in task verified opening one saved plan without an inline duplicate.
