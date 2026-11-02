@@ -27,7 +27,7 @@ describe("deployment settings rules", () => {
     expect(Object.keys(vars).some((name) => name.startsWith("NEXT_PUBLIC_"))).toBe(false);
     expect(deploymentTemplate().split("\n")).not.toContain("NEXT_PUBLIC_SUPABASE_URL=");
     expect(deploymentTemplate().split("\n")).not.toContain("NEXT_PUBLIC_URL=");
-    expect(vars.SUPABASE_URL).toBe("https://database.example");
+    expect(vars["SUPABASE_URL"]).toBe("https://database.example");
   });
   it("never maps a privileged key to a public variable", () => {
     const vars = deploymentEnv("https://example.test", "public-test", "private-test");
