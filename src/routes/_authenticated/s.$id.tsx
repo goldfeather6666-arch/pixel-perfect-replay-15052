@@ -384,7 +384,7 @@ function Workspace() {
             >
               {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
             </select>
-            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} disabled={running || bgRunning} />
+            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
             {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">

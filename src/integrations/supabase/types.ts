@@ -204,6 +204,7 @@ export type Database = {
           accounts: Json
           applied_migrations: string[]
           base_branch: string
+          coding_credential_id: string | null
           coding_model: string | null
           created_at: string
           credential_id: string | null
@@ -217,6 +218,7 @@ export type Database = {
           pending: Json
           reasoning_profile: string
           repo: string
+          reviewer_credential_id: string | null
           reviewer_model: string | null
           running: boolean
           sandbox_id: string | null
@@ -235,6 +237,7 @@ export type Database = {
           accounts?: Json
           applied_migrations?: string[]
           base_branch: string
+          coding_credential_id?: string | null
           coding_model?: string | null
           created_at?: string
           credential_id?: string | null
@@ -248,6 +251,7 @@ export type Database = {
           pending?: Json
           reasoning_profile?: string
           repo: string
+          reviewer_credential_id?: string | null
           reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null
@@ -266,6 +270,7 @@ export type Database = {
           accounts?: Json
           applied_migrations?: string[]
           base_branch?: string
+          coding_credential_id?: string | null
           coding_model?: string | null
           created_at?: string
           credential_id?: string | null
@@ -279,6 +284,7 @@ export type Database = {
           pending?: Json
           reasoning_profile?: string
           repo?: string
+          reviewer_credential_id?: string | null
           reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null

@@ -197,6 +197,13 @@
       "when": 1793591585729,
       "tag": "0027_skill_audit_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793592085188,
+      "tag": "0028_team_api_connections",
+      "breakpoints": true
     }
   ]
 }

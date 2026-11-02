@@ -194,6 +194,8 @@ export type SessionRow = {
   reasoning_profile?: string | null;
   coding_model?: string | null;
   reviewer_model?: string | null;
+  coding_credential_id?: string | null;
+  reviewer_credential_id?: string | null;
   messages: ChatMessage[];
   pending: PendingChange[];
   updated_at: string;
@@ -282,14 +284,22 @@ export const updateSession = createServerFn({ method: "POST" })
       reasoning_profile: z.enum(["auto", "speed", "balanced", "deep"]).optional(),
       coding_model: z.string().trim().max(200).nullable().optional(),
       reviewer_model: z.string().trim().max(200).nullable().optional(),
+      coding_credential_id: z.string().uuid().nullable().optional(),
+      reviewer_credential_id: z.string().uuid().nullable().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
     const { validateRoleModel } = await import("@/lib/engine/reasoning");
-    const patch: { model?: string; mode?: string; credential_id?: string; fallback_model?: string | null; reasoning_profile?: string; coding_model?: string | null; reviewer_model?: string | null } = {};
+    const { aiConnection, teamBinding } = await import('./team-models');
+    const { data: session } = await context.supabase.from('agent_sessions').select('*').eq('id', data.id).eq('user_id',context.userId).single();
+    if (!session) throw new Error('Task not found');
+    if (session.running) throw new Error('Stop the current run before changing AI team settings.');
+    const patch: { model?: string; mode?: string; credential_id?: string; fallback_model?: string | null; reasoning_profile?: string; coding_model?: string | null; reviewer_model?: string | null; coding_credential_id?: string | null; reviewer_credential_id?: string | null } = {};
     if (data.fallback_model !== undefined) patch.fallback_model = data.fallback_model || null;
     if (data.reasoning_profile) patch.reasoning_profile = data.reasoning_profile;
     for (const role of ["coding", "reviewer"] as const) {
+      const keyId = data[`${role}_credential_id`];
+      if (keyId !== undefined) patch[`${role}_credential_id`] = keyId;
       const v = data[`${role}_model`];
       if (v === undefined) continue;
       const err = v ? validateRoleModel(role, v) : null;
@@ -299,15 +309,22 @@ export const updateSession = createServerFn({ method: "POST" })
     if (data.credential_id) {
       if (!data.model) throw new Error("Choose a model for the new provider.");
       // Owner check: RLS only returns the caller's own saved keys.
-      const { data: cred } = await context.supabase.from("provider_credentials").select("id").eq("id", data.credential_id).maybeSingle();
-      if (!cred) throw new Error("That AI key was not found.");
+      const { data: cred } = await context.supabase.from("provider_credentials").select("id, provider").eq("id", data.credential_id).eq('user_id',context.userId).maybeSingle();
+      if (!cred || !aiConnection(cred.provider)) throw new Error("That AI key was not found.");
       patch.credential_id = data.credential_id;
     }
     if (data.model) patch.model = data.model;
     if (data.mode) patch.mode = data.mode;
+    const next = { ...session, ...patch };
+    for (const role of ['master','coder','reviewer']) {
+      const binding = teamBinding(role,next);
+      const {data: key} = await context.supabase.from('provider_credentials').select('provider').eq('id',binding.credentialId).eq('user_id',context.userId).maybeSingle();
+      if (!key || !aiConnection(key.provider)) throw new Error('Selected team AI connection unavailable');
+    }
     const { id } = data;
-    const { error } = await context.supabase.from("agent_sessions").update(patch).eq("id", id);
+    const { error, data: updated } = await context.supabase.from("agent_sessions").update(patch).eq("id", id).eq('user_id',context.userId).eq('running',false).select('id').maybeSingle();
     if (error) throw new Error(error.message);
+    if (!updated) throw new Error('The task started running. Stop it before changing AI settings.');
     return { ok: true };
   });
 
