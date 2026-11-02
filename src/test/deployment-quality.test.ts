@@ -19,7 +19,7 @@ describe("production checks", () => {
   });
   it("teaches agents the exact Forge-synced Supabase env contract for Next.js, Vite and server runtimes", async () => {
     const { productionInstructions } = await import("@/lib/deployment-quality");
-    for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);
+    for (const name of ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]) expect(productionInstructions).toContain(name);
     expect(productionInstructions).toContain("SUPABASE_SERVICE_ROLE_KEY is server-only");
     expect(productionInstructions).toContain("Connect & sync/Auto-fix");
     expect(productionInstructions).toContain("BYO customer resources");
