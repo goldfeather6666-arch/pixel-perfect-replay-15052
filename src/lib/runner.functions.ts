@@ -9,7 +9,7 @@ export const getRunner = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data } = await context.supabase.from("owner_runners").select("id, label, endpoint, status, capacity, last_seen, created_at").eq("user_id", context.userId).maybeSingle();
     const { data: model } = await context.supabase.from("provider_credentials").select("id").eq("user_id", context.userId).eq("label", LOCAL_MODEL_LABEL).maybeSingle();
-    return { runner: data ?? null, localModel: !!model, e2bFallback: !!process.env["E2B_API_KEY"] };
+    return { runner: data ?? null, localModel: !!model, e2bFallback: hasE2b() };
   });
 
 export const pairRunner = createServerFn({ method: "POST" })

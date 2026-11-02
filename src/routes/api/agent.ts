@@ -219,7 +219,7 @@ export const Route = createFileRoute("/api/agent")({
             return runInSandbox(sb, sbxSession, ghToken, command, pending, preview, runAbort.signal);
           }), runAbort.signal);
         };
-        if (process.env["E2B_API_KEY"]) warm = sbxRun("true").catch(() => null);
+        if (hasE2b()) warm = sbxRun("true").catch(() => null);
         void tree().catch(() => {});
         const tools = {
           list_files: tool({
@@ -258,7 +258,7 @@ export const Route = createFileRoute("/api/agent")({
             inputSchema: z.object({ query: z.string().min(2), prefix: z.string().default(""), regex: z.boolean().default(false) }),
             execute: async ({ query, prefix, regex }) => {
               // Fast path: native git grep inside the warm sandbox (milliseconds instead of hundreds of API calls).
-              if (process.env["E2B_API_KEY"] && warm) {
+              if (hasE2b() && warm) {
                 const ok = await warm.then((r) => !!r).catch(() => false);
                 if (ok) {
                   const q = query.replace(/'/g, "'\\''");
@@ -349,7 +349,7 @@ export const Route = createFileRoute("/api/agent")({
             description: "Run a shell command (bash) in an isolated cloud sandbox; commands start in the repo root /home/user/repo (never /repo) containing a clone of the work branch plus any staged changes. Use for installing deps, running tests, linters and builds. Sandbox file edits are NOT saved; use write_file for real changes.",
             inputSchema: z.object({ command: z.string().min(1).max(4000) }),
             execute: async ({ command }) => {
-              if (!process.env["E2B_API_KEY"]) return { error: "Terminal not configured" };
+              if (!hasE2b()) return { error: "Terminal not configured" };
               return sbxRun(command);
             },
           }),
@@ -360,7 +360,7 @@ export const Route = createFileRoute("/api/agent")({
               const command = preflightCommand(phase, root);
               checkRoot = root;
               if (phase === "check") quality.localAttempted = true;
-              if (!process.env["E2B_API_KEY"]) {
+              if (!hasE2b()) {
                 quality.localIssue = checkFailure({ error: "Terminal not configured" });
                 return { error: quality.localIssue };
               }
@@ -460,7 +460,7 @@ export const Route = createFileRoute("/api/agent")({
             description: "Start (or reuse) the live preview of this task's branch inside the task sandbox. Framework, package manager, install, dev command and port are detected automatically; pass `command`/`port` only to override. Waits for readiness (up to ~2.5 min) and returns the real status. Never tell the user a preview works unless status is 'ready'. The user sees it in Forge's Preview tab (private by default). This is NOT production.",
             inputSchema: z.object({ command: z.string().max(2000).optional(), port: z.number().int().min(1024).max(65535).optional() }),
             execute: async ({ command, port }) => {
-              if (!process.env["E2B_API_KEY"]) return { error: "Sandbox not configured" };
+              if (!hasE2b()) return { error: "Sandbox not configured" };
               await warm?.catch(() => {});
               const m = await import("@/lib/preview-manager.server");
               const started = await serializeBy(`sandbox:${sessionId}`, () => m.startPreview(sb, sbxSession, ghToken, { ...(command ? { command } : {}), ...(port ? { port } : {}), runId: rec?.runId ?? null }));
