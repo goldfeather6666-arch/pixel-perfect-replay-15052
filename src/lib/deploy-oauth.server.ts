@@ -8,11 +8,11 @@ function env(name: string) {
 }
 function creds(p: DeployOAuthProvider) {
   return p === "vercel"
-    ? { id: env("VERCEL_CLIENT_ID"), secret: env("VERCEL_CLIENT_SECRET") }
-    : { id: env("FORGE_SUPABASE_OAUTH_CLIENT_ID"), secret: env("FORGE_SUPABASE_OAUTH_CLIENT_SECRET") };
+    ? { id: env("VERCEL_CLIENT_ID"), secret: env("VERCEL_CLIENT_SECRET"), slug: env("VERCEL_TEAM_SLUG") }
+    : { id: env("FORGE_SUPABASE_OAUTH_CLIENT_ID"), secret: env("FORGE_SUPABASE_OAUTH_CLIENT_SECRET"), slug: undefined as string | undefined };
 }
 export function oauthConfigured(p: DeployOAuthProvider) {
-  const names = p === "vercel" ? ["VERCEL_CLIENT_ID", "VERCEL_CLIENT_SECRET"] : ["FORGE_SUPABASE_OAUTH_CLIENT_ID", "FORGE_SUPABASE_OAUTH_CLIENT_SECRET"];
+  const names = p === "vercel" ? ["VERCEL_CLIENT_ID", "VERCEL_CLIENT_SECRET", "VERCEL_TEAM_SLUG"] : ["FORGE_SUPABASE_OAUTH_CLIENT_ID", "FORGE_SUPABASE_OAUTH_CLIENT_SECRET"];
   return names.every((n) => !!process.env[n]);
 }
 
@@ -29,14 +29,14 @@ export async function beginOAuth(userId: string, p: DeployOAuthProvider, origin:
   await db.from("deploy_oauth_states").delete().lt("expires_at", new Date().toISOString());
   const { error } = await db.from("deploy_oauth_states").insert({ state_digest: digest, user_id: userId, provider: p, verifier, redirect_uri: redirectUri, expires_at: new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString() });
   if (error) throw new Error("Couldn't start sign-in");
-  return { url: authorizeUrl(p, { clientId: c.id, redirectUri, state, challenge: await sha256b64url(verifier) }), digest };
+  return { url: authorizeUrl(p, { clientId: c.id, redirectUri, state, challenge: await sha256b64url(verifier), vercelSlug: c.slug }), digest };
 }
 
 type Tokens = { access: string; refresh?: string | null; expiresIn?: number | null; teamId?: string | null; installationId?: string | null };
 
 async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>): Promise<Tokens> {
   const c = creds(p);
-  const url = p === "vercel" ? "https://api.vercel.com/login/oauth/token" : "https://api.supabase.com/v1/oauth/token";
+  const url = p === "vercel" ? "https://api.vercel.com/v2/oauth/access_token" : "https://api.supabase.com/v1/oauth/token";
   const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
   const form = new URLSearchParams(body);
   if (p === "vercel") { form.set("client_id", c.id); form.set("client_secret", c.secret); }
@@ -69,7 +69,7 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   // (internal host or http), so Vercel always uses the fixed public address (override with FORGE_PUBLIC_URL).
   const publicOrigin = (process.env["FORGE_PUBLIC_URL"] || "https://pixel-perfect-replay-15052.lovable.app").replace(/\/+$/, "");
   const redirectUri = p === "vercel" ? redirectUriFor(p, publicOrigin) : extra?.origin ? redirectUriFor(p, extra.origin.replace(/^http:\/\/(?!localhost)/, "https://")) : row.redirect_uri;
-  const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: row.verifier });
+  const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");
   const who = p === "vercel" ? await new Vercel(access).identity() : await new SupabaseMgmt(access).identity();
@@ -112,9 +112,10 @@ export async function revokeOAuthAccount(row: any) {
     if (row.provider === "vercel") {
       const { unpackVercelToken } = await import("./deploy-oauth");
       const { token } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
-      const c = creds("vercel");
-      // Vercel Apps token revocation endpoint.
-      await fetch("https://api.vercel.com/login/oauth/token/revoke", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token, client_id: c.id, client_secret: c.secret }), redirect: "manual", signal: AbortSignal.timeout(15_000) });
+      const { withTeam } = await import("./deploy-oauth");
+      const { teamId } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
+      // Uninstalling the integration configuration revokes its token.
+      if (row.base_url) await fetch(`https://api.vercel.com${withTeam(`/v1/integrations/configuration/${encodeURIComponent(row.base_url)}`, teamId)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
     } else if (row.provider === "supabase" && row.refresh_ciphertext) {
       const c = creds("supabase");
       await fetch("https://api.supabase.com/v1/oauth/revoke", { method: "POST", headers: { "content-type": "application/json", authorization: `Basic ${btoa(`${c.id}:${c.secret}`)}` }, body: JSON.stringify({ client_id: c.id, client_secret: c.secret, refresh_token: await decryptSecret(row.refresh_ciphertext, row.refresh_iv) }), redirect: "manual", signal: AbortSignal.timeout(15_000) });
