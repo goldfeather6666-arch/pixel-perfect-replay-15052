@@ -504,7 +504,11 @@ export const importSkills = createServerFn({ method: "POST" })
     const have = new Map((own ?? []).map((s) => [s.name.toLowerCase(), { ...s, registry: (s.registry ?? {}) as Partial<SkillRegistry> }]));
     const added: string[] = [];
     const skipped: string[] = [];
+    const processedNames = new Set<string>();
     for (const c of chosen) {
+      const normalizedName = c.name.toLowerCase();
+      if (processedNames.has(normalizedName)) { skipped.push(c.name); continue; }
+      processedNames.add(normalizedName);
       const existing = have.get(c.name.toLowerCase());
       const sourcePointer = `${repo}@${c.registry.version}:${c.path}`;
       if (existing && (existing.source === sourcePointer && existing.registry.verificationStatus === "verified" || !existing.source || !existing.source.startsWith(`${repo}@`) || !existing.source.endsWith(`:${c.path}`))) {
