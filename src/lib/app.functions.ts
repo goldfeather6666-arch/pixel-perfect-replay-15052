@@ -471,7 +471,7 @@ export const previewSkillImport = createServerFn({ method: "POST" })
     const gh = await githubAny(context);
     const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
     const { data: own } = await context.supabase.from("skills").select("name, registry").eq("user_id", context.userId);
-    const have = new Set((own ?? []).filter((s: { registry: Partial<SkillRegistry> }) => s.registry?.verificationStatus === "verified").map((s: { name: string }) => s.name));
+    const have = new Set((own ?? []).filter((s) => (s.registry as Partial<SkillRegistry> | null)?.verificationStatus === "verified").map((s) => s.name));
     return {
       repo,
       branch,
@@ -501,7 +501,7 @@ export const importSkills = createServerFn({ method: "POST" })
     const blocked = chosen.find((c) => c.registry.verificationStatus !== "verified");
     if (blocked) throw new Error(`${blocked.name} blocked: ${blocked.registry.findings.join("; ")}`);
     const { data: own } = await context.supabase.from("skills").select("id, name, source, registry").eq("user_id", context.userId);
-    const have = new Map<string, { id: string; source: string | null; registry: Partial<SkillRegistry> }>((own ?? []).map((s: { id: string; name: string; source: string | null; registry: Partial<SkillRegistry> }) => [s.name.toLowerCase(), s]));
+    const have = new Map((own ?? []).map((s) => [s.name.toLowerCase(), { ...s, registry: (s.registry ?? {}) as Partial<SkillRegistry> }]));
     const added: string[] = [];
     const skipped: string[] = [];
     for (const c of chosen) {

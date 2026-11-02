@@ -158,8 +158,8 @@ function SkillsPage() {
           <h2 className="font-semibold">{editId ? "Edit skill" : "Create a skill"}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Original instructions · relevant skills only · free-only checks</p>
           <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
-            <div className="space-y-1.5"><Label>Name</Label><Input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Write tests first" /></div>
-            <div className="space-y-1.5"><Label>Instructions</Label><Textarea required rows={6} maxLength={8000} value={text} onChange={(e) => setText(e.target.value)} placeholder="When adding a feature, add or update a unit test next to it…" /><p className="text-right text-xs text-muted-foreground">{text.length.toLocaleString()} / 8,000</p></div>
+            <div className="space-y-1.5"><Label htmlFor="skill-name">Name</Label><Input id="skill-name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Write tests first" /></div>
+            <div className="space-y-1.5"><Label htmlFor="skill-instructions">Instructions</Label><Textarea id="skill-instructions" required rows={6} maxLength={8000} value={text} onChange={(e) => setText(e.target.value)} placeholder="When adding a feature, add or update a unit test next to it…" /><p className="text-right text-xs text-muted-foreground">{text.length.toLocaleString()} / 8,000</p></div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={saveM.isPending || !name.trim() || !text.trim()}>{saveM.isPending ? "Saving…" : editId ? "Save changes" : "Save skill"}</Button>
               {editId && <Button type="button" variant="ghost" onClick={resetEditor}>Cancel edit</Button>}
