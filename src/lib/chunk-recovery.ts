@@ -12,8 +12,14 @@ export function isStaleReactModuleError(error: unknown) {
     && /node_modules\/\.vite\/deps\/react(?:\.js|[-_])/.test(value.stack);
 }
 
+/** After a server restart, an open page still calls server functions by IDs the new server no longer knows. */
+export function isStaleServerFunctionError(error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /Invalid server function ID/i.test(message);
+}
+
 export function isRecoverableModuleError(error: unknown) {
-  return isChunkLoadError(error) || isStaleReactModuleError(error);
+  return isChunkLoadError(error) || isStaleReactModuleError(error) || isStaleServerFunctionError(error);
 }
 
 /** Replace a stale manifest with a cache-busted document, with bounded retries. */
