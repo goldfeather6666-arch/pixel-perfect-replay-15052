@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { deleteCredential, listCredentials, saveCredential } from "@/lib/app.functions";
 import { AI_PROVIDERS, providerName, type ProviderId } from "@/lib/providers";
 import { McpConnections } from "@/components/McpConnections";
+import { OwnServerCard } from "@/components/OwnServerCard";
 import { OneClickConnect } from "@/components/OneClickConnect";
 import { pageMeta } from "@/lib/page-meta";
 
@@ -96,6 +97,7 @@ function SettingsPage() {
               <Button asChild variant="secondary" size="sm" className="mt-3"><Link to="/skills">Manage skills</Link></Button>
             </section>
             <McpConnections />
+            <OwnServerCard />
           </>
         ) : (<>
         <section className="panel rounded-2xl p-4 sm:p-6">
