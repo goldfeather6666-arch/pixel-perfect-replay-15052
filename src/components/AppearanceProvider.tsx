@@ -31,8 +31,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   return <AppearanceContext.Provider value={{ appearance, toggle }}>{children}</AppearanceContext.Provider>;
 }
 
+export function useAppearance() { return useContext(AppearanceContext); }
+
 export function NightModeToggle() {
-  const { appearance, toggle } = useContext(AppearanceContext);
+  const { appearance, toggle } = useAppearance();
   const label = appearance === "dark" ? "Switch to day mode" : "Switch to night mode";
   return <Button type="button" variant="ghost" size="icon" className="size-9 shrink-0" aria-label={label} title={label} aria-pressed={appearance === "dark"} onClick={toggle}>
     {appearance === "dark" ? <Sun /> : <Moon />}
