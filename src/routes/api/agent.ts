@@ -804,12 +804,13 @@ export const Route = createFileRoute("/api/agent")({
         if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).write_files; delete (tools as Partial<typeof tools>).delete_file; }
 
         // Project instructions from the repo + the user's enabled skills.
-        const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions").eq("user_id", u.user.id).eq("enabled", true);
+        const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions, source, registry").eq("user_id", u.user.id).eq("enabled", true);
+        const { freeSkillLibrary, skillUsable } = await import("@/lib/free-skills");
         const { agentSkills } = await import("@/lib/agent-skills");
         if (skillsError) return new Response("Could not load your saved skills. Please retry.", { status: 503 });
-        const builtInSkills = [deploymentSkill, previewDiagnosisSkill];
+        const builtInSkills = [deploymentSkill, previewDiagnosisSkill, ...freeSkillLibrary];
         const builtInNames = new Set(builtInSkills.map((skill) => skill.name.toLowerCase()));
-        const allSkills = [...builtInSkills, ...(skills ?? []).filter((skill) => !builtInNames.has(skill.name.toLowerCase()))];
+        const allSkills = [...builtInSkills, ...(skills ?? []).filter((skill) => !builtInNames.has(skill.name.toLowerCase()) && skillUsable(skill))];
         const metas = allSkills.map((sk) => parseSkill(sk.name, sk.instructions));
         const { data: skillHistory } = await sb.from("skill_executions").select("skill_name, agent_runs(outcome)").eq("user_id", u.user.id).eq("status", "loaded").order("created_at", { ascending: false }).limit(300);
         const { skillStats } = await import("@/lib/engine/skill-stats");
