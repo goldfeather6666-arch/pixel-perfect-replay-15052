@@ -72,11 +72,30 @@ export class Vercel {
   constructor(packed: string) { const u = unpackVercelToken(packed); this.token = u.token; this.teamId = u.teamId; }
   private req<T = any>(p: string, i?: RequestInit) { return call<T>("https://api.vercel.com", this.token, withTeam(p, this.teamId), i); }
   user() { return this.req("/v2/user"); }
+  /** Apps OAuth tokens identify their owner through OIDC, not the management REST API. */
+  async oauthIdentity(): Promise<AccountIdentity> {
+    const res = await fetch("https://api.vercel.com/login/oauth/userinfo", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new Error(`Vercel couldn't identify the authorized account (${res.status}). Connect with Vercel again.`);
+    const u = await res.json() as { sub?: unknown; preferred_username?: unknown; email?: unknown; name?: unknown };
+    if (typeof u.sub !== "string" || !u.sub.trim()) throw new Error("Vercel returned no account identity. Connect with Vercel again.");
+    const name = [u.preferred_username, u.email, u.name].find((v): v is string => typeof v === "string" && !!v.trim());
+    return { key: u.sub, name: name ?? "Vercel account" };
+  }
   /** Who this token belongs to (Vercel user id + username/email). */
   async identity(): Promise<AccountIdentity> {
-    const r = await this.req<any>("/v2/user");
-    const u = r?.user ?? {};
-    return { key: String(u.id ?? u.uid ?? ""), name: String(u.username || u.email || u.name || "Vercel account") };
+    // Pasted management tokens still use REST; saved Apps tokens use userinfo when REST is unavailable.
+    try {
+      const r = await this.req<any>("/v2/user");
+      const u = r?.user ?? {};
+      const key = String(u.id ?? u.uid ?? "");
+      if (key) return { key, name: String(u.username || u.email || u.name || "Vercel account") };
+    } catch { /* Apps scopes need not authorize the management user endpoint. */ }
+    return this.oauthIdentity();
   }
   async projects() {
     const r = await this.req<any>("/v9/projects?limit=100");

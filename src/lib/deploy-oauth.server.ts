@@ -72,7 +72,7 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: row.verifier });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");
-  const who = p === "vercel" ? await new Vercel(access).identity() : await new SupabaseMgmt(access).identity();
+  const who = p === "vercel" ? await new Vercel(access).oauthIdentity() : await new SupabaseMgmt(access).identity();
   return saveOAuthAccount(db, row.user_id, p, access, t, `${who.name}${p === "vercel" && t.teamId ? " (team)" : ""}`, extra?.configurationId);
 }
 
