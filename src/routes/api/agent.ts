@@ -822,6 +822,13 @@ export const Route = createFileRoute("/api/agent")({
         const { skillStats } = await import("@/lib/engine/skill-stats");
         const picked = selectSkills(message, metas, skillStats((skillHistory ?? []).map((r) => ({ skill_name: r.skill_name, outcome: (r.agent_runs as { outcome?: string | null } | null)?.outcome ?? null }))));
         // The built-in deployment skill is always loaded for code-changing runs.
+        // Explicit @skill: mentions always load in full.
+        const { parseMentions, mentionPathOk } = await import("@/lib/mentions");
+        const mentioned = parseMentions(message);
+        for (const name of mentioned.skill) {
+          const sk = metas.find((m) => m.name.toLowerCase() === name.toLowerCase());
+          if (sk && !picked.selected.some((p) => p.skill.name === sk.name)) picked.selected.push({ skill: sk, reason: "mentioned with @skill" });
+        }
         const loadedNames = new Set(picked.selected.map((p) => p.skill.name));
         if (!plan) loadedNames.add(deploymentSkill.name);
         const skillReasons = new Map(picked.selected.map((p) => [p.skill.name, p.reason]));
@@ -835,7 +842,15 @@ export const Route = createFileRoute("/api/agent")({
           const doc = await gh.getFile(repo, branch, f).catch(() => null);
           if (doc) { projectDoc = `\n\n<project_instructions file="${f}">\n${doc.content.slice(0, 12000)}\n</project_instructions>`; break; }
         }
-        const skillText = savedSkillContext;
+        let pinned = "";
+        for (const path of mentioned.file.filter(mentionPathOk).slice(0, 6)) {
+          const f = await gh.getFile(repo, branch, path).catch(() => null);
+          pinned += f ? `\n<pinned_file path="${path}">\n${f.content.slice(0, 20000)}\n</pinned_file>` : `\n<pinned_file path="${path}" missing="true" />`;
+        }
+        if (mentioned.mcp.length) pinned += `\n<pinned_mcp>The user explicitly asked you to use these MCP connections: ${mentioned.mcp.join(", ")}. Prefer their tools for this request; actions still need approval.</pinned_mcp>`;
+        const unknownSkills = mentioned.skill.filter((n) => !metas.some((m) => m.name.toLowerCase() === n.toLowerCase()));
+        if (unknownSkills.length) pinned += `\n<pinned_skills_missing>${unknownSkills.join(", ")} are not installed or not usable; tell the user.</pinned_skills_missing>`;
+        const skillText = savedSkillContext + (pinned ? `\n\n<user_pinned_context>${pinned}\n</user_pinned_context>` : "");
 
         const history = (s.messages as ChatMessage[]) ?? [];
         const KEEP = 12;
