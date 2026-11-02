@@ -30,7 +30,7 @@ export function attachmentPart(a: { mediaType: string; data: string; name?: stri
   const bytes = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
   return { type: "text" as const, text: `<attached_file name="${a.name ?? "document"}">\n${new TextDecoder().decode(bytes).slice(0, 200_000)}\n</attached_file>` };
 }
-export const agentRequest = z.object({ sessionId: z.string().uuid(), message: z.string().min(1).max(MAX_PROMPT_CHARS), plan: z.boolean().optional(), images: z.array(image).max(6).optional() });
+export const agentRequest = z.object({ sessionId: z.string().uuid(), message: z.string().min(1).max(MAX_PROMPT_CHARS), plan: z.boolean().optional(), mode: z.enum(["chat", "plan", "build"]).optional(), publish: z.boolean().optional(), images: z.array(image).max(6).optional() });
 export function requestError(issues: { path: PropertyKey[] }[], message?: unknown) {
   if (issues.some((issue) => issue.path[0] === "message") && typeof message === "string") return promptError(message) ?? "Invalid message.";
   if (issues.some((issue) => issue.path[0] === "images")) return "Attachments could not be accepted. Use up to six images (PNG/JPEG/WebP/GIF) or documents (PDF, TXT, MD, CSV, JSON) under 10 MB each.";
