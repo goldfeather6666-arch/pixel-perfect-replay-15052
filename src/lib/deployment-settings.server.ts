@@ -20,5 +20,7 @@ export async function syncTaskDatabase(userId: string, taskId: string, ref: stri
   if (!isPublicDatabaseKey(publicKey)) throw new Error("Database public key validation failed; privileged keys cannot be synced to public settings");
   await new Vercel(vercelToken).setEnv(vercelId, deploymentEnv(saved?.url || `https://${ref}.supabase.co`, publicKey, saved?.serviceRoleKey, ref));
   const { syncDeploymentAuth } = await import("./customer-auth.server");
-  await syncDeploymentAuth(ref, databaseToken, vercelId, vercelToken);
+  const { selectedCustomDomain } = await import("./project-setup.server");
+  const domain = await selectedCustomDomain(userId, taskId, vercelId, ref, databaseToken, vercelToken);
+  await syncDeploymentAuth(ref, databaseToken, vercelId, vercelToken, domain);
 }
