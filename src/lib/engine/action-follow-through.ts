@@ -2,7 +2,7 @@ type Completion = {
   text: string;
   toolCalls: number;
   finishReason: string;
-  rawFinishReason?: string;
+  rawFinishReason?: string | undefined;
   plan: boolean;
   waiting: boolean;
   aborted: boolean;
