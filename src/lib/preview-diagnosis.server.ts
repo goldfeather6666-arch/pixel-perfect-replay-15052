@@ -58,9 +58,12 @@ export async function diagnosePreview(sb: any, task: { id: string; user_id: stri
         return { state: "error", detail: `Build failed. Diagnosis: ${diagnosis.summary}\nCategory: ${diagnosis.category}; confidence: ${diagnosis.confidence}\nEvidence:\n${diagnosis.evidence.join("\n") || "No matching error lines captured."}\nRecommended next actions:\n${diagnosis.nextActions.map((action, i) => `${i + 1}. ${action}`).join("\n")}` };
       }
       if (latest.state === "READY") {
+        const log = await v.buildLog(latest.id).catch(() => null);
+        const { vercelBuildFindings } = await import("./vercel-build-review");
+        const issues = log === null ? [] : vercelBuildFindings(log);
         const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
         const health = await checkDeploymentRuntime(latest.url);
-        return { state: health.state === "PASSED" ? "ok" : health.state === "ERROR" ? "error" : "warn", detail: `Branch deployment: ${latest.state}; ${health.note}. Deployment may predate current task edits.` };
+        return { state: health.state === "ERROR" ? "error" : health.state !== "PASSED" || log === null || issues.length ? "warn" : "ok", detail: `Branch deployment: ${latest.state}; ${health.note}. Deployment may predate current task edits. ${log === null ? "Build log unavailable; warnings unverified." : issues.length ? `Build findings to review:\n${issues.map((issue) => issue.evidence).join("\n")}` : "No warnings found in available build logs."}` };
       }
       return { state: "warn", detail: `Latest branch build: ${latest.state}.` };
     }),

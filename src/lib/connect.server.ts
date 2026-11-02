@@ -102,6 +102,11 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
         buildErrors.push(...firstErrorLines(String(log ?? ""), 12));
         steps.push({ key: "build", label: "Latest build", state: "fail", note: buildErrors[0] ?? "Build failed" });
       } else if (d.state === "READY") {
+        const log = await v.buildLog(d.id).catch(() => null);
+        const { vercelBuildFindings } = await import("./vercel-build-review");
+        const issues = log === null ? [] : vercelBuildFindings(log);
+        buildErrors.push(...issues.map((issue) => issue.evidence));
+        steps.push({ key: "build-review", label: "Vercel build issues", state: log === null || issues.length ? "warn" : "ok", note: log === null ? "Build log unavailable; issue review is unverified" : issues.length ? `${issues.length} issue(s) to review: ${issues[0]?.evidence}` : "No warnings found in available build logs" });
         const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
         const r = await checkDeploymentRuntime(d.url);
         steps.push({ key: "build", label: "Live page", state: r.state === "PASSED" ? "ok" : r.state === "ERROR" ? "fail" : "warn", note: r.note });

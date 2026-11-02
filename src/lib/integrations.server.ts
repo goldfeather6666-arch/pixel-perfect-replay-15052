@@ -172,7 +172,8 @@ export class Vercel {
   async buildLog(id: string) {
     const ev = await this.req<any[]>(`/v3/deployments/${id}/events?builds=1&limit=-1`);
     const lines = ev.map((e) => e.payload?.text ?? e.text).filter(Boolean) as string[];
-    return lines.slice(-80).join("\n").slice(-6000);
+    const { buildLogExcerpt } = await import("./vercel-build-review");
+    return buildLogExcerpt(lines);
   }
 }
 

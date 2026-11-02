@@ -22,6 +22,7 @@ import { WORKER_REPORT_INSTRUCTIONS } from "@/lib/engine/worker-report";
 import { askInput, classifyTask, discoveryPolicy, filterQuestions, specInput, suggestInput, TASK_CLASSES, type TaskClass } from "@/lib/engine/discovery";
 import { effectiveProfile, profilePolicy, reasoningOptions, routeModel, routingSummary, teamPolicy } from "@/lib/engine/reasoning";
 import { actionFollowThrough, ACTION_FOLLOW_THROUGH } from "@/lib/engine/action-follow-through";
+import { vercelBuildFindings, reviewBuildFindings, type BuildFinding } from "@/lib/vercel-build-review";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -196,7 +197,9 @@ export const Route = createFileRoute("/api/agent")({
         const quality: QualityState = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, localAttempted: false, linked: !!s.vercel_project_id, supervised };
         let checkRoot = ".";
         let revision = 0;
-        const invalidateChecks = () => { revision++; fileReads.clear(); treeCache = null; treeLoading = null; quality.changed = true; quality.localPassed = false; quality.localAttempted = false; quality.localIssue = undefined; quality.deploymentState = undefined; };
+        let buildFindings: BuildFinding[] = [];
+        let reviewedBuildCommit: string | null = null;
+        const invalidateChecks = () => { revision++; fileReads.clear(); treeCache = null; treeLoading = null; quality.changed = true; quality.localPassed = false; quality.localAttempted = false; quality.localIssue = undefined; quality.deploymentState = undefined; buildFindings = []; reviewedBuildCommit = null; quality.buildReviewIssue = undefined; };
         // One sandbox per task, shared by every tool call in this run (warmed in the background).
         const sbxSession = { ...s, user_id: u.user.id } as { id: string; user_id: string; repo: string; work_branch: string; sandbox_id?: string | null };
         let warm: Promise<unknown> | null = null;
@@ -538,7 +541,7 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           deploy_status: tool({
-            description: "Check this branch's Vercel deployment. Makes sure Supabase keys are synced into Vercel, then WAITS (up to ~3 min) for the build to finish and returns state (READY/ERROR), preview URL and the build log when it failed. Call it after committing. If ERROR: read the log, fix the cause, commit, and call again. Never end the task while the latest deployment is ERROR unless 3 fix rounds failed — then explain the exact error.",
+            description: "Check the exact branch deployment, runtime and build log even when READY. Review all buildIssues using review_vercel_issues, fix actionable warnings and recheck the new commit. Existing deployment consent, three repair rounds and quota limits apply.",
             inputSchema: z.object({ redeploy: z.boolean().optional().describe("Rebuild the latest deployment without a new commit (e.g. after env changes)") }),
             execute: async ({ redeploy }) => {
               if (plan || !deployAllowed(autonomy)) return { error: "Deployment verification can sync settings/rebuild. Approve files and use the Deploy tab first; staged changes are not deployed." };
@@ -590,7 +593,25 @@ export const Route = createFileRoute("/api/agent")({
               const verifiedState = runtime && runtime.state !== "PASSED" ? (runtime.state === "ERROR" ? "RUNTIME_ERROR" : "UNVERIFIED") : latest.state;
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during runtime verification. Check the new commit." };
               quality.deploymentState = verifiedState;
-              return { state: verifiedState, buildState: latest.state, runtime, commit: commitSha, url: latest.url, envNote, log: latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : undefined };
+              const log = await v.buildLog(latest.id).catch(() => null);
+              if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) { quality.deploymentState = undefined; return { state: "STALE", note: "The branch changed while reading build issues. Check the new commit." }; }
+              buildFindings = log === null ? [] : vercelBuildFindings(log);
+              reviewedBuildCommit = log === null ? null : commitSha;
+              quality.buildReviewIssue = log === null ? "Vercel build log could not be read; successful-build issue review remains unverified. Check the pinned account's access." : buildFindings.length ? `Review ${buildFindings.length} Vercel build issue(s) with review_vercel_issues, fix actionable findings and verify the new commit.` : undefined;
+              return { state: verifiedState, buildState: latest.state, runtime, commit: commitSha, url: latest.url, envNote, log, buildIssues: buildFindings, buildReview: log === null ? "UNVERIFIED" : buildFindings.length ? "NEEDS_REVIEW" : "CLEAN" };
+            },
+          }),
+          review_vercel_issues: tool({
+            description: "Review every finding from the latest deploy_status. Use fix for actionable source/config issues, blocked for access/provider issues, advisory only with evidence explaining no applicable fix. Fixes stay blocking until a new deployment verifies them. This tool does not modify or deploy anything.",
+            inputSchema: z.object({ decisions: z.array(z.object({ id: z.string(), disposition: z.enum(["fix", "advisory", "blocked"]), rationale: z.string().min(12).max(800) })).max(40) }),
+            execute: async ({ decisions }) => {
+              if (!reviewedBuildCommit || await gh.headSha(repo, branch) !== reviewedBuildCommit) return { error: "No current build report; call deploy_status first." };
+              try {
+                const blocker = reviewBuildFindings(buildFindings, decisions);
+                quality.buildReviewIssue = blocker ?? undefined;
+                rec.event("deployment.issues.reviewed", { commit: reviewedBuildCommit, decisions: decisions.map((d) => ({ id: d.id, disposition: d.disposition })), unresolved: !!blocker });
+                return { reviewed: decisions.length, blocker, decisions };
+              } catch (e) { return { error: errorText(e) }; }
             },
           }),
           read_proposals: tool({
