@@ -364,7 +364,7 @@ function WebsiteStep({ id, account, linked, dbLinked, onChange }: { id: string; 
           {!access.isFetching && !access.error && access.data?.projects.length === 0 && (
             <p className="text-xs text-muted-foreground">
               {access.data.verdict === "limited"
-                ? "Your Vercel app has no permissions yet, so Forge can't see any of its websites. In Vercel, open your app's settings and switch on Projects, Deployments and Environment Variables, then connect again."
+                ? "This Vercel sign-in only proves who you are; it can't see your websites. Pick your saved Vercel access-token account above (Settings → add a Vercel token) to list and deploy your sites."
                 : "No websites in this Vercel account yet."}
             </p>
           )}
