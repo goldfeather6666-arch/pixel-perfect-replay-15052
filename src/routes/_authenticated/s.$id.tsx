@@ -462,7 +462,7 @@ function Workspace() {
                     className={`rounded px-2.5 py-0.5 text-xs capitalize ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>{m}</button>
                 ))}
               </div>
-              <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" disabled={running || bgRunning || !s?.vercel_project_id} title={s?.vercel_project_id ? "Deploy the current version to your live website" : "Link a website in Deploy first"}
+              <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" disabled={running || bgRunning} title="Deploy the current version to your live website (link a website in Deploy first)"
                 onClick={() => { if (confirm("Publish the current version to your live website?")) void send("Publish the current version.", false, true); }}>
                 <Rocket className="h-3 w-3" /> Publish
               </Button>
