@@ -5,7 +5,9 @@ import {
   parseSkillMarkdown,
   parseSkillSource,
   pickSkillFiles,
+  listSkillCandidates,
 } from "@/lib/skill-import.server";
+import type { GitHub } from '@/lib/github.server';
 
 describe("parseSkillSource", () => {
   it("reads plain owner/repo and owner/repo/folder forms", () => {
@@ -90,5 +92,35 @@ describe("fallbackSkillName", () => {
     expect(fallbackSkillName("skills/pdf/SKILL.md", null)).toBe("pdf");
     expect(fallbackSkillName("skills/pdf/reference.md", null)).toBe("reference");
     expect(fallbackSkillName("SKILL.md", null)).toBe("Skill");
+  });
+});
+
+describe('free-only import audit', () => {
+  const mit = 'Permission is hereby granted, free of charge, to any person obtaining a copy. The software is provided "as is".';
+  function client(files: Record<string,string>, privateRepo = false) {
+    return {
+      req: async () => ({ default_branch: 'main', private: privateRepo, archived: false, pushed_at: new Date().toISOString() }),
+      headSha: async () => 'immutable-commit', tree: async () => Object.keys(files),
+      getFile: async (_repo:string, ref:string, path:string) => { expect(ref).toBe('immutable-commit'); return files[path] ? { content: files[path], sha: 'blob' } : null; },
+    } as unknown as GitHub;
+  }
+  it('rejects private repositories', async () => {
+    await expect(listSkillCandidates(client({}, true), { repo:'acme/test', branch:null, path:null })).rejects.toThrow('public repositories only');
+  });
+  it('uses nearest restricted license instead of permissive root', async () => {
+    const result = await listSkillCandidates(client({ LICENSE:mit, 'x/LICENSE.txt':'Proprietary. All rights reserved.', 'x/SKILL.md':'# Safe\nWrite tests.' }), { repo:'acme/test', branch:null, path:null });
+    expect(result.candidates[0]?.registry.verificationStatus).toBe('blocked');
+    expect(result.candidates[0]?.registry.licensePath).toBe('x/LICENSE.txt');
+  });
+  it('pins instructions and license and preserves activation metadata', async () => {
+    const result = await listSkillCandidates(client({ LICENSE:mit, 'x/SKILL.md':'---\nactivation: manual\ntriggers: [testing]\n---\nWrite tests.' }), { repo:'acme/test', branch:null, path:null });
+    expect(result.candidates[0]?.registry.version).toBe('immutable-commit');
+    expect(result.candidates[0]?.registry.verificationStatus).toBe('verified');
+    expect(result.candidates[0]?.instructions).toContain('activation: manual');
+  });
+  it('blocks script-bearing skills pending a complete manual audit', async () => {
+    const result = await listSkillCandidates(client({ LICENSE:mit, 'x/SKILL.md':'Write tests.', 'x/scripts/run.py':'print(1)' }), { repo:'acme/test', branch:null, path:null });
+    expect(result.candidates[0]?.registry.verificationStatus).toBe('blocked');
+    expect(result.candidates[0]?.registry.dependencies).toContain('x/scripts/run.py');
   });
 });

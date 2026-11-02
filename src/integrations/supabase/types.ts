@@ -847,6 +847,47 @@ export type Database = {
           },
         ]
       }
+      skill_revisions: {
+        Row: {
+          created_at: string
+          id: string
+          instructions: string
+          name: string
+          registry: Json
+          skill_id: string
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instructions: string
+          name: string
+          registry: Json
+          skill_id: string
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instructions?: string
+          name?: string
+          registry?: Json
+          skill_id?: string
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_revisions_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skills: {
         Row: {
           created_at: string
@@ -854,6 +895,7 @@ export type Database = {
           id: string
           instructions: string
           name: string
+          registry: Json
           source: string | null
           user_id: string
         }
@@ -863,6 +905,7 @@ export type Database = {
           id?: string
           instructions: string
           name: string
+          registry?: Json
           source?: string | null
           user_id?: string
         }
@@ -872,6 +915,7 @@ export type Database = {
           id?: string
           instructions?: string
           name?: string
+          registry?: Json
           source?: string | null
           user_id?: string
         }

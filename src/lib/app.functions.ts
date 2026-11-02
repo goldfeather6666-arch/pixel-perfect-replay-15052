@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { Credential, ChatMessage, PendingChange } from "./providers";
+import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -422,13 +423,13 @@ export const saveFile = createServerFn({ method: "POST" })
   });
 
 // ---------- Skills ----------
-export type Skill = { id: string; name: string; instructions: string; enabled: boolean; source: string | null };
-export type SkillCandidate = { path: string; name: string; description: string; chars: number; already: boolean };
+export type Skill = { id: string; name: string; instructions: string; enabled: boolean; source: string | null; registry: Partial<SkillRegistry> };
+export type SkillCandidate = { path: string; name: string; description: string; chars: number; already: boolean; registry: SkillRegistry };
 
 export const listSkills = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("skills").select("id, name, instructions, enabled, source").order("created_at");
+    const { data, error } = await context.supabase.from("skills").select("id, name, instructions, enabled, source, registry").order("created_at");
     if (error) throw new Error(error.message);
     return data as Skill[];
   });
@@ -439,6 +440,11 @@ export const upsertSkill = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid().nullable(), name: z.string().min(1).max(80), instructions: z.string().min(1).max(8000), enabled: z.boolean() }),
   )
   .handler(async ({ data, context }) => {
+    const { data: existing } = data.id ? await context.supabase.from("skills").select("instructions, source, registry").eq("id", data.id).single() : { data: null };
+    const findings = inspectSkillText(data.instructions);
+    if (findings.length) throw new Error(`Skill blocked by free-only audit: ${findings.join("; ")}`);
+    if (existing?.source && existing.instructions !== data.instructions) throw new Error("Imported instructions are immutable. Re-import to audit a new version, or create an original skill.");
+    if (data.enabled && existing?.source && !skillUsable({ ...existing, instructions: data.instructions })) throw new Error("Re-import this skill for a current free-only audit before enabling it.");
     const row = { name: data.name, instructions: data.instructions, enabled: data.enabled };
     const { error } = data.id
       ? await context.supabase.from("skills").update(row).eq("id", data.id)
@@ -464,8 +470,8 @@ export const previewSkillImport = createServerFn({ method: "POST" })
     const { parseSkillSource, listSkillCandidates } = await import("./skill-import.server");
     const gh = await githubAny(context);
     const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
-    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
-    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    const { data: own } = await context.supabase.from("skills").select("name, registry").eq("user_id", context.userId);
+    const have = new Set((own ?? []).filter((s) => (s.registry as Partial<SkillRegistry> | null)?.verificationStatus === "verified").map((s) => s.name));
     return {
       repo,
       branch,
@@ -475,6 +481,7 @@ export const previewSkillImport = createServerFn({ method: "POST" })
         description: c.description,
         chars: c.chars,
         already: have.has(c.name),
+        registry: c.registry,
       })) as SkillCandidate[],
     };
   });
@@ -490,23 +497,44 @@ export const importSkills = createServerFn({ method: "POST" })
     const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
     const chosen = candidates.filter((c) => data.paths.includes(c.path));
     if (!chosen.length) throw new Error("Those files are no longer in that repository");
-    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
-    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    if (chosen.length !== new Set(data.paths).size) throw new Error("Some selected paths are no longer available. Search again.");
+    const blocked = chosen.find((c) => c.registry.verificationStatus !== "verified");
+    if (blocked) throw new Error(`${blocked.name} blocked: ${blocked.registry.findings.join("; ")}`);
+    const { data: own } = await context.supabase.from("skills").select("id, name, source, registry").eq("user_id", context.userId);
+    const have = new Map((own ?? []).map((s) => [s.name.toLowerCase(), { ...s, registry: (s.registry ?? {}) as Partial<SkillRegistry> }]));
     const added: string[] = [];
     const skipped: string[] = [];
+    const processedNames = new Set<string>();
     for (const c of chosen) {
-      if (have.has(c.name)) {
+      const normalizedName = c.name.toLowerCase();
+      if (processedNames.has(normalizedName)) { skipped.push(c.name); continue; }
+      processedNames.add(normalizedName);
+      const existing = have.get(c.name.toLowerCase());
+      const sourcePointer = `${repo}@${c.registry.version}:${c.path}`;
+      if (existing && (existing.source === sourcePointer && existing.registry.verificationStatus === "verified" || !existing.source || !existing.source.startsWith(`${repo}@`) || !existing.source.endsWith(`:${c.path}`))) {
         skipped.push(c.name);
         continue;
       }
-      have.add(c.name);
-      const { error } = await context.supabase
-        .from("skills")
-        .insert({ user_id: context.userId, name: c.name, instructions: c.instructions, enabled: true, source: `${repo}@${branch}:${c.path}` });
+      const row = { name: c.name, instructions: c.instructions, enabled: true, source: sourcePointer, registry: c.registry };
+      const { error } = existing
+        ? await context.supabase.from("skills").update(row).eq("id", existing.id).eq("user_id", context.userId)
+        : await context.supabase.from("skills").insert({ ...row, user_id: context.userId });
       if (error) throw new Error(error.message);
       added.push(c.name);
     }
     return { added, skipped };
+  });
+
+export const rollbackSkill = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { data: revision, error } = await context.supabase.from("skill_revisions").select("name, instructions, source, registry").eq("skill_id", data.id).eq("user_id", context.userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error || !revision) throw new Error("No previous revision available");
+    // Rollbacks are disabled until deliberately re-enabled/re-audited.
+    const { error: updateError } = await context.supabase.from("skills").update({ ...revision, enabled: false }).eq("id", data.id).eq("user_id", context.userId);
+    if (updateError) throw new Error(updateError.message);
+    return { ok: true };
   });
 
 // ---------- Sandbox terminal ----------

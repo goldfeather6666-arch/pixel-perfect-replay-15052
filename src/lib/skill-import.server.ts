@@ -1,4 +1,5 @@
 import type { GitHub } from "./github.server";
+import { inspectSkillText, openLicense, type SkillRegistry } from "./free-skills";
 
 export type SkillSource = { repo: string; branch: string | null; path: string | null };
 
@@ -8,6 +9,7 @@ export type SkillCandidate = {
   description: string;
   chars: number;
   instructions: string;
+  registry: SkillRegistry;
 };
 
 /** Instructions are stored with this ceiling (matches the skills table validator). */
@@ -161,8 +163,11 @@ export async function listSkillCandidates(
   gh: GitHub,
   src: SkillSource,
 ): Promise<{ repo: string; branch: string; candidates: SkillCandidate[] }> {
-  const branch = src.branch ?? (await gh.repoInfo(src.repo)).default_branch;
-  const tree = await gh.tree(src.repo, branch);
+  const info = await gh.req<{ default_branch: string; private: boolean; archived: boolean; pushed_at: string }>(`repos/${src.repo}`);
+  if (info.private) throw new Error("Free-only skill discovery accepts public repositories only.");
+  const branch = src.branch ?? info.default_branch;
+  const version = await gh.headSha(src.repo, branch);
+  const tree = await gh.tree(src.repo, version);
   const files = pickSkillFiles(tree, src.path);
   if (!files.length) {
     throw new Error(
@@ -173,10 +178,40 @@ export async function listSkillCandidates(
   }
   const read = await Promise.all(
     files.map(async (path) => {
-      const f = await gh.getFile(src.repo, branch, path);
+      const f = await gh.getFile(src.repo, version, path);
       if (!f) return null;
       const parsed = parseSkillMarkdown(f.content, fallbackSkillName(path, src.path));
-      return { path, name: parsed.name, description: parsed.description, instructions: parsed.instructions, chars: parsed.instructions.length } satisfies SkillCandidate;
+      const front = readFrontMatter(f.content).fields;
+      // Preserve bounded activation metadata without accepting arbitrary YAML or template injection.
+      const activationFields = ["activation", "triggers", "depends", "version"].flatMap((key) => {
+        const value = front[key];
+        return value && /^[a-zA-Z0-9., _\-[\]"']{1,400}$/.test(value) ? [`${key}: ${value}`] : [];
+      });
+      if (activationFields.length) parsed.instructions = `---\n${activationFields.join("\n")}\n---\n${parsed.instructions}`;
+      const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+      const ancestors = folder ? folder.split("/").map((_, i, parts) => parts.slice(0, parts.length - i).join("/")) : [];
+      const licensePaths = [...ancestors, ""].flatMap((dir) => tree.filter((p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "") === dir && /^(license|licence|copying)(\..*)?$/i.test(p.split("/").pop() ?? "")));
+      // The nearest license wins; restrictive per-skill terms cannot be masked by a root MIT license.
+      const licensePath = licensePaths[0] ?? null;
+      const licenseFile = licensePath ? await gh.getFile(src.repo, version, licensePath) : null;
+      const license = licenseFile ? openLicense(licenseFile.content) : null;
+      const findings = inspectSkillText(f.content);
+      if (!license) findings.push("Missing, restricted or unrecognized applicable license");
+      const fmLicense = f.content.match(/^license:\s*(.+)$/m)?.[1] ?? "";
+      if (/proprietary|restricted|non.?commercial|see.*license/i.test(fmLicense) && !licensePath?.startsWith(`${folder}/`)) findings.push("Per-skill license requires review");
+      if (info.archived) findings.push("Repository archived");
+      if (!info.pushed_at || Date.now() - Date.parse(info.pushed_at) > 730 * 86400000) findings.push("Maintenance review required");
+      const dependencies = tree.filter((p) => p.startsWith(`${folder}/`) && /(?:^|\/)(?:scripts\/|package\.json$|requirements.*\.txt$|pyproject\.toml$|.*\.(?:sh|py|js|ts)$)/.test(p));
+      if (dependencies.length) findings.push("Bundled scripts/dependencies require manual source audit; not installed");
+      const adjacent = tree.filter((p) => p.startsWith(`${folder}/`) && p !== path && !licensePaths.includes(p));
+      if (adjacent.length) findings.push("Additional bundled resources require manual source audit");
+      const networkCalls = [...new Set(f.content.match(/https?:\/\/[^\s<>\])"']+/g) ?? [])];
+      if (/\b(api[_ -]?key|access[_ -]?token|oauth|pip install|npm install|npx |uv run)\b/i.test(f.content)) findings.push("External service or executable dependency needs quota/compatibility review");
+      if (f.content.length > MAX_INSTRUCTIONS || parsed.instructions.length > MAX_INSTRUCTIONS) findings.push("Oversized instructions would lose audit context");
+      const registry: SkillRegistry = { category: "Imported", repository: src.repo, version, license: license ?? "unverified", licensePath,
+        securityStatus: findings.length ? "review-required" : "instructions-only", verificationStatus: findings.length ? "blocked" : "verified",
+        compatibility: findings.length ? "unverified" : "Forge instructions-only", dependencies, networkCalls, findings, lastUpdate: info.pushed_at };
+      return { path, name: parsed.name, description: parsed.description, instructions: parsed.instructions, chars: parsed.instructions.length, registry } satisfies SkillCandidate;
     }),
   );
   const candidates = read.filter((c): c is SkillCandidate => c !== null);

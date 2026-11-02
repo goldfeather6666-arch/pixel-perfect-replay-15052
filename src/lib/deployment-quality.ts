@@ -1,3 +1,5 @@
+import { freeOnlyInstructions } from "./free-skills";
+
 export const productionPolicy = Object.freeze({
   buildMode: "production" as const,
   allowDemo: false,
@@ -6,7 +8,7 @@ export const productionPolicy = Object.freeze({
 });
 
 /** Shared by planning, the master, specialists and repair briefs; never implies release consent. */
-export const productionInstructions = `PRODUCTION-FIRST BUILD CONTRACT
+export const productionInstructions = `${freeOnlyInstructions}\n\nPRODUCTION-FIRST BUILD CONTRACT
 1. Target: start every implementation in ${productionPolicy.buildMode} mode. Never deliver a demo, prototype, MVP, disposable first version or "upgrade it later" substitute. Implement the requested scope completely using durable production architecture; do not expand the scope with unrequested features. Incremental commits are allowed, but intermediate scaffolding is not a finished deliverable.
 2. Inspect and plan: identify the real framework, runtime, app root, package manager, deployment target and existing task-pinned customer GitHub/database/Vercel connections before editing. These are BYO customer resources, not platform-owned defaults. Resolve account IDs and credentials for the current owner and task only; never fall back to the operator's account or another customer's connection. Reuse the selected project; ask before creating or relinking remote resources. Define acceptance criteria for preview, real user journeys and deployment before assigning exclusive specialist paths.
 3. Implement real behavior: wire actual persistence, integrations and authorization from the outset. Never substitute fake API success, hardcoded users, mock authentication, placeholder business data or local-storage-only persistence for a requested shared database. Test fixtures may exist only in tests, never as production fallbacks. Missing access is a precise blocker, not permission to fabricate credentials or silently downgrade to a demo. Implement safe configuration validation and honest empty/loading/error states.
