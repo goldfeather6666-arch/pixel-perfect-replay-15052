@@ -31,6 +31,7 @@ import { DatabaseApproval } from "@/components/DatabaseApproval";
 import { TaskInteractions } from "@/components/TaskInteractions";
 import { createAgentEventDecoder } from "@/lib/agent-stream";
 import { PromptAssistance } from "@/components/PromptAssistance";
+import { MentionPicker } from "@/components/MentionPicker";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
@@ -128,6 +129,7 @@ function Workspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [input, setInput] = useState("");
+  const [caret, setCaret] = useState(-1);
   useEffect(() => {
     const key = `forge:draft:${id}`;
     const saved = sessionStorage.getItem(key);
@@ -487,6 +489,7 @@ function Workspace() {
               </div>
             )}
             <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={running || bgRunning || stopping} />
+            <MentionPicker sessionId={id} text={input} caret={caret} onPick={(t, c) => { setInput(t); setCaret(c); requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(c, c); }); }} />
             <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
               <PromptInputTextarea
                 ref={taRef}
@@ -494,7 +497,8 @@ function Workspace() {
                 aria-describedby="prompt-capacity"
                 aria-invalid={capacity.overLimit}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
+                onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (running || bgRunning)) e.preventDefault(); }}
                 placeholder={planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
                 className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
