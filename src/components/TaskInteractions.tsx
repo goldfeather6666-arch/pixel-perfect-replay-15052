@@ -1,3 +1,4 @@
+import { isStaleServerFunctionError, recoverChunkLoad } from "@/lib/chunk-recovery";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -11,7 +12,7 @@ import { answerQuestion, decideSuggestion, listInteractions, type TaskQuestion, 
 export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: string; busy: boolean; onSend: (message: string) => void }) {
   const fetchAll = useServerFn(listInteractions);
   const qcPoll = useQueryClient();
-  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch { const prev = qcPoll.getQueryData(["interactions", sessionId]); if (prev) return prev as Awaited<ReturnType<typeof fetchAll>>; throw new Error("Could not load questions yet"); } }, refetchInterval: 4000, retry: 3 });
+  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); const prev = qcPoll.getQueryData(["interactions", sessionId]); if (prev) return prev as Awaited<ReturnType<typeof fetchAll>>; throw new Error("Could not load questions yet"); } }, refetchInterval: 4000, retry: 3 });
   const open = q.data?.questions.filter((x) => x.status === "open") ?? [];
   const sugs = q.data?.suggestions.filter((x) => x.status === "proposed") ?? [];
   const spec = q.data?.spec;
