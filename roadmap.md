@@ -1,5 +1,5 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
-- [ ] One-click Vercel/database sign-in — credentials saved; repair Vercel Apps account identification after authorization, then verify a real reconnection.
+- [ ] One-click Vercel/database sign-in — Apps identity corrected to POST userinfo; 24 connection/account tests pass and build OK. Real reconnection waits on publishing and the user's Vercel authorization; no deployment triggered.
 
 - [x] Post-sync verification: checkout current through PR #26, build OK, 325/325 tests pass (gave the real-process production-script tests a 30s limit; they were timing out at 5s only under full-suite load), migration 0024 screenshot-access policies live, signed-in workspace and task pages render, published site renders with no backend-configuration error. No paid run, deployment or external change triggered.
 - [x] Auto-release quiet runs: the every-five-minute job now stops any run silent past ten minutes and frees its sandbox, sparing approval/answer waits and anything recovery just restarted. 13 recovery tests pass; a manual run stopped three silent tasks, including one quiet 40 minutes. Automatic firing needs the published build.
