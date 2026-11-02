@@ -95,17 +95,18 @@ async function createE2b(opts: { timeoutMs: number; metadata: Record<string, str
   const keys = e2bKeys();
   if (!keys.length) throw new Error("Workspaces are not configured: pair your own server in Settings or add an E2B key.");
   const { Sandbox } = await import("e2b");
-  const order = keyOrder(keys.length, cursor, (i) => (coolingUntil.get(keys[i]) ?? 0) > Date.now());
+  const order = keyOrder(keys.length, cursor, (i) => (coolingUntil.get(keys[i]!) ?? 0) > Date.now());
   let last: unknown;
   for (const i of order) {
+    const key = keys[i]!;
     try {
-      const box = await Sandbox.create({ apiKey: keys[i], timeoutMs: opts.timeoutMs, metadata: opts.metadata, ...(opts.privateTraffic ? { network: { allowPublicTraffic: false } } : {}) });
+      const box = await Sandbox.create({ apiKey: key, timeoutMs: opts.timeoutMs, metadata: opts.metadata, ...(opts.privateTraffic ? { network: { allowPublicTraffic: false } } : {}) });
       cursor = (i + 1) % keys.length;
       return box as unknown as Box;
     } catch (e) {
       last = e;
       if (!isQuotaError((e as Error).message ?? "")) throw e;
-      coolingUntil.set(keys[i], Date.now() + COOLDOWN_MS);
+      coolingUntil.set(key, Date.now() + COOLDOWN_MS);
       console.warn(`[e2b] account ${i + 1}/${keys.length} is at its limit; trying the next`);
     }
   }
