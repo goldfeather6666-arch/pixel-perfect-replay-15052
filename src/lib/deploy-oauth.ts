@@ -6,6 +6,8 @@ export const OAUTH_STATE_TTL_MS = 30 * 60_000;
 export const REFRESH_SKEW_MS = 2 * 60_000;
 
 export function callbackPath(p: DeployOAuthProvider) { return `/api/public/oauth/${p}/callback`; }
+/** The return address the provider must be told to use: exactly the one its own console lists. */
+export function redirectUriFor(p: DeployOAuthProvider, origin: string) { return `${origin.replace(/\/+$/, "")}${callbackPath(p)}`; }
 
 export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string | undefined }) {
   if (p === "vercel") {

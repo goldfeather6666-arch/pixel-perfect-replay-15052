@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeUrl, needsRefresh, packVercelToken, unpackVercelToken, withTeam } from "@/lib/deploy-oauth";
+import { authorizeUrl, needsRefresh, packVercelToken, redirectUriFor, unpackVercelToken, withTeam } from "@/lib/deploy-oauth";
 
 describe("one-click deploy sign-in", () => {
   it("database sign-in uses PKCE S256 and the exact callback", () => {
@@ -10,6 +10,15 @@ describe("one-click deploy sign-in", () => {
   });
   it("Vercel sign-in goes to the integration install page with state", () => {
     expect(authorizeUrl("vercel", { clientId: "c", redirectUri: "r", state: "st", challenge: "ch", vercelSlug: "forge" })).toBe("https://vercel.com/integrations/forge/new?state=st");
+  });
+  it("sends the provider back to exactly the address its console lists", () => {
+    expect(redirectUriFor("vercel", "https://pixel-perfect-replay-15052.lovable.app")).toBe("https://pixel-perfect-replay-15052.lovable.app/api/public/oauth/vercel/callback");
+    expect(redirectUriFor("supabase", "https://app.example/")).toBe("https://app.example/api/public/oauth/supabase/callback");
+  });
+  it("Vercel's install page takes no PKCE, only state", () => {
+    const u = new URL(authorizeUrl("vercel", { clientId: "c", redirectUri: "https://x.app/api/public/oauth/vercel/callback", state: "st", challenge: "ch", vercelSlug: "forge" }));
+    expect(u.searchParams.get("code_challenge")).toBeNull();
+    expect(u.searchParams.get("state")).toBe("st");
   });
   it("refreshes within 2 minutes of expiry, not before", () => {
     const now = 1_000_000;

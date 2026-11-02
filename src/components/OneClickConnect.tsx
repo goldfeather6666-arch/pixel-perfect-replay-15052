@@ -18,9 +18,9 @@ export function OneClickConnect() {
     const q = new URLSearchParams(window.location.search);
     const ok = q.get("connected"), err = q.get("connect_error"), fin = q.get("finish");
     if (fin === "vercel" || fin === "supabase") {
-      const state = q.get("state") ?? "", code = q.get("code") ?? "";
+      const state = q.get("state") ?? "", code = q.get("code") ?? "", installation = q.get("installation") ?? undefined;
       window.history.replaceState(null, "", window.location.pathname);
-      finish({ data: { provider: fin, state, code } })
+      finish({ data: { provider: fin, state, code, installation } })
         .then((r) => { toast.success(`Connected ${fin === "vercel" ? "Vercel" : "database"} account ${r.label}`); qc.invalidateQueries({ queryKey: ["creds"] }); })
         .catch((e) => toast.error(e instanceof Error ? e.message : "Sign-in failed."));
       return;
