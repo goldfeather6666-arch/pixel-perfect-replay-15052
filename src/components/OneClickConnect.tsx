@@ -3,24 +3,33 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { deployOAuthStatus, startDeployOAuth } from "@/lib/deploy-oauth.functions";
+import { deployOAuthStatus, finishDeployOAuth, startDeployOAuth } from "@/lib/deploy-oauth.functions";
 
 /** Sign in to Vercel or the database host instead of pasting a token. Hidden per service until Forge is registered with it. */
 export function OneClickConnect() {
   const qc = useQueryClient();
   const status = useServerFn(deployOAuthStatus);
   const start = useServerFn(startDeployOAuth);
+  const finish = useServerFn(finishDeployOAuth);
   const s = useQuery({ queryKey: ["deploy-oauth-status"], queryFn: () => status() });
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const ok = q.get("connected"), err = q.get("connect_error");
+    const ok = q.get("connected"), err = q.get("connect_error"), fin = q.get("finish");
+    if (fin === "vercel" || fin === "supabase") {
+      const state = q.get("state") ?? "", code = q.get("code") ?? "";
+      window.history.replaceState(null, "", window.location.pathname);
+      finish({ data: { provider: fin, state, code } })
+        .then((r) => { toast.success(`Connected ${fin === "vercel" ? "Vercel" : "database"} account ${r.label}`); qc.invalidateQueries({ queryKey: ["creds"] }); })
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Sign-in failed."));
+      return;
+    }
     if (!ok && !err) return;
     if (ok) { toast.success(`Connected ${ok === "vercel" ? "Vercel" : "database"} account ${q.get("account") ?? ""}`.trim()); qc.invalidateQueries({ queryKey: ["creds"] }); }
     if (err) toast.error(err);
     window.history.replaceState(null, "", window.location.pathname);
-  }, [qc]);
+  }, [qc, finish]);
 
   const go = async (provider: "vercel" | "supabase") => {
     setBusy(provider);
