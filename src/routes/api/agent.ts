@@ -821,7 +821,7 @@ export const Route = createFileRoute("/api/agent")({
         const skillReasons = new Map(picked.selected.map((p) => [p.skill.name, p.reason]));
         if (!plan && !skillReasons.has(deploymentSkill.name)) skillReasons.set(deploymentSkill.name, "built-in, always on for code changes");
         const skillHashes = new Map(await Promise.all(allSkills.map(async (sk) => [sk.name, await contentHash(sk.instructions)] as const)));
-        const skillAccess = agentSkills(allSkills, skillsError, { loaded: loadedNames, onRead: (name) => rec?.skill({ name, hash: skillHashes.get(name) ?? "", status: "read", reason: "agent read full instructions" }) });
+        const skillAccess = agentSkills(allSkills, skillsError, { loaded: loadedNames, trustedBuiltIns: new Set(builtInSkills.map((sk) => sk.name)), onRead: (name) => rec?.skill({ name, hash: skillHashes.get(name) ?? "", status: "read", reason: "agent read full instructions" }) });
         savedSkillContext = skillAccess.context;
         savedSkillTools = skillAccess.tools;
         let projectDoc = "";

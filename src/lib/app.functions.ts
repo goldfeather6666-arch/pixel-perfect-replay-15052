@@ -470,8 +470,8 @@ export const previewSkillImport = createServerFn({ method: "POST" })
     const { parseSkillSource, listSkillCandidates } = await import("./skill-import.server");
     const gh = await githubAny(context);
     const { repo, branch, candidates } = await listSkillCandidates(gh, parseSkillSource(data.source));
-    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
-    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    const { data: own } = await context.supabase.from("skills").select("name, registry").eq("user_id", context.userId);
+    const have = new Set((own ?? []).filter((s: { registry: Partial<SkillRegistry> }) => s.registry?.verificationStatus === "verified").map((s: { name: string }) => s.name));
     return {
       repo,
       branch,
@@ -500,19 +500,21 @@ export const importSkills = createServerFn({ method: "POST" })
     if (chosen.length !== new Set(data.paths).size) throw new Error("Some selected paths are no longer available. Search again.");
     const blocked = chosen.find((c) => c.registry.verificationStatus !== "verified");
     if (blocked) throw new Error(`${blocked.name} blocked: ${blocked.registry.findings.join("; ")}`);
-    const { data: own } = await context.supabase.from("skills").select("name").eq("user_id", context.userId);
-    const have = new Set((own ?? []).map((s: { name: string }) => s.name));
+    const { data: own } = await context.supabase.from("skills").select("id, name, source, registry").eq("user_id", context.userId);
+    const have = new Map<string, { id: string; source: string | null; registry: Partial<SkillRegistry> }>((own ?? []).map((s: { id: string; name: string; source: string | null; registry: Partial<SkillRegistry> }) => [s.name.toLowerCase(), s]));
     const added: string[] = [];
     const skipped: string[] = [];
     for (const c of chosen) {
-      if (have.has(c.name)) {
+      const existing = have.get(c.name.toLowerCase());
+      const sourcePointer = `${repo}@${c.registry.version}:${c.path}`;
+      if (existing && (existing.source === sourcePointer && existing.registry.verificationStatus === "verified" || !existing.source || !existing.source.startsWith(`${repo}@`) || !existing.source.endsWith(`:${c.path}`))) {
         skipped.push(c.name);
         continue;
       }
-      have.add(c.name);
-      const { error } = await context.supabase
-        .from("skills")
-        .insert({ user_id: context.userId, name: c.name, instructions: c.instructions, enabled: true, source: `${repo}@${c.registry.version}:${c.path}`, registry: c.registry });
+      const row = { name: c.name, instructions: c.instructions, enabled: true, source: sourcePointer, registry: c.registry };
+      const { error } = existing
+        ? await context.supabase.from("skills").update(row).eq("id", existing.id).eq("user_id", context.userId)
+        : await context.supabase.from("skills").insert({ ...row, user_id: context.userId });
       if (error) throw new Error(error.message);
       added.push(c.name);
     }

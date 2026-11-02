@@ -181,6 +181,13 @@ export async function listSkillCandidates(
       const f = await gh.getFile(src.repo, version, path);
       if (!f) return null;
       const parsed = parseSkillMarkdown(f.content, fallbackSkillName(path, src.path));
+      const front = readFrontMatter(f.content).fields;
+      // Preserve bounded activation metadata without accepting arbitrary YAML or template injection.
+      const activationFields = ["activation", "triggers", "depends", "version"].flatMap((key) => {
+        const value = front[key];
+        return value && /^[a-zA-Z0-9., _\-[\]"']{1,400}$/.test(value) ? [`${key}: ${value}`] : [];
+      });
+      if (activationFields.length) parsed.instructions = `---\n${activationFields.join("\n")}\n---\n${parsed.instructions}`;
       const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
       const ancestors = folder ? folder.split("/").map((_, i, parts) => parts.slice(0, parts.length - i).join("/")) : [];
       const licensePaths = [...ancestors, ""].flatMap((dir) => tree.filter((p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "") === dir && /^(license|licence|copying)(\..*)?$/i.test(p.split("/").pop() ?? "")));
@@ -196,9 +203,11 @@ export async function listSkillCandidates(
       if (!info.pushed_at || Date.now() - Date.parse(info.pushed_at) > 730 * 86400000) findings.push("Maintenance review required");
       const dependencies = tree.filter((p) => p.startsWith(`${folder}/`) && /(?:^|\/)(?:scripts\/|package\.json$|requirements.*\.txt$|pyproject\.toml$|.*\.(?:sh|py|js|ts)$)/.test(p));
       if (dependencies.length) findings.push("Bundled scripts/dependencies require manual source audit; not installed");
+      const adjacent = tree.filter((p) => p.startsWith(`${folder}/`) && p !== path && !licensePaths.includes(p));
+      if (adjacent.length) findings.push("Additional bundled resources require manual source audit");
       const networkCalls = [...new Set(f.content.match(/https?:\/\/[^\s<>\])"']+/g) ?? [])];
       if (/\b(api[_ -]?key|access[_ -]?token|oauth|pip install|npm install|npx |uv run)\b/i.test(f.content)) findings.push("External service or executable dependency needs quota/compatibility review");
-      if (f.content.length > MAX_INSTRUCTIONS) findings.push("Oversized instructions would lose audit context");
+      if (f.content.length > MAX_INSTRUCTIONS || parsed.instructions.length > MAX_INSTRUCTIONS) findings.push("Oversized instructions would lose audit context");
       const registry: SkillRegistry = { category: "Imported", repository: src.repo, version, license: license ?? "unverified", licensePath,
         securityStatus: findings.length ? "review-required" : "instructions-only", verificationStatus: findings.length ? "blocked" : "verified",
         compatibility: findings.length ? "unverified" : "Forge instructions-only", dependencies, networkCalls, findings, lastUpdate: info.pushed_at };

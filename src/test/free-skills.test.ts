@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { freeResourcePolicy, freeSkillLibrary, inspectSkillText, openLicense, skillUsable } from '@/lib/free-skills';
 import { parseSkill, selectSkills } from '@/lib/engine/skill-meta';
 import { agentSkills } from '@/lib/agent-skills';
+import { deploymentSkill } from '@/lib/deployment-quality';
 
 describe('strict free-only rules', () => {
   it('prohibits paid resources and mandatory paid dependencies', () => {
@@ -43,5 +44,9 @@ describe('strict free-only rules', () => {
   it('prevents read_skill from bypassing a blocked import', async () => {
     const access = agentSkills([{ name: 'blocked', source: 'public/repo', instructions: 'Write tests.' }], null);
     expect(await access.tools.read_skill.execute({ name: 'blocked' }, { toolCallId: 'test', messages: [], context: {} })).toMatchObject({ error: expect.any(String) });
+  });
+  it('keeps audited built-in safety policies available even when they discuss prohibited actions', async () => {
+    const access = agentSkills([deploymentSkill], null, { trustedBuiltIns: new Set([deploymentSkill.name]) });
+    expect(await access.tools.read_skill.execute({ name: deploymentSkill.name }, { toolCallId: 'test', messages: [], context: {} })).toMatchObject({ name: deploymentSkill.name });
   });
 });

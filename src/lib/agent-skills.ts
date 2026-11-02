@@ -8,9 +8,9 @@ export type SavedAgentSkill = { name: string; instructions: string; source?: str
  * Skills selected for this request are injected in full; the rest are listed by name and description
  * and loaded on demand with read_skill. Without a selection every skill is loaded (legacy behaviour).
  */
-export function agentSkills(rows: SavedAgentSkill[] | null, error: unknown, opts?: { loaded?: Set<string>; onRead?: (name: string) => void }) {
+export function agentSkills(rows: SavedAgentSkill[] | null, error: unknown, opts?: { loaded?: Set<string>; trustedBuiltIns?: Set<string>; onRead?: (name: string) => void }) {
   if (error) throw new Error("Could not load your saved skills. Retry before continuing this task.");
-  const skills = (rows ?? []).filter(skillUsable);
+  const skills = (rows ?? []).filter((skill) => opts?.trustedBuiltIns?.has(skill.name) || skillUsable(skill));
   const isLoaded = (name: string) => !opts?.loaded || opts.loaded.has(name);
   const full = skills.filter((s) => isLoaded(s.name));
   const listed = skills.filter((s) => !isLoaded(s.name));
