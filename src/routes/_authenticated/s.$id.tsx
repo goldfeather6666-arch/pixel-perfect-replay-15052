@@ -206,7 +206,6 @@ function Workspace() {
     if (!text || running || bgRunning || sendLockRef.current) return;
     manualStopRef.current = false;
     let plan = forcePlan ?? planMode;
-    const sendMode = forcePlan === false ? "build" : plan ? "plan" : chatMode;
     runStart.current = Date.now();
     const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
     if (cmd) {
@@ -216,7 +215,7 @@ function Workspace() {
       else if (name === "test") text = `Run the project's tests/typecheck/build in the sandbox. Fix any failures and re-run until they pass. ${rest}`.trim();
       else if (name === "review") text = `Review the changes on this task branch versus the base branch for bugs, security issues and missing tests. Do not edit files; list findings by severity. ${rest}`.trim();
       else if (name === "explain") text = `Explain how this part of the codebase works, citing files: ${rest || "overall architecture"}`;
-      else if (name === "help") { toast.info("Commands: /plan, /test, /review, /explain"); setInput(""); return; }
+      else if (name === "help") { toast.info("Commands: /plan, /publish, /test, /review, /explain"); setInput(""); return; }
     }
     const validationError = promptError(text);
     if (validationError) { setSendError(validationError); return; }
@@ -240,7 +239,7 @@ function Workspace() {
       // A fresh token gives the cloud-kept run a full hour of access.
       const refreshed = await supabase.auth.refreshSession().catch(() => null);
       const token = refreshed?.data.session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token;
-      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
+      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, mode: publish ? "build" : plan ? "plan" : forcePlan === false ? "build" : chatMode, publish: !!publish, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
       // Prefer a cloud-kept run so work continues when the phone sleeps or switches apps.
       const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
       if (!bg.ok) throw new Error(await bg.text());
@@ -457,9 +456,15 @@ function Workspace() {
           <div className="border-t bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
               {!desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
-              <Button type="button" size="sm" variant="ghost" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
-                className={`h-7 shrink-0 gap-1 text-xs ${planMode ? "bg-accent text-primary" : "text-muted-foreground"}`}>
-                <ListChecks className="h-3 w-3" /> Plan first
+              <div role="radiogroup" aria-label="Agent mode" className="flex shrink-0 rounded-md border bg-muted p-0.5">
+                {(["chat", "plan", "build"] as const).map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
+                    className={`rounded px-2.5 py-0.5 text-xs capitalize ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>{m}</button>
+                ))}
+              </div>
+              <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" disabled={running || bgRunning || !s?.vercel_project_id} title={s?.vercel_project_id ? "Deploy the current version to your live website" : "Link a website in Deploy first"}
+                onClick={() => { if (confirm("Publish the current version to your live website?")) void send("Publish the current version.", false, true); }}>
+                <Rocket className="h-3 w-3" /> Publish
               </Button>
               {["/test", "/review", "/explain", "/plan"].map((c) => (
                 <Button key={c} type="button" size="sm" variant="ghost" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
@@ -504,7 +509,7 @@ function Workspace() {
                 onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
                 onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (running || bgRunning)) e.preventDefault(); }}
-                placeholder={planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
+                placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
                 className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
                 rows={2}
               />
