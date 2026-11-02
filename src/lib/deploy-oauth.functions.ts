@@ -26,8 +26,8 @@ export const startDeployOAuth = createServerFn({ method: "POST" })
 /** Finishes a sign-in whose browser cookie was lost (Vercel's install pages can drop it); bound to the signed-in user instead. */
 export const finishDeployOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ provider: z.enum(["vercel", "supabase"]), state: z.string().min(10).max(200), code: z.string().min(1).max(2000) }))
+  .inputValidator(z.object({ provider: z.enum(["vercel", "supabase"]), state: z.string().min(10).max(200), code: z.string().min(1).max(2000), installation: z.string().min(1).max(200).optional() }))
   .handler(async ({ data, context }) => {
     const { completeOAuth } = await import("./deploy-oauth.server");
-    return completeOAuth(data.provider, data.state, data.code, { userId: context.userId });
+    return completeOAuth(data.provider, data.state, data.code, { userId: context.userId }, { origin: new URL(getRequest().url).origin, configurationId: data.installation });
   });
