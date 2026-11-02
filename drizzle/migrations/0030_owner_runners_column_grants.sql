@@ -1,0 +1,2 @@
+REVOKE SELECT ON public.owner_runners FROM authenticated;
+GRANT SELECT (id, user_id, key_id, label, endpoint, status, capacity, last_seen, created_at, updated_at) ON public.owner_runners TO authenticated;

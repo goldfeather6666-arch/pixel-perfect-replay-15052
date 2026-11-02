@@ -10,12 +10,11 @@ type Result = { ok: true } | { ok: false; status: number; message: string };
  * It never contains the repository, so repo code cannot read the user's session token.
  */
 export async function startKeeper(opts: { sb: any; userId: string; sessionId: string; origin: string; token: string; body: string; recovery?: boolean }): Promise<Result | null> {
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) return null;
+  const { hasAnyWorkspaceProvider, createBox } = await import("./runner-box.server");
+  if (!(await hasAnyWorkspaceProvider(opts.userId))) return null;
   const { data: before } = await opts.sb.from("agent_sessions").select("execution_id, stop_requested").eq("id", opts.sessionId).eq("user_id", opts.userId).single();
   if (!before || (opts.recovery && before.stop_requested)) return { ok: false, status: 409, message: "Task stopped or changed before startup" };
-  const { Sandbox } = await import("e2b");
-  const box = await Sandbox.create({ apiKey, timeoutMs: KEEPER_TIMEOUT_MS, metadata: { keeper: opts.sessionId } });
+  const box = await createBox(opts.userId, { timeoutMs: KEEPER_TIMEOUT_MS, metadata: { keeper: opts.sessionId } });
   try {
     let pin = opts.sb.from("agent_sessions").update({ keeper_id: box.sandboxId, ...(!opts.recovery ? { stop_requested: false } : {}) }).eq("id", opts.sessionId).eq("user_id", opts.userId);
     pin = before.execution_id ? pin.eq("execution_id", before.execution_id) : pin.is("execution_id", null);
@@ -55,8 +54,6 @@ export async function startKeeper(opts: { sb: any; userId: string; sessionId: st
 
 /** Ends a keeper sandbox once its run finished (best effort; it also expires on its own). */
 export async function stopKeeper(id: string) {
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) return;
-  const { Sandbox } = await import("e2b");
-  await Sandbox.kill(id, { apiKey }).catch(() => {});
+  const { killBox } = await import("./runner-box.server");
+  await killBox(id);
 }

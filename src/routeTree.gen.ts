@@ -25,6 +25,7 @@ import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.
 import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
 import { Route as ApiPublicJobsResumeRunsRouteImport } from './routes/api/public/jobs/resume-runs'
+import { Route as ApiPublicRunnerHeartbeatRouteImport } from './routes/api/public/runner/heartbeat'
 import { Route as ApiPublicWebhooksVercelRouteImport } from './routes/api/public/webhooks/vercel'
 import { Route as ApiPublicOauthProviderCallbackRouteImport } from './routes/api/public/oauth/$provider.callback'
 
@@ -107,6 +108,12 @@ const ApiPublicJobsResumeRunsRoute = ApiPublicJobsResumeRunsRouteImport.update({
   path: '/api/public/jobs/resume-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRunnerHeartbeatRoute =
+  ApiPublicRunnerHeartbeatRouteImport.update({
+    id: '/api/public/runner/heartbeat',
+    path: '/api/public/runner/heartbeat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksVercelRoute = ApiPublicWebhooksVercelRouteImport.update({
   id: '/api/public/webhooks/vercel',
   path: '/api/public/webhooks/vercel',
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
   '/api/public/webhooks/vercel': typeof ApiPublicWebhooksVercelRoute
   '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
@@ -154,6 +162,7 @@ export interface FileRoutesByTo {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
   '/api/public/webhooks/vercel': typeof ApiPublicWebhooksVercelRoute
   '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
@@ -175,6 +184,7 @@ export interface FileRoutesById {
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
   '/api/public/jobs/resume-runs': typeof ApiPublicJobsResumeRunsRoute
+  '/api/public/runner/heartbeat': typeof ApiPublicRunnerHeartbeatRoute
   '/api/public/webhooks/vercel': typeof ApiPublicWebhooksVercelRoute
   '/api/public/oauth/$provider/callback': typeof ApiPublicOauthProviderCallbackRoute
 }
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/runner/heartbeat'
     | '/api/public/webhooks/vercel'
     | '/api/public/oauth/$provider/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/runner/heartbeat'
     | '/api/public/webhooks/vercel'
     | '/api/public/oauth/$provider/callback'
   id:
@@ -235,6 +247,7 @@ export interface FileRouteTypes {
     | '/api/preview/$'
     | '/api/public/oauth-client'
     | '/api/public/jobs/resume-runs'
+    | '/api/public/runner/heartbeat'
     | '/api/public/webhooks/vercel'
     | '/api/public/oauth/$provider/callback'
   fileRoutesById: FileRoutesById
@@ -252,6 +265,7 @@ export interface RootRouteChildren {
   ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
   ApiPublicJobsResumeRunsRoute: typeof ApiPublicJobsResumeRunsRoute
+  ApiPublicRunnerHeartbeatRoute: typeof ApiPublicRunnerHeartbeatRoute
   ApiPublicWebhooksVercelRoute: typeof ApiPublicWebhooksVercelRoute
   ApiPublicOauthProviderCallbackRoute: typeof ApiPublicOauthProviderCallbackRoute
 }
@@ -370,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsResumeRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/runner/heartbeat': {
+      id: '/api/public/runner/heartbeat'
+      path: '/api/public/runner/heartbeat'
+      fullPath: '/api/public/runner/heartbeat'
+      preLoaderRoute: typeof ApiPublicRunnerHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/vercel': {
       id: '/api/public/webhooks/vercel'
       path: '/api/public/webhooks/vercel'
@@ -417,6 +438,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
   ApiPublicJobsResumeRunsRoute: ApiPublicJobsResumeRunsRoute,
+  ApiPublicRunnerHeartbeatRoute: ApiPublicRunnerHeartbeatRoute,
   ApiPublicWebhooksVercelRoute: ApiPublicWebhooksVercelRoute,
   ApiPublicOauthProviderCallbackRoute: ApiPublicOauthProviderCallbackRoute,
 }
