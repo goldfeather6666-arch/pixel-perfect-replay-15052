@@ -23,6 +23,7 @@ import { askInput, classifyTask, discoveryPolicy, filterQuestions, specInput, su
 import { effectiveProfile, profilePolicy, reasoningOptions, routeModel, routingSummary, teamPolicy } from "@/lib/engine/reasoning";
 import { actionFollowThrough, ACTION_FOLLOW_THROUGH } from "@/lib/engine/action-follow-through";
 import { vercelBuildFindings, reviewBuildFindings, type BuildFinding } from "@/lib/vercel-build-review";
+import { secretRequestInput } from "@/lib/project-setup";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -389,6 +390,19 @@ export const Route = createFileRoute("/api/agent")({
               askedThisRun += data.length;
               rec.event("questions.asked", { count: data.length, titles: data.map((d) => d.title), dropped });
               return { asked: data.length, dropped, note: "Questions are shown to the user as cards. Stop now with a one-line note; the task resumes automatically when they answer." };
+            },
+          }),
+          request_secret: tool({
+            description: "Request a missing private integration credential (Stripe/payments or any provider) using a secure input card. Provide only its variable name, purpose, HTTPS provider settings link and Vercel environment targets. NEVER accept or output the secret value in chat/tools. User submission approves encrypted storage and upload to this task's pinned Vercel project, not deployment. Stop and wait if pending; synced means the variable is already available.",
+            inputSchema: secretRequestInput,
+            execute: async (input) => {
+              if (plan) return { error: "Plan mode cannot create secret requests" };
+              const { requestProjectSecret } = await import("@/lib/project-setup.server");
+              try {
+                const result = await requestProjectSecret({ supabase: sb, userId: u.user.id }, sessionId, input);
+                if (result.state !== "synced") askedThisRun++;
+                return { ...result, note: result.state === "synced" ? "Secret variable synced. Never retrieve or print its value." : "Secure input card shown in live chat. Stop and wait; do not ask for the value in text." };
+              } catch { return { error: "Link this task's Vercel website and account before requesting a secret." }; }
             },
           }),
           suggest_improvement: tool({
@@ -1111,7 +1125,13 @@ export const Route = createFileRoute("/api/agent")({
                 if (!stalled) {
                 const { data: staged } = await sb.from("mcp_action_requests").select("id").eq("user_id", u.user.id).eq("session_id", sessionId).eq("state", "pending");
                 const { count: openCount } = await sb.from("task_questions").select("id", { count: "exact", head: true }).eq("session_id", sessionId).eq("status", "open").eq("required", true);
-                const fin = finalStage({ openQuestions: openCount ?? 0, aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan: !!plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
+                let waitingSecrets = 0;
+                if (s.vercel_project_id) {
+                  const { listProjectSecrets } = await import("@/lib/project-setup.server");
+                  try { waitingSecrets = (await listProjectSecrets({ supabase: sb, userId: u.user.id }, sessionId)).filter((r: { state: string }) => ["pending", "saving", "failed"].includes(r.state)).length; }
+                  catch { waitingSecrets = 1; }
+                }
+                const fin = finalStage({ openQuestions: (openCount ?? 0) + waitingSecrets, aborted: runAbort.signal.aborted, errored, blocker: runOutcome.blocker, exhausted: runOutcome.exhausted, plan: !!plan, pendingChanges: pending.length, stagedActions: staged?.length ?? 0 });
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 const costBreakdown = Object.entries(usageByModel).map(([model, tokens]) => ({ model, input: tokens.input, output: tokens.output, costUsd: costUsd(modelCaps(model), tokens) }));
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);

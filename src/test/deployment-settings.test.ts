@@ -8,6 +8,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from:
 } } }));
 vi.mock("@/lib/crypto.server", () => ({ decryptSecret: fake.decrypt }));
 vi.mock("@/lib/customer-auth.server", () => ({ syncDeploymentAuth: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/lib/project-setup.server", () => ({ selectedCustomDomain: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/integrations.server", () => ({
   SupabaseMgmt: class { anonKey = fake.key; },
   Vercel: class { setEnv = fake.env; },

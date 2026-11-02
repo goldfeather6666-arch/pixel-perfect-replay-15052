@@ -8,7 +8,7 @@ describe("authorized customer signup synchronization", () => {
       .mockResolvedValueOnce(Response.json({ domains: [{ name: "customer.vercel.app" }] }))
       .mockResolvedValueOnce(Response.json({ mailer_autoconfirm: false, site_url: "https://old.example", password_min_length: 12 }))
       .mockResolvedValueOnce(Response.json({}))
-      .mockResolvedValueOnce(Response.json({ mailer_autoconfirm: true, site_url: "https://customer.vercel.app" }));
+      .mockImplementationOnce(async (_url, init) => Response.json(JSON.parse(init.body)));
     vi.stubGlobal("fetch", fetcher);
     await syncDeploymentAuth("customer-ref", "database-test", "customer-project", "vercel-test");
     expect(fetcher.mock.calls[0]?.[0]).toContain("/projects/customer-project/domains");
