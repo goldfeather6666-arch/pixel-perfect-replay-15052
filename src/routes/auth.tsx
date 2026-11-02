@@ -6,6 +6,7 @@ import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NightModeToggle } from "@/components/AppearanceProvider";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -56,7 +57,7 @@ function AuthPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-grid px-4">
       <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-glow">
-        <p className="font-mono text-sm font-semibold"><span className="text-primary">▲</span> forge</p>
+        <div className="flex items-center justify-between"><p className="font-mono text-sm font-semibold"><span className="text-primary">▲</span> forge</p><NightModeToggle /></div>
         <h1 className="mt-4 text-2xl font-semibold">{mode === "in" ? "Welcome back" : "Create account"}</h1>
         {sent ? (
           <p className="mt-4 text-sm text-muted-foreground">Check your email to confirm your account, then sign in.</p>

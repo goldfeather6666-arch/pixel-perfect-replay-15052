@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { isRecoverableModuleError, recoverChunkLoad } from "@/lib/chunk-recovery";
+import { AppearanceProvider, appearanceScript } from "@/components/AppearanceProvider";
 
 function NotFoundComponent() {
   return (
@@ -108,8 +109,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
         <HeadContent />
       </head>
       <body>
@@ -155,8 +157,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <Toaster theme="light" />
+      <AppearanceProvider>
+        <Outlet />
+        <Toaster />
+      </AppearanceProvider>
     </QueryClientProvider>
   );
 }

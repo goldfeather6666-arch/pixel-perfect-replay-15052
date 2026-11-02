@@ -6,6 +6,7 @@ import { HelpCircle, Lightbulb, Check, X, MessageSquare, Star, ListChecks } from
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { answerQuestion, decideSuggestion, listInteractions, type TaskQuestion, type TaskSuggestion } from "@/lib/interactions.functions";
 
 /** Question cards, improvement suggestions and the task spec, inline in the chat. */
@@ -120,11 +121,14 @@ function SuggestionCard({ s, busy, onSend }: { s: TaskSuggestion; busy: boolean;
 function SpecCard({ spec }: { spec: { version: number; task_class: string; spec: unknown } }) {
   const sp = spec.spec as { objective?: string; acceptance_criteria?: string[]; non_goals?: string[]; assumptions?: string[] };
   return (
-    <details className="panel p-3 text-sm">
-      <summary className="flex cursor-pointer items-center gap-2 font-medium"><ListChecks className="h-4 w-4 text-primary" /> Task plan v{spec.version} · {spec.task_class.replace("_", "-")}</summary>
+    <Dialog>
+      <DialogTrigger asChild><Button variant="ghost" size="sm" className="text-muted-foreground"><ListChecks /> View saved plan</Button></DialogTrigger>
+      <DialogContent className="max-h-[80dvh] overflow-y-auto text-sm">
+      <DialogHeader><DialogTitle>Task plan v{spec.version} · {spec.task_class.replace("_", "-")}</DialogTitle></DialogHeader>
       <p className="mt-2">{sp.objective}</p>
       {[["Done when", sp.acceptance_criteria], ["Not included", sp.non_goals], ["Assumptions", sp.assumptions]].map(([label, items]) =>
         Array.isArray(items) && items.length ? <div key={label as string} className="mt-2"><p className="text-xs text-muted-foreground">{label as string}</p><ul className="list-disc pl-5 text-xs">{(items as string[]).map((i) => <li key={i}>{i}</li>)}</ul></div> : null)}
-    </details>
+      </DialogContent>
+    </Dialog>
   );
 }

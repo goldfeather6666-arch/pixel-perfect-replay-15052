@@ -51,6 +51,7 @@
 
 /* Forge workspace: quiet porcelain surfaces, ink typography and coral actions. */
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
   --background: oklch(0.984 0.002 250);
   --foreground: oklch(0.24 0.008 260);
@@ -87,6 +88,27 @@
   --workspace-shadow: 0 4px 24px -12px color-mix(in oklab, var(--foreground) 18%, transparent);
   --grid: linear-gradient(to right, color-mix(in oklab, var(--border) 50%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in oklab, var(--border) 50%, transparent) 1px, transparent 1px);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.18 0.004 260);
+  --foreground: oklch(0.94 0.003 260);
+  --card: oklch(0.215 0.004 260);
+  --primary: oklch(0.73 0.16 28);
+  --primary-foreground: oklch(0.18 0.01 28);
+  --secondary: oklch(0.27 0.006 260);
+  --muted: oklch(0.25 0.005 260);
+  --muted-foreground: oklch(0.72 0.009 260);
+  --accent: oklch(0.29 0.023 28);
+  --destructive: oklch(0.72 0.17 25);
+  --destructive-foreground: oklch(0.18 0.01 25);
+  --warning: oklch(0.8 0.12 80);
+  --success: oklch(0.76 0.13 155);
+  --added: oklch(0.3 0.04 155);
+  --removed: oklch(0.3 0.04 25);
+  --border: oklch(0.33 0.006 260);
+  --sidebar: oklch(0.2 0.004 260);
 }
 
 @layer base {

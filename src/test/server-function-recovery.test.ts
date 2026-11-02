@@ -15,4 +15,15 @@ describe("RPC generation recovery", () => {
     expect(await recoveringServerFetch("https://forge.test/_serverFn/current")).toBe(response);
     expect(await response.text()).toBe("Database permission denied");
   });
+  it("recognizes a missing function in a JSON 404 without replaying a POST", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Server function info not found for stale-id" }), { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(recoveringServerFetch("https://forge.test/_serverFn/stale", { method: "POST" })).rejects.toThrow("Refresh this page to reconnect");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+  it("does not treat an ordinary missing resource as an outdated function", async () => {
+    const response = new Response("Task not found", { status: 404 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+    expect(await recoveringServerFetch("https://forge.test/_serverFn/current")).toBe(response);
+  });
 });

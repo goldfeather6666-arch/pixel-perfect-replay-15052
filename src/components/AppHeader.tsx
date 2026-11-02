@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import forgeMark from "@/assets/forge-mark.png";
+import { NightModeToggle } from "@/components/AppearanceProvider";
 
 const NAV = [
   { to: "/app", label: "Workspace", icon: LayoutDashboard },
@@ -29,6 +30,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
           </Link>
         ))}
       </nav>
+      <NightModeToggle />
       <Button variant="ghost" size="icon" aria-label="Sign out" title="Sign out" className="size-9 shrink-0 rounded-lg"
         onClick={async () => { await supabase.auth.signOut(); nav({ to: "/auth" }); }}>
         <LogOut className="size-4" />

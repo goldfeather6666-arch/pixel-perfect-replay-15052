@@ -29,7 +29,7 @@ const TOKEN_URL: Record<Svc, string> = {
 /** Deploy tab: three steps — database, website, go live. */
 export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
   const qc = useQueryClient();
-  const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }) });
+  const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }), retry: false, throwOnError: false });
   const refresh = () => {
     for (const k of ["integrations", "session", "deps", "migr", "sb-opts", "vc-access"]) qc.invalidateQueries({ queryKey: [k, id] });
   };
@@ -223,7 +223,7 @@ function DatabaseStep({ id, account, linked, onChange }: { id: string; account: 
   const [org, setOrg] = useState("");
   const [region, setRegion] = useState("us-east-1");
   const opts = useQuery({ queryKey: ["sb-opts", id, account], queryFn: useServerFn(listSupabaseOptions).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: !linked });
-  const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000 });
+  const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000, retry: false, throwOnError: false });
   const link = useServerFn(linkSupabase);
   const apply = useServerFn(applyMigrations);
   const orgId = org || opts.data?.orgs[0]?.id || "";
@@ -246,9 +246,10 @@ function DatabaseStep({ id, account, linked, onChange }: { id: string; account: 
           <span className="truncate font-mono text-xs">{linked}{status.data?.dbStatus ? ` · ${status.data.dbStatus.toLowerCase().replace(/_/g, " ")}` : ""}</span>
           <Button size="sm" variant="ghost" disabled={linkM.isPending} onClick={() => linkM.mutate({ id, unlink: true })}>Unlink</Button>
         </div>
+        {status.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>Database changes could not be checked.</span><Button variant="outline" size="sm" disabled={status.isFetching} onClick={() => void status.refetch()}>Retry</Button></div>}
         <div className="flex items-center justify-between gap-2">
           <p>{status.data ? `${pending.length} change(s) waiting · ${status.data.applied.length} applied` : "Checking changes…"}</p>
-          <Button size="sm" disabled={!pending.length || applyM.isPending} onClick={() => applyM.mutate()}>{applyM.isPending ? "Applying…" : "Apply"}</Button>
+          <Button size="sm" disabled={status.isError || !pending.length || applyM.isPending} onClick={() => applyM.mutate()}>{applyM.isPending ? "Applying…" : "Apply"}</Button>
         </div>
         {pending.map((p) => <p key={p} className="truncate font-mono text-xs text-muted-foreground">{p.replace("supabase/migrations/", "")}</p>)}
       </div>
