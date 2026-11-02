@@ -221,10 +221,11 @@ export const getDeployments = createServerFn({ method: "POST" })
     const v = new Vercel(await need(context, "vercel", s.accounts));
     const deployments = (await v.deployments(s.vercel_project_id, s.work_branch)).slice(0, 5);
     const latest = deployments[0];
-    const log = latest && latest.state === "ERROR" ? await v.buildLog(latest.id).catch(() => null) : null;
+    const log = latest && ["READY", "ERROR"].includes(latest.state) ? await v.buildLog(latest.id).catch(() => null) : null;
+    const { vercelBuildFindings } = await import("./vercel-build-review");
     const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
     const runtime = latest?.state === "READY" ? await checkDeploymentRuntime(latest.url) : null;
-    return { deployments, log, runtime };
+    return { deployments, log, runtime, buildIssues: log === null ? [] : vercelBuildFindings(log) };
   });
 
 export const getMigrationStatus = createServerFn({ method: "POST" })
