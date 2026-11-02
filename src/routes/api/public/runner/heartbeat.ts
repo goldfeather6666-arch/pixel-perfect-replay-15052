@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/public/runner/heartbeat")({
         if (endpoint !== row.endpoint) {
           const { verifyPublicTarget } = await import("@/lib/mcp-network.server");
           try { await verifyPublicTarget(endpoint); } catch { return new Response("Endpoint not public", { status: 400 }); }
-          const { LOCAL_MODEL_LABEL } = await import("@/lib/runner.functions");
+          const LOCAL_MODEL_LABEL = "Your server · free local model";
           await supabaseAdmin.from("provider_credentials").update({ base_url: `${endpoint}/ollama/v1` }).eq("user_id", row.user_id).eq("label", LOCAL_MODEL_LABEL);
         }
         const now = new Date().toISOString();
