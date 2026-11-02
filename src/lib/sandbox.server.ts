@@ -15,16 +15,14 @@ const JOB_CHUNK = 60_000;
 /** Pass as `job` to runInSandbox to just open/sync the task sandbox and get the instance back. */
 export const OPEN_ONLY = "__open_only__";
 export async function openTaskBox(sb: any, session: Session, ghToken: string, pending: PendingChange[] = []) {
-  return (await runInSandbox(sb, session, ghToken, "true", pending, undefined, undefined, OPEN_ONLY)) as unknown as { box: import("e2b").Sandbox };
+  return (await runInSandbox(sb, session, ghToken, "true", pending, undefined, undefined, OPEN_ONLY)) as unknown as { box: import("./runner-box.server").Box };
 }
 
 /** Reads new output of a detached terminal job from `offset` (bytes) and its exit code if finished. */
 export async function pollJob(sandboxId: string, job: string, offset: number, kill = false) {
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) throw new Error("Terminal is not configured");
   if (!/^[a-z0-9-]{8,64}$/.test(job)) throw new Error("Invalid job");
-  const { Sandbox } = await import("e2b");
-  const box = await Sandbox.connect(sandboxId, { apiKey, timeoutMs: 15 * 60_000 }).catch(() => null);
+  const { connectBox } = await import("./runner-box.server");
+  const box = await connectBox(sandboxId, 15 * 60_000);
   if (!box) return { out: "", offset, exit_code: -1, done: true, note: "Sandbox expired (15 min idle). Run the command again." };
   const dir = `/tmp/forge-jobs/${job}`;
   if (kill) await box.commands.run(`p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && pkill -TERM -P $p; pkill -f ${dir}/cmd.sh; kill $p 2>/dev/null; [ -f ${dir}/exit ] || echo 130 > ${dir}/exit`, { timeoutMs: 10_000 }).catch(() => {});
@@ -43,10 +41,8 @@ export async function pollJob(sandboxId: string, job: string, offset: number, ki
 
 export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }, signal?: AbortSignal, job?: string) {
   signal?.throwIfAborted();
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) throw new Error("Terminal is not configured");
-  const { Sandbox } = await import("e2b");
-  let box: InstanceType<typeof Sandbox> | null = null;
+  const { connectBox, createBox } = await import("./runner-box.server");
+  let box: import("./runner-box.server").Box | null = null;
   const cancel = () => {
     const active = box;
     if (!active) return;
@@ -57,7 +53,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   signal?.addEventListener("abort", cancel, { once: true });
   try {
   if (session.sandbox_id) {
-    box = await Sandbox.connect(session.sandbox_id, { apiKey, timeoutMs: 15 * 60_000 }).catch(() => null);
+    box = await connectBox(session.sandbox_id, 15 * 60_000);
   }
   if (signal?.aborted) { cancel(); signal.throwIfAborted(); }
   // Token is passed per command as env only; never written to git config or disk.
@@ -65,7 +61,8 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   const envs = { GH_AUTH: auth };
   if (!box) {
     // Private traffic: sandbox URLs need the traffic token, so previews are reachable only through Forge's gateway.
-    box = await Sandbox.create({ apiKey, timeoutMs: 15 * 60_000, metadata: { session: session.id }, network: { allowPublicTraffic: false } });
+    // Owner's paired server first (free), E2B as fallback.
+    box = await createBox(session.user_id, { timeoutMs: 15 * 60_000, metadata: { session: session.id }, privateTraffic: true });
     if (signal?.aborted) { cancel(); signal.throwIfAborted(); }
     // The base VM has ~470 MB RAM; add swap first so installs/builds don't crash out of memory.
     await box.commands.run(SWAP_CMD, { timeoutMs: 60_000 }).catch(() => {});
