@@ -9,12 +9,17 @@ export function callbackPath(p: DeployOAuthProvider) { return `/api/public/oauth
 /** The return address the provider must be told to use: exactly the one its own console lists. */
 export function redirectUriFor(p: DeployOAuthProvider, origin: string) { return `${origin.replace(/\/+$/, "")}${callbackPath(p)}`; }
 
-export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string | undefined }) {
+export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string }) {
   if (p === "vercel") {
-    // Vercel Integration install flow: the user picks a scope, Vercel returns code + configurationId (+ teamId).
-    if (!o.vercelSlug) throw new Error("Vercel integration slug missing");
-    const u = new URL(`https://vercel.com/integrations/${encodeURIComponent(o.vercelSlug)}/new`);
+    // Vercel Apps ("Sign in with Vercel") authorization endpoint — PKCE, offline_access for refresh tokens.
+    const u = new URL("https://vercel.com/oauth/authorize");
+    u.searchParams.set("client_id", o.clientId);
+    u.searchParams.set("redirect_uri", o.redirectUri);
+    u.searchParams.set("response_type", "code");
     u.searchParams.set("state", o.state);
+    u.searchParams.set("scope", "openid email profile offline_access");
+    u.searchParams.set("code_challenge", o.challenge);
+    u.searchParams.set("code_challenge_method", "S256");
     return u.toString();
   }
   const u = new URL("https://api.supabase.com/v1/oauth/authorize");
