@@ -10,7 +10,8 @@ import { answerQuestion, decideSuggestion, listInteractions, type TaskQuestion, 
 /** Question cards, improvement suggestions and the task spec, inline in the chat. */
 export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: string; busy: boolean; onSend: (message: string) => void }) {
   const fetchAll = useServerFn(listInteractions);
-  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: () => fetchAll({ data: { sessionId } }), refetchInterval: 4000 });
+  const qcPoll = useQueryClient();
+  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch { const prev = qcPoll.getQueryData(["interactions", sessionId]); if (prev) return prev as Awaited<ReturnType<typeof fetchAll>>; throw new Error("Could not load questions yet"); } }, refetchInterval: 4000, retry: 3 });
   const open = q.data?.questions.filter((x) => x.status === "open") ?? [];
   const sugs = q.data?.suggestions.filter((x) => x.status === "proposed") ?? [];
   const spec = q.data?.spec;
