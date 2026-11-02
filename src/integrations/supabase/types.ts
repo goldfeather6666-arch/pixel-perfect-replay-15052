@@ -912,6 +912,59 @@ export type Database = {
           },
         ]
       }
+      task_domain_setups: {
+        Row: {
+          approved_at: string
+          database_account_id: string | null
+          database_ref: string | null
+          domain: string
+          id: string
+          state: string
+          sync_error: string | null
+          task_id: string
+          updated_at: string
+          user_id: string
+          vercel_account_id: string
+          vercel_project_id: string
+        }
+        Insert: {
+          approved_at?: string
+          database_account_id?: string | null
+          database_ref?: string | null
+          domain: string
+          id?: string
+          state?: string
+          sync_error?: string | null
+          task_id: string
+          updated_at?: string
+          user_id: string
+          vercel_account_id: string
+          vercel_project_id: string
+        }
+        Update: {
+          approved_at?: string
+          database_account_id?: string | null
+          database_ref?: string | null
+          domain?: string
+          id?: string
+          state?: string
+          sync_error?: string | null
+          task_id?: string
+          updated_at?: string
+          user_id?: string
+          vercel_account_id?: string
+          vercel_project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_domain_setups_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_questions: {
         Row: {
           allow_custom_answer: boolean
@@ -983,6 +1036,65 @@ export type Database = {
           {
             foreignKeyName: "task_questions_session_id_fkey"
             columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_secret_requests: {
+        Row: {
+          ciphertext: string | null
+          created_at: string
+          id: string
+          iv: string | null
+          name: string
+          purpose: string
+          source_url: string
+          state: string
+          targets: string[]
+          task_id: string
+          updated_at: string
+          user_id: string
+          vercel_account_id: string
+          vercel_project_id: string
+        }
+        Insert: {
+          ciphertext?: string | null
+          created_at?: string
+          id?: string
+          iv?: string | null
+          name: string
+          purpose: string
+          source_url: string
+          state?: string
+          targets?: string[]
+          task_id: string
+          updated_at?: string
+          user_id: string
+          vercel_account_id: string
+          vercel_project_id: string
+        }
+        Update: {
+          ciphertext?: string | null
+          created_at?: string
+          id?: string
+          iv?: string | null
+          name?: string
+          purpose?: string
+          source_url?: string
+          state?: string
+          targets?: string[]
+          task_id?: string
+          updated_at?: string
+          user_id?: string
+          vercel_account_id?: string
+          vercel_project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_secret_requests_task_id_fkey"
+            columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "agent_sessions"
             referencedColumns: ["id"]
