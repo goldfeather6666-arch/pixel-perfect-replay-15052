@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeUrl, needsRefresh, packVercelToken, redirectUriFor, unpackVercelToken, withTeam } from "@/lib/deploy-oauth";
+import { authorizeUrl, needsRefresh, packVercelToken, redirectUriFor, refreshedVercelToken, soleTeam, unpackVercelToken, websiteVerdict, withTeam } from "@/lib/deploy-oauth";
 
 describe("one-click deploy sign-in", () => {
   it("database sign-in uses PKCE S256 and the exact callback", () => {
