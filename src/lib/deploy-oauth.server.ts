@@ -46,13 +46,15 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
   if (!res.ok || !j.access_token) {
     // Provider error codes/descriptions are safe to show (never contain our secret); keep them short and single-line.
     const why = String(j.error_description ?? j.error?.message ?? j.message ?? j.error ?? "").replace(/[\r\n]+/g, " ").slice(0, 200);
+    // The return address is the usual cause of a refusal, so record the one we sent (it is not a secret).
+    console.error(`${p} token exchange refused`, res.status, `redirect_uri=${body.redirect_uri ?? ""}`, why);
     throw new Error(`${p === "vercel" ? "Vercel" : "Database host"} refused the sign-in (${res.status})${why ? `: ${why}` : ""}`);
   }
   return { access: j.access_token, refresh: j.refresh_token ?? null, expiresIn: typeof j.expires_in === "number" ? j.expires_in : null, teamId: j.team_id ?? null, installationId: j.installation_id ?? null };
 }
 
 /** Finishes a sign-in: claims the attempt once, checks the browser binding, exchanges the code and saves the account. */
-export async function completeOAuth(p: DeployOAuthProvider, state: string, code: string, binding: { cookieDigest?: string | undefined; userId?: string | undefined }) {
+export async function completeOAuth(p: DeployOAuthProvider, state: string, code: string, binding: { cookieDigest?: string | undefined; userId?: string | undefined }, extra?: { origin?: string | undefined; configurationId?: string | undefined }) {
   const digest = await sha256b64url(state);
   // Bound either to this browser's HttpOnly cookie, or (when the provider dropped it) to the signed-in user who started it.
   if (!binding.userId && binding.cookieDigest !== digest) throw new Error("Sign-in expired or was started in another browser. Start again from Settings.");
@@ -60,18 +62,21 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   const { data: row } = await db.from("deploy_oauth_states").delete().eq("state_digest", digest).eq("provider", p).select("*").maybeSingle();
   if (!row || Date.parse(row.expires_at) < Date.now()) throw new Error("Sign-in expired. Start again from Settings.");
   if (binding.userId && row.user_id !== binding.userId) throw new Error("This sign-in was started by a different account.");
-  const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: row.redirect_uri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
+  // A provider only ever sends the browser back to an address its own console allows, so the one it just used is the
+  // configured one. Trusting it beats the address this tab happens to be on (a preview or localhost origin differs).
+  const redirectUri = extra?.origin ? `${extra.origin}${callbackPath(p)}` : row.redirect_uri;
+  const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");
   const who = p === "vercel" ? await new Vercel(access).identity() : await new SupabaseMgmt(access).identity();
-  return saveOAuthAccount(db, row.user_id, p, access, t, `${who.name}${p === "vercel" && t.teamId ? " (team)" : ""}`);
+  return saveOAuthAccount(db, row.user_id, p, access, t, `${who.name}${p === "vercel" && t.teamId ? " (team)" : ""}`, extra?.configurationId);
 }
 
-async function saveOAuthAccount(db: any, userId: string, p: DeployOAuthProvider, access: string, t: Tokens, label: string) {
+async function saveOAuthAccount(db: any, userId: string, p: DeployOAuthProvider, access: string, t: Tokens, label: string, configurationId?: string | undefined) {
   const { encryptSecret } = await import("./crypto.server");
   const a = await encryptSecret(access);
   const r = t.refresh ? await encryptSecret(t.refresh) : null;
-  const values = { ciphertext: a.ciphertext, iv: a.iv, last4: "auth", refresh_ciphertext: r?.ciphertext ?? null, refresh_iv: r?.iv ?? null, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null, base_url: p === "vercel" ? (t.installationId ?? null) : null };
+  const values = { ciphertext: a.ciphertext, iv: a.iv, last4: "auth", refresh_ciphertext: r?.ciphertext ?? null, refresh_iv: r?.iv ?? null, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null, base_url: p === "vercel" ? (configurationId ?? t.installationId ?? null) : null };
   // Signing in again to the same account replaces its tokens instead of adding a duplicate.
   const { data: existing } = await db.from("provider_credentials").select("id").eq("user_id", userId).eq("provider", p).eq("auth_method", "oauth").eq("label", label).maybeSingle();
   if (existing) await db.from("provider_credentials").update(values).eq("id", existing.id).eq("user_id", userId);
