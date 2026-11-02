@@ -5,7 +5,7 @@ export const Route = createFileRoute("/api/public/webhooks/vercel")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.VERCEL_CLIENT_SECRET;
+        const secret = process.env["VERCEL_CLIENT_SECRET"];
         if (!secret) return new Response("webhook not configured", { status: 503 });
 
         const body = await request.text();
