@@ -26,13 +26,11 @@ async function admin() {
 }
 
 async function connect(sandboxId: string) {
-  const apiKey = process.env["E2B_API_KEY"];
-  if (!apiKey) throw new Error("Preview sandbox is not configured");
-  const { Sandbox } = await import("e2b");
-  return Sandbox.connect(sandboxId, { apiKey, timeoutMs: TTL_MS }).catch(() => null);
+  const { connectBox } = await import("./runner-box.server");
+  return connectBox(sandboxId, TTL_MS);
 }
 
-async function sh(box: import("e2b").Sandbox, cmd: string, timeoutMs = 20_000) {
+async function sh(box: import("./runner-box.server").Box, cmd: string, timeoutMs = 20_000) {
   const r = await box.commands.run(cmd, { timeoutMs }).catch((e: { stdout?: string; stderr?: string; exitCode?: number }) => e);
   return { out: String(r?.stdout ?? ""), code: typeof r?.exitCode === "number" ? r.exitCode : -1 };
 }
@@ -50,7 +48,7 @@ export async function latestPreview(sb: any, projectId: string): Promise<Preview
   return (data?.[0] as PreviewRow) ?? null;
 }
 
-async function launch(box: import("e2b").Sandbox, row: { id: string; port: number }, framework: Framework, install: string, command: string) {
+async function launch(box: import("./runner-box.server").Box, row: { id: string; port: number }, framework: Framework, install: string, command: string) {
   const dir = dirOf(row.id);
   const script = [
     "set -o pipefail",
@@ -68,13 +66,13 @@ async function launch(box: import("e2b").Sandbox, row: { id: string; port: numbe
   return h.pid;
 }
 
-async function killTree(box: import("e2b").Sandbox, id: string, port: number) {
+async function killTree(box: import("./runner-box.server").Box, id: string, port: number) {
   const dir = dirOf(id);
   await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && { kill -TERM -- -$p 2>/dev/null; pkill -TERM -P $p 2>/dev/null; kill $p 2>/dev/null; }; sleep 1; fuser -k ${port}/tcp 2>/dev/null; true`);
 }
 
 /** Gives the private dev server the task's database settings, kept outside the repo and never sent to the browser. The server-only key is included only when the user saved it in guided setup, mirroring Vercel's server env. */
-async function writePublicEnv(box: import("e2b").Sandbox, id: string, session: Session & { supabase_ref?: string | null }) {
+async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }) {
   if (!session.supabase_ref) return;
   try {
     const { loadDatabaseSettings } = await import("./deployment-settings.server");
