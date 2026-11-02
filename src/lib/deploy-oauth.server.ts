@@ -64,7 +64,7 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   if (binding.userId && row.user_id !== binding.userId) throw new Error("This sign-in was started by a different account.");
   // A provider only ever sends the browser back to an address its own console allows, so the one it just used is the
   // configured one. Trusting it beats the address this tab happens to be on (a preview or localhost origin differs).
-  const redirectUri = extra?.origin ? `${extra.origin}${callbackPath(p)}` : row.redirect_uri;
+  const redirectUri = extra?.origin ? redirectUriFor(p, extra.origin) : row.redirect_uri;
   const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");
