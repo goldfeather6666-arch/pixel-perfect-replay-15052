@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { answerQuestion, decideSuggestion, listInteractions, type TaskQuestion, type TaskSuggestion } from "@/lib/interactions.functions";
+import { ProjectSecrets } from "@/components/ProjectSecrets";
 
 /** Question cards, improvement suggestions and the task spec, inline in the chat. */
 export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: string; busy: boolean; onSend: (message: string) => void }) {
@@ -16,9 +17,9 @@ export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: strin
   const open = q.data?.questions.filter((x) => x.status === "open") ?? [];
   const sugs = q.data?.suggestions.filter((x) => x.status === "proposed") ?? [];
   const spec = q.data?.spec;
-  if (!open.length && !sugs.length && !spec && !q.isError) return null;
   return (
     <div className="space-y-3">
+      <ProjectSecrets taskId={sessionId} busy={busy} onSend={onSend} />
       {q.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>Questions and suggestions are temporarily unavailable. Your conversation is still saved.</span><Button variant="outline" size="sm" disabled={q.isFetching} onClick={() => void q.refetch()}>Retry</Button></div>}
       {open.length > 0 && (
         <div className="panel space-y-3 border-primary/50 p-3">

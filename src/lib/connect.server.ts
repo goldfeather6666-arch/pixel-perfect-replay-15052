@@ -61,7 +61,9 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
   if (s.supabase_ref && st) {
     try {
       const { syncCustomerAuth } = await import("./customer-auth.server");
-      await syncCustomerAuth(s.supabase_ref, st, domains);
+      const { selectedCustomDomain } = await import("./project-setup.server");
+      const domain = s.vercel_project_id && vt ? await selectedCustomDomain(s.user_id, s.id, s.vercel_project_id, s.supabase_ref, st, vt) : undefined;
+      await syncCustomerAuth(s.supabase_ref, st, domains, domain);
       steps.push({ key: "auth", label: "Signup and sign-in", state: "ok", note: "Email confirmation off; sign-in return links checked" });
     } catch (e) { steps.push({ key: "auth", label: "Sign-in links", state: "warn", note: `Couldn't check: ${safe(e)}. Use a database token with full access.` }); }
   }

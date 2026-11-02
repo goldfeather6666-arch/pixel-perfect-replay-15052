@@ -183,6 +183,13 @@
       "when": 1793574551834,
       "tag": "0025_deploy_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793590650316,
+      "tag": "0026_task_domains_and_integration_secrets",
+      "breakpoints": true
     }
   ]
 }

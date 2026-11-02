@@ -114,6 +114,18 @@ export class Vercel {
     const r = await this.req<any>(`/v9/projects/${encodeURIComponent(projectId)}/domains`);
     return ((r.domains ?? []) as any[]).filter((d) => d.verified !== false && !d.redirect).map((d) => String(d.name));
   }
+  addDomain(projectId: string, name: string) {
+    return this.req(`/v10/projects/${encodeURIComponent(projectId)}/domains`, { method: "POST", body: JSON.stringify({ name }) });
+  }
+  domain(projectId: string, name: string) {
+    return this.req<{ verified?: boolean; redirect?: string | null; gitBranch?: string | null; customEnvironmentId?: string | null; verification?: { type: string; name: string; value: string }[] }>(`/v9/projects/${encodeURIComponent(projectId)}/domains/${encodeURIComponent(name)}`);
+  }
+  verifyDomain(projectId: string, name: string) {
+    return this.req<Awaited<ReturnType<Vercel["domain"]>>>(`/v9/projects/${encodeURIComponent(projectId)}/domains/${encodeURIComponent(name)}/verify`, { method: "POST" });
+  }
+  domainConfig(projectId: string, name: string) {
+    return this.req<{ misconfigured?: boolean; recommendedIPv4?: { value: string[] }[]; recommendedCNAME?: { value: string }[] }>(`/v6/domains/${encodeURIComponent(name)}/config?projectIdOrName=${encodeURIComponent(projectId)}`);
+  }
   async createProject(name: string, repo: string) {
     const p = await this.req<any>("/v11/projects", {
       method: "POST",
@@ -121,8 +133,8 @@ export class Vercel {
     });
     return { id: p.id as string, name: p.name as string };
   }
-  async setEnv(projectId: string, vars: Record<string, string>) {
-    const body = Object.entries(vars).map(([key, value]) => ({ key, value, type: "encrypted", target: ["production", "preview", "development"] }));
+  async setEnv(projectId: string, vars: Record<string, string>, targets: ("production" | "preview" | "development")[] = ["production", "preview", "development"]) {
+    const body = Object.entries(vars).map(([key, value]) => ({ key, value, type: "encrypted", target: targets }));
     await this.req(`/v10/projects/${projectId}/env?upsert=true`, { method: "POST", body: JSON.stringify(body) });
   }
   async deployments(projectId: string, branch?: string): Promise<Deployment[]> {
