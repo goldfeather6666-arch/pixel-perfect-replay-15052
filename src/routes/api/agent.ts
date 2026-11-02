@@ -21,6 +21,7 @@ import type { Recorder } from "@/lib/engine/recorder.server";
 import { WORKER_REPORT_INSTRUCTIONS } from "@/lib/engine/worker-report";
 import { askInput, classifyTask, discoveryPolicy, filterQuestions, specInput, suggestInput, TASK_CLASSES, type TaskClass } from "@/lib/engine/discovery";
 import { effectiveProfile, profilePolicy, reasoningOptions, routeModel, routingSummary, teamPolicy } from "@/lib/engine/reasoning";
+import { actionFollowThrough, ACTION_FOLLOW_THROUGH } from "@/lib/engine/action-follow-through";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -899,11 +900,14 @@ export const Route = createFileRoute("/api/agent")({
               const reasoning = reasoningOptions(cred.provider, s.model, profile);
               rec.event("discovery.classified", { taskClass, signals, profile, reasoning: reasoning.applied, team: team.reason, routing: routingSummary(routing) });
               let delegated = false;
+              let actionContinued = false;
+              let requireAction = false;
               const fallbackModel = (s as { fallback_model?: string | null }).fallback_model?.trim() || null;
               let activeModel: string = s.model;
               for (let modelAttempt = 0; modelAttempt < 2; modelAttempt++) {
               try {
               for (let repairRound = 0; repairRound <= 3; repairRound++) {
+              let responseToolCalls = 0;
               rec.mark("step");
               const result = streamText({
                 model: createModel(cred.provider, apiKey, cred.base_url, activeModel, (cred as { extra_body?: Record<string, unknown> | null }).extra_body ?? null),
@@ -914,7 +918,7 @@ export const Route = createFileRoute("/api/agent")({
                 ...(activeModel === s.model && reasoning.providerOptions ? { providerOptions: reasoning.providerOptions as never } : {}),
                 prepareStep: ({ stepNumber }) => {
                   const toolChoice = dispatchToolChoice(stepNumber + usedSteps, delegated, parallelFirst);
-                  return toolChoice ? { toolChoice } : undefined;
+                  return toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : undefined;
                 },
                 maxRetries: 3,
                 abortSignal: runAbort.signal,
@@ -925,6 +929,8 @@ export const Route = createFileRoute("/api/agent")({
                   text += part.text;
                   send({ t: "text", d: part.text });
                 } else if (part.type === "tool-call") {
+                  responseToolCalls++;
+                  requireAction = false;
                   if (part.toolName === "delegate") delegated = true;
                   if (text.trim()) logs.push({ id: `note-${part.toolCallId}`, name: "note", input: {}, ok: true, summary: text.trim() });
                   text = "";
@@ -974,6 +980,23 @@ export const Route = createFileRoute("/api/agent")({
               usedSteps += (await abortable(result.steps, runAbort.signal)).length;
               stepsDone = usedSteps;
               const exhausted = usedSteps >= stepCap;
+              const followThrough = actionFollowThrough({ text, toolCalls: responseToolCalls, finishReason: await result.finishReason, rawFinishReason: await result.rawFinishReason, plan: !!plan, waiting: !!askedThisRun || pending.length > 0, aborted: runAbort.signal.aborted, exhausted, continued: actionContinued });
+              if (followThrough === "continue" && repairRound < 3) {
+                actionContinued = true;
+                requireAction = true;
+                rec.event("model.action_follow_through", { steps: usedSteps });
+                messages.push(...(await abortable(result.response, runAbort.signal)).messages, { role: "user", content: ACTION_FOLLOW_THROUGH });
+                if (text.trim()) logs.push({ id: `action-note-${repairRound}`, name: "note", input: {}, ok: true, summary: text.trim() });
+                text = "";
+                continue;
+              }
+              if (followThrough) {
+                const blocker = "The model ended after promising checks without performing them. No completion has been verified.";
+                runOutcome = { blocker, exhausted };
+                text += `\n\n${blocker}`;
+                send({ t: "text", d: `\n\n${blocker}` });
+                break;
+              }
               // The model sometimes uses ad-hoc checks only, then hits its step cap.
               // Run one authoritative final check rather than asking the user to Continue indefinitely.
               if (!plan && !askedThisRun && needsFinalCheck(quality)) {
