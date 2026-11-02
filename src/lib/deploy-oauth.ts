@@ -9,7 +9,7 @@ export function callbackPath(p: DeployOAuthProvider) { return `/api/public/oauth
 /** The return address the provider must be told to use: exactly the one its own console lists. */
 export function redirectUriFor(p: DeployOAuthProvider, origin: string) { return `${origin.replace(/\/+$/, "")}${callbackPath(p)}`; }
 
-export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string }) {
+export function authorizeUrl(p: DeployOAuthProvider, o: { clientId: string; redirectUri: string; state: string; challenge: string; vercelSlug?: string | undefined }) {
   if (p === "vercel") {
     // Vercel Integration install flow: the user picks a scope, Vercel returns code + configurationId (+ teamId).
     if (!o.vercelSlug) throw new Error("Vercel integration slug missing");

@@ -111,9 +111,8 @@ export async function revokeOAuthAccount(row: any) {
   try {
     if (row.provider === "vercel") {
       const { unpackVercelToken } = await import("./deploy-oauth");
-      const { token } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
       const { withTeam } = await import("./deploy-oauth");
-      const { teamId } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
+      const { token, teamId } = unpackVercelToken(await decryptSecret(row.ciphertext, row.iv));
       // Uninstalling the integration configuration revokes its token.
       if (row.base_url) await fetch(`https://api.vercel.com${withTeam(`/v1/integrations/configuration/${encodeURIComponent(row.base_url)}`, teamId)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
     } else if (row.provider === "supabase" && row.refresh_ciphertext) {
