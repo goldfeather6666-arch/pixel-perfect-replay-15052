@@ -267,7 +267,7 @@ function Dashboard() {
           {!sessions.isLoading && !sessions.error && sessions.data && sessions.data.length > 0 && shown.length === 0 && <div className="panel p-5 text-center text-sm"><p className="font-medium">No matching projects</p><p className="mt-1 text-xs text-muted-foreground">Try another search or clear the current filter.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { setQ(""); setFilter("all"); }}>Clear filters</Button></div>}
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map(({ s, st, kind }) => (
-              <li key={s.id}>
+              <li key={s.id} className="min-w-0">
                 <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-lg border bg-card p-5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.title}</span>
