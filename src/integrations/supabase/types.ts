@@ -554,6 +554,51 @@ export type Database = {
           },
         ]
       }
+      owner_runners: {
+        Row: {
+          capacity: Json
+          ciphertext: string
+          created_at: string
+          endpoint: string
+          id: string
+          iv: string
+          key_id: string
+          label: string
+          last_seen: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capacity?: Json
+          ciphertext: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          iv: string
+          key_id: string
+          label?: string
+          last_seen?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capacity?: Json
+          ciphertext?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          iv?: string
+          key_id?: string
+          label?: string
+          last_seen?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       preview_secrets: {
         Row: {
           ciphertext: string
