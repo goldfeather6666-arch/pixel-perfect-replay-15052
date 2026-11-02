@@ -1,4 +1,6 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
+- [ ] Refresh the dashboard and shared workspace styling with a polished Lovable-inspired experience.
+- [ ] Add contextual live prompt suggestions and optional BYOK assistance without changing drafts or starting agent runs automatically.
 - [ ] One-click Vercel sign-in — connected and identified (hasshan761-5718); the Vercel app itself still has no resource permissions, so it lists zero websites. Forge now says so in the Website step, probes teams, remembers the acting team and keeps it across token refreshes. Waiting on: permissions switched on in the Vercel app (Projects, Deployments, Environment Variables), then reconnect and relist.
 
 - [x] Post-sync verification: checkout current through PR #26, build OK, 325/325 tests pass (gave the real-process production-script tests a 30s limit; they were timing out at 5s only under full-suite load), migration 0024 screenshot-access policies live, signed-in workspace and task pages render, published site renders with no backend-configuration error. No paid run, deployment or external change triggered.
