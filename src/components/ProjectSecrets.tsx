@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { KeyRound, ExternalLink, Check, X } from "lucide-react";
@@ -40,15 +40,16 @@ function RequestForm({ taskId, onDone }: { taskId: string; onDone: () => void })
 }
 
 function SecretForm({ taskId, request: r, busy, onSend }: { taskId: string; request: SecretRequestSummary; busy: boolean; onSend?: (message: string) => void }) {
+  const inputId = useId();
   const save = useServerFn(submitSecretRequest); const cancel = useServerFn(cancelSecretRequest); const qc = useQueryClient();
   const [value, setValue] = useState(""); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
   const refresh = () => qc.invalidateQueries({ queryKey: ["project-secrets", taskId] });
   return <form className="space-y-3 rounded-lg border bg-card p-3" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await save({ data: { taskId, requestId: r.id, value } }); setValue(""); setSaved(true); toast.success("Secret encrypted and sent to Vercel"); if (!busy && onSend) onSend(`The requested ${r.name} is saved and synced to Vercel (${r.targets.join(", ")}). Continue using the environment variable; never read or print its value. Deployment still needs normal approval.`); await refresh(); } catch { setValue(""); toast.error("Could not sync the secret. Check Vercel access and try again."); } finally { setSaving(false); } }}>
-    <Label htmlFor={`secret-${r.id}`} className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> {r.name}</Label>
+    <Label htmlFor={inputId} className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> {r.name}</Label>
     <p className="text-xs text-muted-foreground">{r.purpose}</p>
     <a href={r.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary underline">Open provider settings <ExternalLink className="h-3 w-3" /></a>
-    <Input id={`secret-${r.id}`} type="password" autoComplete="new-password" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Paste secret securely" required disabled={r.state === "saving" || saved} />
+    <Input id={inputId} type="password" autoComplete="new-password" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Paste secret securely" required disabled={r.state === "saving" || saved} />
     <p className="text-xs text-muted-foreground">Encrypted and sent only to this task’s Vercel website · {r.targets.join(", ")}. Never shared with chat or GitHub. A rebuild is not started automatically.</p>
-    <div className="flex flex-wrap gap-2"><Button type="submit" disabled={!value || saving || saved || r.state === "saving"}>{saving || r.state === "saving" ? "Saving…" : "Save & send to Vercel"}</Button><Button type="button" variant="ghost" size="icon" aria-label="Cancel secret request" title="Cancel secret request" disabled={saving || r.state === "saving"} onClick={async () => { try { await cancel({ data: { taskId, requestId: r.id } }); await refresh(); } catch { toast.error("Request could not be cancelled"); } }}><X /></Button></div>
+    <div className="flex flex-wrap gap-2"><Button type="submit" disabled={!value || saving || saved || r.state === "saving"}>{saving || r.state === "saving" ? "Saving…" : "Save & send to Vercel"}</Button><Button type="button" variant="ghost" size="icon" aria-label="Cancel secret request" title="Cancel secret request" disabled={saving || r.state === "saving"} onClick={async () => { try { await cancel({ data: { taskId, requestId: r.id } }); qc.setQueryData<SecretRequestSummary[]>(["project-secrets", taskId], (rows) => rows?.map((row) => row.id === r.id ? { ...row, state: "cancelled" } : row)); await refresh(); } catch { toast.error("Request could not be cancelled"); } }}><X /></Button></div>
   </form>;
 }
