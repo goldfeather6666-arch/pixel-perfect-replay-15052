@@ -1,5 +1,5 @@
 // One-click Vercel / database sign-in: single-use state bound to the browser, PKCE, encrypted tokens, refresh.
-import { OAUTH_STATE_TTL_MS, authorizeUrl, needsRefresh, packVercelToken, randomToken, redirectUriFor, sha256b64url, type DeployOAuthProvider } from "./deploy-oauth";
+import { OAUTH_STATE_TTL_MS, authorizeUrl, needsRefresh, packVercelToken, randomToken, redirectUriFor, refreshedVercelToken, sha256b64url, soleTeam, unpackVercelToken, type DeployOAuthProvider } from "./deploy-oauth";
 
 function env(name: string) {
   const v = process.env[name];
@@ -70,10 +70,16 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   const publicOrigin = (process.env["FORGE_PUBLIC_URL"] || "https://pixel-perfect-replay-15052.lovable.app").replace(/\/+$/, "");
   const redirectUri = p === "vercel" ? redirectUriFor(p, publicOrigin) : extra?.origin ? redirectUriFor(p, extra.origin.replace(/^http:\/\/(?!localhost)/, "https://")) : row.redirect_uri;
   const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: row.verifier });
-  const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
+  let access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");
   const who = p === "vercel" ? await new Vercel(access).oauthIdentity() : await new SupabaseMgmt(access).identity();
-  return saveOAuthAccount(db, row.user_id, p, access, t, `${who.name}${p === "vercel" && t.teamId ? " (team)" : ""}`, extra?.configurationId);
+  // An Apps token names no team of its own: when the account has exactly one, that is where its websites live.
+  if (p === "vercel" && !unpackVercelToken(access).teamId) {
+    const teams = await new Vercel(access).teams().catch(() => null);
+    const only = teams ? soleTeam(teams) : null;
+    if (only) access = packVercelToken(access, only);
+  }
+  return saveOAuthAccount(db, row.user_id, p, access, t, who.name, extra?.configurationId);
 }
 
 async function saveOAuthAccount(db: any, userId: string, p: DeployOAuthProvider, access: string, t: Tokens, label: string, configurationId?: string | undefined) {
@@ -95,13 +101,14 @@ export async function freshOAuthToken(row: any): Promise<string> {
   if (!needsRefresh(row.expires_at) || !row.refresh_ciphertext) return current;
   const refresh = await decryptSecret(row.refresh_ciphertext, row.refresh_iv);
   const t = await tokenRequest(row.provider, { grant_type: "refresh_token", refresh_token: refresh });
-  const a = await encryptSecret(t.access);
+  const access = refreshedVercelToken(current, t.access, row.provider);
+  const a = await encryptSecret(access);
   const r = t.refresh ? await encryptSecret(t.refresh) : null;
   const db = await admin();
   // Only overwrite if nobody else refreshed first (compare-and-swap on the old ciphertext).
   await db.from("provider_credentials").update({ ciphertext: a.ciphertext, iv: a.iv, expires_at: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000).toISOString() : null, ...(r ? { refresh_ciphertext: r.ciphertext, refresh_iv: r.iv } : {}) })
     .eq("id", row.id).eq("user_id", row.user_id).eq("ciphertext", row.ciphertext);
-  return t.access;
+  return access;
 }
 
 /** Disconnect: revokes the provider-side grant (best effort) for a one-click account. Pasted-token accounts are never touched. */
