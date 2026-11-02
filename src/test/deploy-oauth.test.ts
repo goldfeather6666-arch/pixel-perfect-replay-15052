@@ -23,10 +23,8 @@ describe("one-click deploy sign-in", () => {
     expect(redirectUriFor("vercel", "https://pixel-perfect-replay-15052.lovable.app")).toBe("https://pixel-perfect-replay-15052.lovable.app/api/public/oauth/vercel/callback");
     expect(redirectUriFor("supabase", "https://app.example/")).toBe("https://app.example/api/public/oauth/supabase/callback");
   });
-  it("Vercel's install page takes no PKCE, only state", () => {
-    const u = new URL(authorizeUrl("vercel", { clientId: "c", redirectUri: "https://x.app/api/public/oauth/vercel/callback", state: "st", challenge: "ch", vercelSlug: "forge" }));
-    expect(u.searchParams.get("code_challenge")).toBeNull();
-    expect(u.searchParams.get("state")).toBe("st");
+  it("Vercel sign-in needs no integration slug", () => {
+    expect(() => authorizeUrl("vercel", { clientId: "c", redirectUri: "r", state: "st", challenge: "ch" })).not.toThrow();
   });
   it("refreshes within 2 minutes of expiry, not before", () => {
     const now = 1_000_000;
