@@ -15,7 +15,8 @@ export function isStaleReactModuleError(error: unknown) {
 /** After a server restart, an open page still calls server functions by IDs the new server no longer knows. */
 export function isStaleServerFunctionError(error: unknown) {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  return /Invalid server function ID/i.test(message);
+  // A restarted dev server answers unknown IDs with an HTML error page, which becomes the thrown message.
+  return /Invalid server function ID|^\s*<!doctype html[\s\S]*This page didn.t load/i.test(message);
 }
 
 export function isRecoverableModuleError(error: unknown) {

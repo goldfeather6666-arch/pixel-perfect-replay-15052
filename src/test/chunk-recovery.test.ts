@@ -31,3 +31,9 @@ describe("stale route recovery", () => {
     expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 160_001, 0)).not.toBeNull();
   });
 });
+import { isStaleServerFunctionError as staleFn } from "@/lib/chunk-recovery";
+import { it as it2, expect as expect2 } from "vitest";
+it2("treats the restarted server's HTML error page as a stale server function", () => {
+  expect2(staleFn(new Error("<!doctype html>\n<html><head><title>This page didn't load</title></head></html>"))).toBe(true);
+  expect2(staleFn(new Error("Forbidden"))).toBe(false);
+});
