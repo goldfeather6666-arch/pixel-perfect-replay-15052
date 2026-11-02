@@ -16,6 +16,7 @@ export function parseMentions(text: string): Mentions {
 
 /** The @token being typed at the caret, if any: kind may be null while the user has typed only "@ab". */
 export function activeMention(text: string, caret: number): { start: number; kind: MentionKind | null; query: string } | null {
+  if (caret < 0) return null;
   const before = text.slice(0, caret);
   const m = /(^|\s)@((file|skill|mcp):)?([^\s:]*)$/.exec(before);
   if (!m) return null;
