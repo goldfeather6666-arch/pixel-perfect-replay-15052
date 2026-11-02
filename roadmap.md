@@ -1,4 +1,5 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
+- [ ] Repair recurring stale approval/question requests at the shared RPC boundary and verify the reported task recovers without blanking chat.
 - [x] Refresh dashboard, shared tokens/header and AI Elements chat presentation; signed-in desktop/phone verified, no horizontal overflow or browser errors, build OK.
 - [x] Add contextual typing hints and explicit-request streamed BYOK refinement with optional acceptance, clarification questions, cancellation and stale-draft protection; 18 focused tests passed, new assistance files lint clean. Acceptance flow verified with simulated output; no coding run started.
 - [ ] Real BYOK refinement completion — selected provider did not return within the browser check; cancelled, no automatic retry or model substitution. Live output remains unverified; full-project lint has existing errors outside the new assistance files.

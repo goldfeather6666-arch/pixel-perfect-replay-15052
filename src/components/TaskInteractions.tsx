@@ -12,13 +12,14 @@ import { answerQuestion, decideSuggestion, listInteractions, type TaskQuestion, 
 export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: string; busy: boolean; onSend: (message: string) => void }) {
   const fetchAll = useServerFn(listInteractions);
   const qcPoll = useQueryClient();
-  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); const prev = qcPoll.getQueryData(["interactions", sessionId]); if (prev) return prev as Awaited<ReturnType<typeof fetchAll>>; throw new Error("Could not load questions yet"); } }, refetchInterval: 4000, retry: 3 });
+  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 4000, retry: false, throwOnError: false });
   const open = q.data?.questions.filter((x) => x.status === "open") ?? [];
   const sugs = q.data?.suggestions.filter((x) => x.status === "proposed") ?? [];
   const spec = q.data?.spec;
-  if (!open.length && !sugs.length && !spec) return null;
+  if (!open.length && !sugs.length && !spec && !q.isError) return null;
   return (
     <div className="space-y-3">
+      {q.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>Questions and suggestions are temporarily unavailable. Your conversation is still saved.</span><Button variant="outline" size="sm" disabled={q.isFetching} onClick={() => void q.refetch()}>Retry</Button></div>}
       {open.length > 0 && (
         <div className="panel space-y-3 border-primary/50 p-3">
           <p className="flex items-center gap-2 text-sm font-medium"><HelpCircle className="h-4 w-4 text-primary" /> The agent needs {open.length === 1 ? "one answer" : `${open.length} answers`} to continue</p>
