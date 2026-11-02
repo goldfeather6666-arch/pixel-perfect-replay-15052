@@ -94,6 +94,10 @@ export const Route = createFileRoute("/api/agent")({
           try { await assertPublicEndpoint(cred.base_url); } catch (e) { return new Response((e as Error).message, { status: 400 }); }
         }
         const apiKey = await decryptSecret(cred.ciphertext, cred.iv);
+        const { loadTeamModels } = await import('@/lib/team-models.server');
+        let teamModelFor: Awaited<ReturnType<typeof loadTeamModels>>;
+        try { teamModelFor = await loadTeamModels(sb, u.user.id, s); }
+        catch (e) { return new Response((e as Error).message, { status: 400 }); }
         const ghToken = await decryptSecret(ghRows[0].ciphertext, ghRows[0].iv);
         const { GitHub } = await import("@/lib/github.server");
         const { createModel } = await import("@/lib/providers.server");
@@ -679,8 +683,7 @@ export const Route = createFileRoute("/api/agent")({
               }
               if (jobs.length > team.maxJobs) return { error: `This ${taskClass.replace("_", "-")} task (${profile} profile) allows at most ${team.maxJobs} helper jobs. Use the smallest team that fits.` };
               const { generateText } = await import("ai");
-              const extraBody = (cred as { extra_body?: Record<string, unknown> | null }).extra_body ?? null;
-              const modelFor = (role: string) => { const r = routeModel(role, routing); return { model: createModel(cred.provider, apiKey, cred.base_url, r.model, extraBody), id: r.model, reason: r.reason }; };
+              const modelFor = teamModelFor;
               const ROLE = (role: (typeof jobs)[number]["role"]) => `${WORKER_REPORT_INSTRUCTIONS}\n${ROLE_BRIEF[role]}${WRITER_ROLES.includes(role) ? " Read every existing file first, then submit COMPLETE file content via propose_file. Do not commit, run commands, deploy or change external services. The master reviews and merges." : ""}`;
               rec.event("agents.dispatched", { jobs: jobs.map((j) => ({ label: j.label, role: j.role, after: j.after, model: routeModel(j.role, routing).model, modelReason: routeModel(j.role, routing).reason })), waves: waves.length, maxWorkers: Math.min(ACTIVE_TEAM_WORKERS, team.maxWorkers), sizing: team.reason, parallelReason: waves.length === 1 ? "all jobs independent" : `${waves.length} dependency waves` });
               const workerLogs = jobs.map((job, i) => {
@@ -754,6 +757,7 @@ export const Route = createFileRoute("/api/agent")({
                     stopWhen: stepCountIs(WRITER_ROLES.includes(job.role) ? 18 : CHECKER_ROLES.includes(job.role) ? 12 : 10),
                     maxRetries: 0,
                     abortSignal: runAbort.signal,
+                    ...reasoningOptions(routed.provider, routed.id, profile),
                     onStepFinish: (st) => {
                       steps++;
                       const calls = st.toolCalls.map((c) => c.toolName).join(", ");
