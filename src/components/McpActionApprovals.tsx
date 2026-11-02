@@ -12,7 +12,7 @@ export function McpActionApprovals({ sessionId, chat = false }: { sessionId: str
   const qc = useQueryClient();
   const list = useServerFn(listMcpActions);
   const resolve = useServerFn(resolveMcpActionRequest);
-  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); const prev = qc.getQueryData<Awaited<ReturnType<typeof list>>>(["mcp-actions", sessionId]); if (prev) return prev; throw new Error("Could not load approvals yet"); } }, refetchInterval: 3000, refetchOnWindowFocus: true, retry: false });
+  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 3000, refetchOnWindowFocus: true, retry: false, throwOnError: false });
   const mutation = useMutation({
     mutationFn: (data: { id: string; approve: boolean }) => resolve({ data }),
     onSuccess: (r) => { setConfirmId(null); if (r.ok) toast.success(r.message); else toast.error(r.message); qc.invalidateQueries({ queryKey: ["mcp-actions", sessionId] }); qc.invalidateQueries({ queryKey: ["session", sessionId] }); },

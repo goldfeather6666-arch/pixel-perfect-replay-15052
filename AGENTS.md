@@ -10,7 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
-- Read nested AGENTS.md (including src/lib/engine/) before edits. Why: scoped contracts.
+- Subdirectories have AGENTS.md; read before edits. Why: scoped contracts.
 - Coding agents use encrypted owner BYOK via providers.server.ts; only screenshot comparison uses AI Gateway, with task-owned private uploads and selected fixes sent to Chat. Secrets never reach browser, GitHub, preview URLs or diagnostics. Why: billing isolation and secrecy.
 - /api/agent streams NDJSON events; file/MCP approval resolvers and pending migration confirmations stay actionable in live chat, with polling after runs finish. Why: durable consent.
 - productionInstructions in deployment-quality.ts is shared by master, specialists, splits and repair prompts; production-first never authorizes deployment. Why: consistent quality without bypassing consent.

@@ -2,16 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Sparkles, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
+import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { AutoFixButton } from "@/components/ProjectHealth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { RunTimeline } from "@/components/RunTimeline";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +30,12 @@ import { SharedFiles } from "@/components/SharedFiles";
 import { DatabaseApproval } from "@/components/DatabaseApproval";
 import { TaskInteractions } from "@/components/TaskInteractions";
 import { createAgentEventDecoder } from "@/lib/agent-stream";
+import { PromptAssistance } from "@/components/PromptAssistance";
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
+import forgeMark from "@/assets/forge-mark.png";
 
 export const Route = createFileRoute("/_authenticated/s/$id")({
   head: () => ({ meta: pageMeta("Task — Forge", "Review your coding agent's conversation, files and proposed changes.") }),
@@ -403,12 +407,12 @@ function Workspace() {
       )}
       <div className={`${!s ? "hidden " : ""}flex min-h-0 flex-1`}>
         <section className={`${!desktop && view !== "chat" ? "hidden" : "flex"} min-w-0 flex-1 flex-col`}>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-            <div className="mx-auto max-w-3xl space-y-5">
+          <Conversation className="min-h-0 flex-1">
+            <ConversationContent className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
               {messages.length === 0 && (
                 <div className="py-10 text-center sm:py-16">
-                  <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-accent text-primary shadow-glow"><Sparkles className="h-5 w-5" /></div>
-                  <h2 className="text-gradient text-xl font-semibold">What should we build?</h2>
+                  <img src={forgeMark} alt="Forge" width={64} height={64} className="mx-auto mb-4 size-16 object-contain" />
+                  <h2 className="text-2xl font-semibold">Let’s make it happen.</h2>
                   <p className="mt-1 text-sm text-muted-foreground">Work happens on <span className="font-mono text-foreground">{s?.work_branch}</span> — your base branch stays untouched.</p>
                   <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
                     {[
@@ -417,11 +421,13 @@ function Workspace() {
                       ["Review for bugs", "/review"],
                       ["Plan a feature", "/plan "],
                     ].map(([t, p]) => (
-                      <button key={t} type="button" onClick={() => { setInput(p ?? ""); taRef.current?.focus(); }}
-                        className="panel px-4 py-3 text-sm transition-colors hover:border-primary">
+                      <Button key={t} type="button" variant="outline" onClick={() => { setInput(p ?? ""); taRef.current?.focus(); }}
+                        className="h-auto items-start justify-start whitespace-normal px-4 py-3 text-left text-sm shadow-none">
+                        <span>
                         <span className="font-medium">{t}</span>
                         <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">{p}</span>
-                      </button>
+                        </span>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -439,18 +445,19 @@ function Workspace() {
                 </div>
               )}
               <div ref={endRef} />
-            </div>
-          </div>
-          <form className="glass border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" onSubmit={(e) => { e.preventDefault(); send(); }}>
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
+          <div className="border-t bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
               {!desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
-              <button type="button" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
-                className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 ${planMode ? "border-primary bg-accent text-primary" : "text-muted-foreground"}`}>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setPlanMode(!planMode)} aria-pressed={planMode}
+                className={`h-7 shrink-0 gap-1 text-xs ${planMode ? "bg-accent text-primary" : "text-muted-foreground"}`}>
                 <ListChecks className="h-3 w-3" /> Plan first
-              </button>
+              </Button>
               {["/test", "/review", "/explain", "/plan"].map((c) => (
-                <button key={c} type="button" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
-                  className="shrink-0 rounded-full border px-2.5 py-1 font-mono text-muted-foreground transition-colors hover:border-primary hover:text-primary">{c}</button>
+                <Button key={c} type="button" size="sm" variant="ghost" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
+                  className="h-7 shrink-0 text-xs text-muted-foreground">{c}</Button>
               ))}
             </div>
             {(running || bgRunning) && (
@@ -479,32 +486,31 @@ function Workspace() {
                 ))}
               </div>
             )}
-            <div className="mx-auto flex max-w-3xl items-end gap-2">
-              <Textarea
+            <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={running || bgRunning || stopping} />
+            <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
+              <PromptInputTextarea
                 ref={taRef}
                 aria-label="Task prompt"
                 aria-describedby="prompt-capacity"
                 aria-invalid={capacity.overLimit}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (running || bgRunning)) e.preventDefault(); }}
                 placeholder={planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
-                className="max-h-48 min-h-11 text-base resize-none md:text-sm"
-                rows={1}
+                className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
+                rows={2}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-              <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" className="min-h-11 min-w-11" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
-              {running || bgRunning ? (
-                <Button type="button" size="icon" variant="secondary" aria-label="Stop" className="min-h-11 min-w-11" disabled={stopping} onClick={stopWork}><Square /></Button>
-              ) : (
-                <Button size="icon" className="min-h-11 min-w-11" aria-label="Send" disabled={!input.trim() || capacity.overLimit}><Send /></Button>
-              )}
-            </div>
+              <PromptInputFooter className="px-3 pb-3">
+                <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+                <PromptInputSubmit className="size-10" status={running || bgRunning ? "streaming" : "ready"} onStop={stopWork} aria-label={running || bgRunning ? "Stop" : "Send"} disabled={running || bgRunning ? stopping : !input.trim() || capacity.overLimit}>{running || bgRunning ? <Square /> : <Send />}</PromptInputSubmit>
+              </PromptInputFooter>
+            </PromptInput>
             <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
               <span className="tabular-nums">{capacity.used.toLocaleString("en-US")} / {MAX_PROMPT_CHARS.toLocaleString("en-US")} characters</span>
               <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
             </div>
-          </form>
+          </div>
         </section>
         {desktop && right && (
           <aside className="relative flex min-h-0 flex-col border-l bg-card/30" style={{ width: `${dockPct}%` }}>
@@ -569,55 +575,40 @@ function Workspace() {
 
 function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
   if (m.role === "user")
-    return <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg bg-secondary px-4 py-2.5 text-sm">{m.content}</div>;
+    return <Message from="user"><MessageContent className="whitespace-pre-wrap break-words group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground">{m.content}</MessageContent></Message>;
   return (
-    <div className="space-y-2 text-sm">
+    <Message from="assistant" className="max-w-full space-y-2 text-sm">
+      <div className="flex items-center gap-1.5 text-xs font-semibold"><img src={forgeMark} alt="" width={24} height={24} className="size-6 object-contain" />Forge</div>
       {!!m.tools?.length && <ActivityView tools={m.tools} live={live} />}
-      {m.content && <div className="prose-agent"><ReactMarkdown>{m.content}</ReactMarkdown></div>}
+      {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-    </div>
+    </Message>
   );
 }
 
 function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
-  const [open, setOpen] = useState(false);
   const busy = live && tools.some((t) => t.ok === undefined);
   const failed = tools.filter((t) => t.ok === false).length;
   const current = [...tools].reverse().find((t) => t.ok === undefined);
   const workers = live ? tools.filter((t) => t.name === "worker" && t.ok === undefined).length : 0;
   return (
-    <div className="rounded-md border bg-muted/30 text-xs">
-      <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-muted-foreground" onClick={() => setOpen(!open)}>
-        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
-        {busy ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Wrench className="h-3 w-3" />}
-        <span>{busy ? (workers > 0 ? `${workers} helpers working in parallel…` : `Working… ${current ? current.name : ""}`) : `Background activity · ${tools.filter((t) => t.name !== "note").length} steps`}</span>
-        {failed > 0 && <span className="text-destructive">{failed} failed</span>}
-      </button>
-      {open && <div className="space-y-1 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</div>}
-    </div>
+    <Tool defaultOpen={false} className="bg-card text-xs">
+      <ToolHeader type="dynamic-tool" toolName="activity" state={busy ? "input-available" : failed ? "output-error" : "output-available"} title={busy ? (workers > 0 ? `${workers} helpers working` : `Working${current ? ` · ${current.name}` : ""}`) : `${tools.filter((t) => t.name !== "note").length} completed steps`} className="flex-wrap gap-2 p-2.5" />
+      <ToolContent className="space-y-2 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</ToolContent>
+    </Tool>
   );
 }
 
 function ToolView({ t }: { t: ToolLog }) {
-  const [open, setOpen] = useState(false);
   if (t.name === "note") return <p className="px-1 py-0.5 text-xs italic text-muted-foreground">{t.summary}</p>;
   const arg = (t.input as { path?: string; prefix?: string; query?: string }) ?? {};
   const label = arg.path ?? arg.query ?? (arg.prefix || "/");
   return (
-    <div className="rounded-md border bg-muted/40 font-mono text-xs">
-      <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left" onClick={() => setOpen(!open)}>
-        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
-        <Wrench className="h-3 w-3 text-muted-foreground" />
-        <span className="text-primary">{t.name === "worker" ? "helper" : t.name}</span>
-        <span className="truncate text-muted-foreground">{label}</span>
-        <span className="ml-auto">
-          {t.ok === undefined ? <Loader2 className="h-3 w-3 animate-spin" /> : t.ok ? <Check className="h-3 w-3 text-success" /> : <X className="h-3 w-3 text-destructive" />}
-        </span>
-      </button>
-      {t.name === "worker" && t.ok === undefined && t.summary && !open && <p className="truncate border-t px-3 py-1 text-muted-foreground">{t.summary}</p>}
-      {open && <pre className="max-h-60 overflow-auto whitespace-pre-wrap border-t px-3 py-2 text-muted-foreground">{t.summary ?? "running…"}</pre>}
-    </div>
+    <Tool defaultOpen={false} className="text-xs">
+      <ToolHeader type="dynamic-tool" toolName={t.name} state={t.ok === undefined ? "input-available" : t.ok ? "output-available" : "output-error"} title={`${t.name === "worker" ? "Helper" : t.name} · ${label}`} className="flex-wrap gap-2 p-2 [&_span]:break-all" />
+      <ToolContent className="max-h-72 overflow-auto border-t p-3"><ToolInput input={t.input} /><ToolOutput output={t.ok === false ? undefined : t.summary ?? "Running…"} errorText={t.ok === false ? t.summary ?? "Step failed" : undefined} /></ToolContent>
+    </Tool>
   );
 }
 
