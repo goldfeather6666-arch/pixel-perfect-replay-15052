@@ -9,13 +9,13 @@ import { applyMigrations, getIntegrations, getMigrationStatus } from "@/lib/inte
 export function DatabaseApproval({ id, busy }: { id: string; busy: boolean }) {
   const qc = useQueryClient();
   const integrations = useServerFn(getIntegrations);
-  const info = useQuery({ queryKey: ["integrations", id], queryFn: () => integrations({ data: { id } }), refetchInterval: 10000 });
+  const info = useQuery({ queryKey: ["integrations", id], queryFn: () => integrations({ data: { id } }), refetchInterval: 10000, retry: false, throwOnError: false });
   const linked = !!info.data?.supabase_ref;
   const getStatus = useServerFn(getMigrationStatus);
   const apply = useServerFn(applyMigrations);
   const [confirm, setConfirm] = useState(false);
   const [deferred, setDeferred] = useState("");
-  const status = useQuery({ queryKey: ["migrations", id], queryFn: () => getStatus({ data: { id } }), enabled: linked && !busy, refetchInterval: busy ? false : 5000 });
+  const status = useQuery({ queryKey: ["migrations", id], queryFn: () => getStatus({ data: { id } }), enabled: linked && !busy, refetchInterval: busy ? false : 5000, retry: false, throwOnError: false });
   const files = status.data?.pending ?? [];
   const fingerprint = JSON.stringify(files);
   const mutation = useMutation({
@@ -28,6 +28,10 @@ export function DatabaseApproval({ id, busy }: { id: string; busy: boolean }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  if (info.isError || status.isError) return <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <span>Database approvals are temporarily unavailable. No database changes have been applied.</span>
+    <Button variant="outline" size="sm" disabled={info.isFetching || status.isFetching} onClick={() => { if (info.isError) void info.refetch(); if (linked && status.isError) void status.refetch(); }}>Retry</Button>
+  </div>;
   if (!linked || !files.length) return null;
   return <section aria-label="Database change approval" aria-live="polite" className="min-w-0 rounded-md border bg-card p-3 space-y-3">
     <h3 className="flex items-center gap-2 font-semibold"><Database className="size-4" /> Database changes awaiting approval</h3>
