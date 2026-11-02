@@ -86,8 +86,8 @@ export async function addProjectDomain(ctx: Ctx, taskId: string, name: string) {
   const { s, row, v, db } = await setupContext(ctx, taskId);
   if (s.running) throw new Error("Wait for the agent to finish before changing the domain");
   const databaseRow = await accountRow(ctx.supabase, ctx.userId, "supabase", s.accounts);
-  const existing = await v.domains(s.vercel_project_id);
-  if (!existing.includes(domain)) await v.addDomain(s.vercel_project_id, domain);
+  const existing = await v.domain(s.vercel_project_id, domain).catch(() => null);
+  if (!existing) await v.addDomain(s.vercel_project_id, domain);
   const { error } = await db.from("task_domain_setups").upsert({ task_id: taskId, user_id: ctx.userId, vercel_project_id: s.vercel_project_id, vercel_account_id: row.id, database_ref: s.supabase_ref, database_account_id: databaseRow?.id ?? null, domain, state: "pending", sync_error: null, approved_at: new Date().toISOString() }, { onConflict: "task_id,vercel_project_id" });
   if (error) throw new Error("Domain added to Vercel, but setup could not be saved. Try again.");
   return { domain };

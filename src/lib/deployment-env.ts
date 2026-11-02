@@ -25,7 +25,7 @@ export function deploymentTemplate() {
   return "# Values are configured in Vercel, never committed here.\n" +
     "# SUPABASE_URL is the database endpoint, not the public website address.\n" +
     "# Vercel supplies VERCEL_PROJECT_PRODUCTION_URL automatically (hostname only).\n" +
-    "# Resolve the final website URL server-side as https:// plus that hostname.\n" +
+    "# Use verified custom-domain APP_URL first; otherwise https:// plus that hostname.\n" +
     "# Browser redirects use window.location.origin; never expose privileged keys.\n" +
-    Object.keys(deploymentEnv("", "", "server-only", "project-ref")).map((name) => `${name}=`).join("\n") + "\n";
+    Object.keys(deploymentEnv("", "", "server-only", "project-ref")).map((name) => `${name}=`).join("\n") + "\nAPP_URL=\n";
 }
