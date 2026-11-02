@@ -31,7 +31,7 @@ export async function runnerCall(endpoint: string, secret: string, method: strin
   const res = await fetch(`${endpoint}${path}`, {
     method,
     headers: { "content-type": "application/json", "x-forge-ts": ts, "x-forge-signature": signature },
-    body: method === "GET" ? undefined : payload,
+    body: method === "GET" ? null : payload,
     redirect: "manual",
     signal: AbortSignal.timeout(Math.max(5_000, timeoutMs + 10_000)),
   });
