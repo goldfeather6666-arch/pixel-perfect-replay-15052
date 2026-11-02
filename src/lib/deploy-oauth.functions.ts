@@ -9,13 +9,15 @@ export const deployOAuthStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
     const { oauthConfigured } = await import("./deploy-oauth.server");
-    return { vercel: oauthConfigured("vercel"), supabase: oauthConfigured("supabase") };
+    // Vercel sign-in is off: its app tokens cannot reach websites (permissions are private beta). Vercel uses access tokens.
+    return { vercel: false, supabase: oauthConfigured("supabase") };
   });
 
 export const startDeployOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(provider)
   .handler(async ({ data, context }) => {
+    if (data.provider === "vercel") throw new Error("Vercel sign-in is turned off. Paste a Vercel access token (scope: Full Account) instead.");
     const origin = new URL(getRequest().url).origin;
     const { beginOAuth } = await import("./deploy-oauth.server");
     const { url, digest } = await beginOAuth(context.userId, data.provider, origin);
