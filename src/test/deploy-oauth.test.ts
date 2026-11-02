@@ -8,8 +8,16 @@ describe("one-click deploy sign-in", () => {
     expect(u.searchParams.get("redirect_uri")).toBe("https://x.app/api/public/oauth/supabase/callback");
     expect(u.searchParams.get("state")).toBe("st");
   });
-  it("Vercel sign-in goes to the integration install page with state", () => {
-    expect(authorizeUrl("vercel", { clientId: "c", redirectUri: "r", state: "st", challenge: "ch", vercelSlug: "forge" })).toBe("https://vercel.com/integrations/forge/new?state=st");
+  it("Vercel sign-in uses the Vercel Apps authorize endpoint with PKCE and offline access", () => {
+    const u = new URL(authorizeUrl("vercel", { clientId: "c", redirectUri: "https://x.app/api/public/oauth/vercel/callback", state: "st", challenge: "ch" }));
+    expect(u.origin + u.pathname).toBe("https://vercel.com/oauth/authorize");
+    expect(u.searchParams.get("client_id")).toBe("c");
+    expect(u.searchParams.get("redirect_uri")).toBe("https://x.app/api/public/oauth/vercel/callback");
+    expect(u.searchParams.get("response_type")).toBe("code");
+    expect(u.searchParams.get("scope")).toBe("openid offline_access");
+    expect(u.searchParams.get("code_challenge")).toBe("ch");
+    expect(u.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(u.searchParams.get("state")).toBe("st");
   });
   it("sends the provider back to exactly the address its console lists", () => {
     expect(redirectUriFor("vercel", "https://pixel-perfect-replay-15052.lovable.app")).toBe("https://pixel-perfect-replay-15052.lovable.app/api/public/oauth/vercel/callback");
