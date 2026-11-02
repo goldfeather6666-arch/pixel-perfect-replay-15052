@@ -1,5 +1,5 @@
 // One-click Vercel / database sign-in: single-use state bound to the browser, PKCE, encrypted tokens, refresh.
-import { OAUTH_STATE_TTL_MS, authorizeUrl, callbackPath, needsRefresh, packVercelToken, randomToken, sha256b64url, type DeployOAuthProvider } from "./deploy-oauth";
+import { OAUTH_STATE_TTL_MS, authorizeUrl, needsRefresh, packVercelToken, randomToken, redirectUriFor, sha256b64url, type DeployOAuthProvider } from "./deploy-oauth";
 
 function env(name: string) {
   const v = process.env[name];
@@ -24,7 +24,7 @@ export async function beginOAuth(userId: string, p: DeployOAuthProvider, origin:
   const state = randomToken();
   const verifier = randomToken(48);
   const digest = await sha256b64url(state);
-  const redirectUri = `${origin}${callbackPath(p)}`;
+  const redirectUri = redirectUriFor(p, origin);
   const db = await admin();
   await db.from("deploy_oauth_states").delete().lt("expires_at", new Date().toISOString());
   const { error } = await db.from("deploy_oauth_states").insert({ state_digest: digest, user_id: userId, provider: p, verifier, redirect_uri: redirectUri, expires_at: new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString() });
