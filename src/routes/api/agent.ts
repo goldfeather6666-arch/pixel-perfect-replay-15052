@@ -1,3 +1,4 @@
+import { hasE2b } from "@/lib/e2b-pool";
 import { abortable, abortableStream, errorText, toolErrorText } from "@/lib/abortable";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";

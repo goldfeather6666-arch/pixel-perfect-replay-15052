@@ -17,3 +17,6 @@ export function keyOrder(count: number, cursor: number, cooling: (i: number) => 
   const ready = all.filter((i) => !cooling(i));
   return ready.length ? [...ready, ...all.filter((i) => cooling(i))] : all;
 }
+
+/** Server-only at call time: true when at least one E2B account is configured. */
+export const hasE2b = () => e2bKeysFrom(process.env as Record<string, string | undefined>).length > 0;

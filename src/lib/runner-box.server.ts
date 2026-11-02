@@ -88,7 +88,8 @@ async function runnerFor(userId: string): Promise<RunnerRow | null> {
 let cursor = 0;
 const coolingUntil = new Map<string, number>();
 const e2bKeys = () => e2bKeysFrom(process.env as Record<string, string | undefined>);
-export const hasE2b = () => e2bKeys().length > 0;
+import { hasE2b } from "./e2b-pool";
+export { hasE2b };
 
 async function createE2b(opts: { timeoutMs: number; metadata: Record<string, string>; privateTraffic?: boolean }) {
   const keys = e2bKeys();

@@ -1,3 +1,4 @@
+import { hasE2b } from "@/lib/e2b-pool";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
