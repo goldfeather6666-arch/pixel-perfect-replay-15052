@@ -3,7 +3,7 @@
 import http from "node:http";
 import net from "node:net";
 import crypto from "node:crypto";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 
 const CFG = JSON.parse(fs.readFileSync(process.env.FORGE_RUNNER_CONFIG || "/etc/forge-runner/config.json", "utf8"));
@@ -12,6 +12,13 @@ const MAX_BOXES = Number(CFG.maxBoxes || 6);
 const IMAGE = CFG.image || "forge-box:latest";
 const SKEW = 5 * 60_000;
 const boxes = new Map(); // id -> { expires, traffic, ip }
+function currentEndpoint() {
+  try { return fs.readFileSync(CFG.endpointFile || "/etc/forge-runner/endpoint", "utf8").trim(); } catch { return CFG.endpoint || ""; }
+}
+if (process.argv.includes("--pairing-code")) {
+  console.log(Buffer.from(JSON.stringify({ url: currentEndpoint(), secret: CFG.secret })).toString("base64url"));
+  process.exit(0);
+}
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
 const hmac = (m) => crypto.createHmac("sha256", CFG.secret).update(m).digest("hex");
@@ -148,10 +155,6 @@ const stale = (await run("docker", ["ps", "-aq", "--filter", "label=forge.box=1"
 if (stale.length) await run("docker", ["rm", "-f", ...stale]);
 setInterval(() => { for (const [b, v] of boxes) if (v.expires < Date.now()) destroy(b); }, 30_000);
 
-function currentEndpoint() {
-  try { return fs.readFileSync(CFG.endpointFile || "/etc/forge-runner/endpoint", "utf8").trim(); } catch { return CFG.endpoint || ""; }
-}
-
 async function heartbeat() {
   const endpoint = currentEndpoint();
   if (!endpoint) return;
@@ -164,8 +167,3 @@ async function heartbeat() {
 }
 setInterval(heartbeat, 60_000); heartbeat();
 
-if (process.argv.includes("--pairing-code")) {
-  const code = Buffer.from(JSON.stringify({ url: currentEndpoint(), secret: CFG.secret })).toString("base64url");
-  console.log(code); process.exit(0);
-}
-void spawn;
