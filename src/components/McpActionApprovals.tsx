@@ -11,7 +11,7 @@ export function McpActionApprovals({ sessionId, chat = false }: { sessionId: str
   const qc = useQueryClient();
   const list = useServerFn(listMcpActions);
   const resolve = useServerFn(resolveMcpActionRequest);
-  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: () => list({ data: { sessionId } }), refetchInterval: 3000, refetchOnWindowFocus: true, retry: false });
+  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch { return qc.getQueryData(["mcp-actions", sessionId]) ?? []; } }, refetchInterval: 3000, refetchOnWindowFocus: true, retry: false });
   const mutation = useMutation({
     mutationFn: (data: { id: string; approve: boolean }) => resolve({ data }),
     onSuccess: (r) => { setConfirmId(null); if (r.ok) toast.success(r.message); else toast.error(r.message); qc.invalidateQueries({ queryKey: ["mcp-actions", sessionId] }); qc.invalidateQueries({ queryKey: ["session", sessionId] }); },
