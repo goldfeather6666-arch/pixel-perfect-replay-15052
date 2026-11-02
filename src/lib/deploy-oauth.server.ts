@@ -48,12 +48,14 @@ async function tokenRequest(p: DeployOAuthProvider, body: Record<string, string>
 }
 
 /** Finishes a sign-in: claims the attempt once, checks the browser binding, exchanges the code and saves the account. */
-export async function completeOAuth(p: DeployOAuthProvider, state: string, code: string, cookieDigest: string | undefined) {
+export async function completeOAuth(p: DeployOAuthProvider, state: string, code: string, binding: { cookieDigest?: string | undefined; userId?: string | undefined }) {
   const digest = await sha256b64url(state);
-  if (!cookieDigest || cookieDigest !== digest) throw new Error("Sign-in expired or was started in another browser. Start again from Settings.");
+  // Bound either to this browser's HttpOnly cookie, or (when the provider dropped it) to the signed-in user who started it.
+  if (!binding.userId && binding.cookieDigest !== digest) throw new Error("Sign-in expired or was started in another browser. Start again from Settings.");
   const db = await admin();
   const { data: row } = await db.from("deploy_oauth_states").delete().eq("state_digest", digest).eq("provider", p).select("*").maybeSingle();
   if (!row || Date.parse(row.expires_at) < Date.now()) throw new Error("Sign-in expired. Start again from Settings.");
+  if (binding.userId && row.user_id !== binding.userId) throw new Error("This sign-in was started by a different account.");
   const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: row.redirect_uri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
   const { SupabaseMgmt, Vercel } = await import("./integrations.server");

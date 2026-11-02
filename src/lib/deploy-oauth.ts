@@ -1,7 +1,7 @@
 // Pure helpers for one-click Vercel / database (Supabase Management API) sign-in. No secrets here.
 export type DeployOAuthProvider = "vercel" | "supabase";
 
-export const OAUTH_STATE_TTL_MS = 10 * 60_000;
+export const OAUTH_STATE_TTL_MS = 30 * 60_000;
 /** Refresh access tokens this long before they expire so a run never starts with a dying token. */
 export const REFRESH_SKEW_MS = 2 * 60_000;
 

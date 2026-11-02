@@ -21,7 +21,10 @@ export const Route = createFileRoute("/api/public/oauth/$provider/callback")({
         if (!state || !code) return back(`connect_error=${encodeURIComponent("Sign-in was cancelled.")}`);
         try {
           const { completeOAuth } = await import("@/lib/deploy-oauth.server");
-          const r = await completeOAuth(p, state, code, cookie(request, `forge-deploy-${p}`));
+          const bound = cookie(request, `forge-deploy-${p}`);
+          // Cookie dropped by the provider's install flow: let the signed-in Settings page finish it for its own user.
+          if (!bound) return back(`finish=${p}&state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`);
+          const r = await completeOAuth(p, state, code, { cookieDigest: bound });
           return back(`connected=${p}&account=${encodeURIComponent(r.label)}`);
         } catch (e) {
           console.error("deploy oauth callback failed", p, e instanceof Error ? e.message : "error");
