@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
-import { checkFailure, deploymentSkill, previewDiagnosisSkill, productionInstructions, needsFinalCheck, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
+import { checkFailure, deploymentSkill, previewDiagnosisSkill, productionInstructions, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
 import { agentRequest, attachmentPart, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
 import { agentLiveness } from "@/lib/agent-liveness";

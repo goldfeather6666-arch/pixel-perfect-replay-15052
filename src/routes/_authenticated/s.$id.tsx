@@ -148,7 +148,9 @@ function Workspace() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [streamInterrupted, setStreamInterrupted] = useState(false);
   const capacity = promptCapacity(input);
-  const [planMode, setPlanMode] = useState(false);
+  const [chatMode, setChatMode] = useState<"chat" | "plan" | "build">("build");
+  const planMode = chatMode === "plan";
+  const setPlanMode = (v: boolean) => setChatMode(v ? "plan" : "build");
   const [usage, setUsage] = useState({ input: 0, output: 0 });
   const sendLockRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -198,17 +200,19 @@ function Workspace() {
   }, [stale, running, stopping, sd?.updated_at]);
 
 
-  async function send(override?: string, forcePlan?: boolean) {
+  async function send(override?: string, forcePlan?: boolean, publish?: boolean) {
     let text = (override ?? input).trim();
     // State updates render asynchronously; this ref closes the same-tick double-submit race.
     if (!text || running || bgRunning || sendLockRef.current) return;
     manualStopRef.current = false;
     let plan = forcePlan ?? planMode;
+    const sendMode = forcePlan === false ? "build" : plan ? "plan" : chatMode;
     runStart.current = Date.now();
     const cmd = text.match(/^\/(\w+)\s*([\s\S]*)$/);
     if (cmd) {
       const [, name, rest] = cmd;
       if (name === "plan") { plan = true; text = rest || "Make a plan for the next step."; }
+      else if (name === "publish") { publish = true; text = rest || "Publish the current version."; }
       else if (name === "test") text = `Run the project's tests/typecheck/build in the sandbox. Fix any failures and re-run until they pass. ${rest}`.trim();
       else if (name === "review") text = `Review the changes on this task branch versus the base branch for bugs, security issues and missing tests. Do not edit files; list findings by severity. ${rest}`.trim();
       else if (name === "explain") text = `Explain how this part of the codebase works, citing files: ${rest || "overall architecture"}`;
