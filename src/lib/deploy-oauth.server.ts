@@ -67,7 +67,7 @@ export async function completeOAuth(p: DeployOAuthProvider, state: string, code:
   // configured one. Trusting it beats the address this tab happens to be on (a preview or localhost origin differs).
   // Vercel compares against the exact Redirect URL in its console; behind the edge the request origin can differ
   // (internal host or http), so Vercel always uses the fixed public address (override with FORGE_PUBLIC_URL).
-  const publicOrigin = (process.env.FORGE_PUBLIC_URL || "https://pixel-perfect-replay-15052.lovable.app").replace(/\/+$/, "");
+  const publicOrigin = (process.env["FORGE_PUBLIC_URL"] || "https://pixel-perfect-replay-15052.lovable.app").replace(/\/+$/, "");
   const redirectUri = p === "vercel" ? redirectUriFor(p, publicOrigin) : extra?.origin ? redirectUriFor(p, extra.origin.replace(/^http:\/\/(?!localhost)/, "https://")) : row.redirect_uri;
   const t = await tokenRequest(p, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(p === "supabase" ? { code_verifier: row.verifier } : {}) });
   const access = p === "vercel" ? packVercelToken(t.access, t.teamId) : t.access;
