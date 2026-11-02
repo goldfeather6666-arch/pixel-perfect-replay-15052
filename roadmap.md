@@ -1,5 +1,5 @@
 # Roadmap — BYOK AI Coding Agent (Forge)
-- [ ] Verify reported stale-request failures and keep database approval/status failures local with an actionable retry.
+- [x] Verified reported failures were outdated function IDs during preview restart; fresh signed-in task has no 500s. Database approval/status failures stay local with Retry, stale 404 responses recover without replay, 10 regression tests passed and injected connection failure recovered without blanking chat.
 - [x] Keep the saved task plan available on demand instead of repeating it beneath chat; signed-in task verified opening one saved plan without an inline duplicate.
 - [x] Add a persistent night-mode switch; desktop/phone appearance, reload persistence and no browser errors verified; 13 related regression tests passed.
 - [x] Repair stale approval/question requests at the shared RPC boundary: inspect errors before deserialization, bounded refresh without mutation replay, inline poll failures. Eight tests pass; reported task loads without failures and an injected stale HTML response refreshes once into usable chat; build OK.
