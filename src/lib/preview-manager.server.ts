@@ -143,12 +143,12 @@ async function databaseLines(session: Session & { supabase_ref?: string | null }
     const saved = await loadDatabaseSettings(session.user_id, session.id, session.supabase_ref);
     let publicKey = saved?.publicKey ?? "";
     if (!publicKey) {
-      const { accountRow } = await import("./accounts.server");
-      const row = await accountRow(await admin(), session.user_id, "supabase", (session as { accounts?: unknown }).accounts);
-      if (row) {
-        const { decryptSecret } = await import("./crypto.server");
+      // accountToken refreshes one-click (OAuth) sign-ins; raw decryption only works for pasted tokens.
+      const { accountToken } = await import("./accounts.server");
+      const tok = await accountToken(await admin(), session.user_id, "supabase", (session as { accounts?: unknown }).accounts);
+      if (tok) {
         const { SupabaseMgmt } = await import("./integrations.server");
-        publicKey = (await new SupabaseMgmt(await decryptSecret(row.ciphertext, row.iv)).anonKey(session.supabase_ref)) ?? "";
+        publicKey = (await new SupabaseMgmt(tok).anonKey(session.supabase_ref)) ?? "";
       }
     }
     if (!publicKey || !isPublicDatabaseKey(publicKey)) return "the linked database's public key could not be read; reconnect the database account";
