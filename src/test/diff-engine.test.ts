@@ -38,13 +38,13 @@ describe("parseUnifiedDiff", () => {
   it("parses multiple files with hunks and counts", () => {
     const files = parseUnifiedDiff(DIFF);
     expect(files).toHaveLength(2);
-    const app = files[0];
+    const app = files[0]!;
     expect(app.newPath).toBe("src/app.ts");
     expect(app.hunks).toHaveLength(2);
     expect(app.additions).toBe(2);
     expect(app.deletions).toBe(2);
-    expect(app.hunks[0].header).toBe("function main");
-    const helper = files[1];
+    expect(app.hunks[0]!.header).toBe("function main");
+    const helper = files[1]!;
     expect(helper.isNew).toBe(true);
     expect(helper.newPath).toBe("src/util/helper.ts");
     expect(helper.additions).toBe(2);
@@ -52,11 +52,11 @@ describe("parseUnifiedDiff", () => {
 
   it("detects deletions and renames", () => {
     const del = parseUnifiedDiff(`--- a/old.ts\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-x\n`);
-    expect(del[0].isDeleted).toBe(true);
-    expect(del[0].oldPath).toBe("old.ts");
+    expect(del[0]!.isDeleted).toBe(true);
+    expect(del[0]!.oldPath).toBe("old.ts");
     const ren = parseUnifiedDiff(`--- a/a.ts\n+++ b/b.ts\n@@ -1,1 +1,1 @@\n-x\n+y\n`);
-    expect(ren[0].isRename).toBe(true);
-    expect(ren[0].newPath).toBe("b.ts");
+    expect(ren[0]!.isRename).toBe(true);
+    expect(ren[0]!.newPath).toBe("b.ts");
   });
 });
 
@@ -131,8 +131,8 @@ describe("diffLines + hunksFromDiff", () => {
   it("produces separate hunks for distant changes", () => {
     const hunks = diffFile(before, after);
     expect(hunks).toHaveLength(2);
-    expect(hunks[0].oldStart).toBe(1);
-    expect(hunks[1].lines.some((l) => l.text === "m" && l.kind === "add")).toBe(true);
+    expect(hunks[0]!.oldStart).toBe(1);
+    expect(hunks[1]!.lines.some((l) => l.text === "m" && l.kind === "add")).toBe(true);
   });
 
   it("applying all hunks reproduces the new content exactly", () => {
@@ -170,7 +170,7 @@ describe("diffLines + hunksFromDiff", () => {
   it("hunksFromDiff merges nearby changes into one hunk", () => {
     const hunks = hunksFromDiff(diffLines("a\nb\nc", "A\nb\nC"), 3);
     expect(hunks).toHaveLength(1);
-    expect(hunks[0].oldLines).toBe(3);
-    expect(hunks[0].newLines).toBe(3);
+    expect(hunks[0]!.oldLines).toBe(3);
+    expect(hunks[0]!.newLines).toBe(3);
   });
 });
