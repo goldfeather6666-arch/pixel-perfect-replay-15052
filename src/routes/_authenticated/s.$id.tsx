@@ -39,6 +39,7 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { FileProvenance } from "@/components/FileProvenance";
 import { BugAutopsy } from "@/components/BugAutopsy";
+import { MaintenancePanel } from "@/components/MaintenancePanel";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
@@ -449,6 +450,7 @@ function Workspace() {
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
           <MemoryView repo={s.repo} />
           <BugAutopsy id={id} onReplay={(text) => void send(text)} />
+          <MaintenancePanel id={id} running={running || bgRunning || stopping} onRequest={(text) => { if (!desktop) setView("chat"); void send(text); }} />
           <div className="px-3 pb-8">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
               if (!confirm("Delete this task from Forge? The GitHub branch and commits will remain untouched.")) return;
@@ -945,14 +947,14 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} />)}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} author={diff.data?.authorship?.[f.filename] ?? "unknown"} />)}
         </div>
       </section>
     </div>
   );
 }
 
-function DiffFile({ id, filename, status, patch }: { id: string; filename: string; status: string; patch: string }) {
+function DiffFile({ id, filename, status, patch, author }: { id: string; filename: string; status: string; patch: string; author?: "agent" | "human" | "unknown" }) {
   const [open, setOpen] = useState(true);
   const lines = patch.split("\n");
   const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
@@ -965,6 +967,7 @@ function DiffFile({ id, filename, status, patch }: { id: string; filename: strin
           <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
         </button>
         <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
+        {author && author !== "unknown" && <span className="shrink-0 rounded-full border px-1.5 py-px text-[10px] text-muted-foreground" title={author === "agent" ? "Exact content recorded from the agent" : "Content differs from recorded agent writes"}>{author === "agent" ? "Agent" : "Human edited"}</span>}
         <FileProvenance id={id} path={filename} />
       </div>
       {open && <PatchView patch={patch} />}

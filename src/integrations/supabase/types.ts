@@ -334,6 +334,7 @@ export type Database = {
       change_provenance: {
         Row: {
           action: string
+          blob_sha: string | null
           created_at: string
           id: string
           path: string
@@ -345,6 +346,7 @@ export type Database = {
         }
         Insert: {
           action?: string
+          blob_sha?: string | null
           created_at?: string
           id?: string
           path: string
@@ -356,6 +358,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          blob_sha?: string | null
           created_at?: string
           id?: string
           path?: string
@@ -1231,6 +1234,41 @@ export type Database = {
             foreignKeyName: "task_domain_setups_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_maintenance: {
+        Row: {
+          dismissed: string[]
+          enabled: boolean
+          last_scanned_at: string | null
+          report: Json
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          dismissed?: string[]
+          enabled?: boolean
+          last_scanned_at?: string | null
+          report?: Json
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          dismissed?: string[]
+          enabled?: boolean
+          last_scanned_at?: string | null
+          report?: Json
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_maintenance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
             referencedRelation: "agent_sessions"
             referencedColumns: ["id"]
           },

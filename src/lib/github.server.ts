@@ -93,7 +93,7 @@ export class GitHub {
       ahead_by: c.ahead_by as number,
       base_sha: c.merge_base_commit.sha as string,
       commits: (c.commits as any[]).map((x) => ({ sha: x.sha as string, message: x.commit.message as string })),
-      files: ((c.files ?? []) as any[]).map((f) => ({ filename: f.filename as string, status: f.status as string, patch: (f.patch ?? "") as string })),
+      files: ((c.files ?? []) as any[]).map((f) => ({ filename: f.filename as string, sha: f.sha as string, status: f.status as string, patch: (f.patch ?? "") as string })),
     };
   }
   async resetBranch(repo: string, branch: string, sha: string) {
