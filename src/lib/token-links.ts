@@ -1,4 +1,5 @@
-/** Deep links that open the exact token-creation page, prefilled where the provider allows it. */
+/** Deep links that open the exact token-creation page, prefilled where the provider allows it.
+ *  Only services without one-click sign-in belong here: the database connects by signing in with Supabase. */
 export const TOKEN_LINKS = {
   github: {
     url: "https://github.com/settings/tokens/new?scopes=repo,workflow,read:user,user:email&description=Forge",
@@ -7,10 +8,6 @@ export const TOKEN_LINKS = {
   vercel: {
     url: "https://vercel.com/account/settings/tokens",
     steps: "Click Create, name it Forge, choose scope Full Account, copy the token and paste below.",
-  },
-  supabase: {
-    url: "https://supabase.com/dashboard/account/tokens",
-    steps: "Click Generate new token, name it Forge, copy it and paste below.",
   },
 } as const;
 

@@ -44,7 +44,7 @@ export function OneClickConnect() {
       <p className="mt-1 text-xs text-muted-foreground">Sign in with your own account. No tokens to copy, and access renews itself.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {s.data.vercel && <Button type="button" size="sm" disabled={!!busy} onClick={() => go("vercel")}>{busy === "vercel" ? "Opening Vercel…" : "Connect with Vercel"}</Button>}
-        {s.data.supabase && <Button type="button" size="sm" variant="secondary" disabled={!!busy} onClick={() => go("supabase")}>{busy === "supabase" ? "Opening…" : "Connect database (Supabase)"}</Button>}
+        {s.data.supabase && <Button type="button" size="sm" disabled={!!busy} onClick={() => go("supabase")}>{busy === "supabase" ? "Opening database sign-in…" : "Connect database (Supabase)"}</Button>}
       </div>
     </div>
   );

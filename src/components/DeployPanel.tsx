@@ -24,10 +24,8 @@ type AccountOption = { id: string; provider: string; label: string; last4: strin
 const NAME: Record<Svc, string> = { supabase: "database", vercel: "Vercel" };
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
 const trig = "h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left";
-const TOKEN_URL: Record<Svc, string> = {
-  supabase: TOKEN_LINKS.supabase.url,
-  vercel: TOKEN_LINKS.vercel.url,
-};
+/** Services without one-click sign-in need a token page; the database connects by signing in with Supabase. */
+const TOKEN_URL: Partial<Record<Svc, string>> = { vercel: TOKEN_LINKS.vercel.url };
 
 /** Deploy tab: three steps — database, website, go live. */
 export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
@@ -138,7 +136,6 @@ function Connect({ svc, onDone }: { svc: Svc; onDone: (accountId: string) => voi
   const status = useQuery({ queryKey: ["deploy-oauth-status"], queryFn: useServerFn(deployOAuthStatus), staleTime: 60_000 });
   const start = useServerFn(startDeployOAuth);
   const [busy, setBusy] = useState(false);
-  const [showToken, setShowToken] = useState(false);
   const oauth = status.data?.[svc];
   const go = async () => {
     setBusy(true);
@@ -147,14 +144,15 @@ function Connect({ svc, onDone }: { svc: Svc; onDone: (accountId: string) => voi
   };
   return (
     <div className="space-y-3 rounded-lg border border-dashed p-3">
-      {oauth && (
+      {!status.data ? (
+        <p className="text-xs text-muted-foreground">Checking how to connect…</p>
+      ) : oauth ? (
         <Button className="h-11 w-full" disabled={busy} onClick={go}>
           {busy ? <Loader2 className="animate-spin" /> : null} Sign in with {svc === "vercel" ? "Vercel" : "Supabase"}
         </Button>
+      ) : (
+        <TokenForm svc={svc} onDone={onDone} />
       )}
-      {oauth && !showToken ? (
-        <button type="button" className="w-full text-center text-xs text-muted-foreground underline" onClick={() => setShowToken(true)}>Use an access token instead</button>
-      ) : <TokenForm svc={svc} onDone={onDone} />}
     </div>
   );
 }
@@ -164,6 +162,7 @@ function TokenForm({ svc, onDone }: { svc: Svc; onDone: (accountId: string) => v
   const save = useServerFn(saveCredential);
   const qc = useQueryClient();
   const label = svc === "vercel" ? "Vercel" : "Supabase";
+  const tokenUrl = TOKEN_URL[svc];
   const m = useMutation({
     mutationFn: () => save({ data: { provider: svc, label, key: key.trim(), base_url: null, custom_models: [], extra_body: null } }),
     onSuccess: async (r) => {
@@ -177,7 +176,7 @@ function TokenForm({ svc, onDone }: { svc: Svc; onDone: (accountId: string) => v
     <div className="space-y-2 text-sm">
       <p className="text-muted-foreground">
         Create a {label} access token{svc === "vercel" ? " (scope: Full Account)" : ""}, then paste it here.{" "}
-        <a className="inline-flex items-center gap-1 text-primary underline" href={TOKEN_URL[svc]} target="_blank" rel="noreferrer">Open {label} <ExternalLink className="h-3 w-3" /></a>
+        {tokenUrl && <a className="inline-flex items-center gap-1 text-primary underline" href={tokenUrl} target="_blank" rel="noreferrer">Open {label} <ExternalLink className="h-3 w-3" /></a>}
       </p>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
         <Input className="h-11 min-w-0 flex-1 text-base sm:text-sm" type="password" autoComplete="off" placeholder="Paste token" value={key} onChange={(e) => setKey(e.target.value)} />
