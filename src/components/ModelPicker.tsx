@@ -19,7 +19,7 @@ export function ModelCostBadge({ cost }: { cost: ModelCost }) {
  * Model dropdown that shows each model's cost and can narrow the list to the free ones.
  * `extraItems` keeps caller-owned options such as "No backup" or "Lead model".
  */
-export function ModelSelect({ models, value, onChange, placeholder = "Choose model", ariaLabel, disabled, className, extraItems, displayValue }: {
+export function ModelSelect({ models, value, onChange, placeholder = "Choose model", ariaLabel, disabled = false, className, extraItems, displayValue }: {
   models: ModelOption[];
   value: string;
   onChange: (v: string) => void;
