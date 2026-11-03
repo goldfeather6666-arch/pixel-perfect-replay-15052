@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { syncDeployEnv } from "@/lib/integrations.functions";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -84,6 +85,8 @@ function Workspace() {
   const update = useServerFn(updateSession);
   const remove = useServerFn(deleteSession);
   const stop = useServerFn(stopSession);
+  const deployNow = useServerFn(syncDeployEnv);
+  const [deploying, setDeploying] = useState(false);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const session = useQuery({
@@ -383,7 +386,21 @@ function Workspace() {
   }
 
   const s = session.data;
-  const autoFixSend = (prompt: string) => { if (!desktop) setView("chat"); void send(prompt, false); };
+  // Auto-fix runs in publish mode: once the fix lands the agent deploys and verifies it (up to 3 repair rounds).
+  const autoFixSend = (prompt: string) => { if (!desktop) setView("chat"); void send(prompt, false, true); };
+  // Header Publish: starts the live build directly instead of asking the agent in chat.
+  const publishNow = async () => {
+    if (deploying) return;
+    setDeploying(true);
+    const t = toast.loading("Starting your live build…");
+    try {
+      const r = await deployNow({ data: { id, redeploy: true } });
+      toast.success(r.redeployed ? "Deployment started — your site is rebuilding with the latest version" : "Settings synced", { id: t });
+    } catch (e) {
+      toast.error(`${(e as Error).message}. Finish setup in Publish.`, { id: t });
+      setPublishOpen(true);
+    } finally { setDeploying(false); }
+  };
   const renderPanel = (k: PanelKey) => {
     if (!s) return null;
     switch (k) {
