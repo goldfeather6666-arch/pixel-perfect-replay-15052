@@ -142,7 +142,7 @@ function Dashboard() {
         <section className="mx-auto mb-12 max-w-3xl space-y-5">
           <div className="text-center">
             <img src={forgeMark} alt="Forge" width={72} height={72} className="mx-auto mb-3 size-16 object-contain" />
-            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">What will you build today?</h1>
+            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">What will you <span className="text-gradient">build</span> today?</h1>
             <p className="mt-3 text-sm text-muted-foreground">Your ideas. Your code. A little help from Forge.</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs">
               {([["AI key", aiCreds.length > 0, true], ["GitHub", hasGh, true], ["Database", hasDb, false], ["Vercel", hasVercel, false]] as const).map(([label, ok, required]) => (
@@ -152,7 +152,7 @@ function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="rounded-lg border bg-card p-4 shadow-glow sm:p-6">
+          <div className="rounded-3xl border bg-card p-4 shadow-[var(--workspace-shadow)] sm:p-6">
             {creds.data && !ready ? (
               <div className="space-y-3 text-sm">
                 <p>Two quick things first: {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"}.</p>
