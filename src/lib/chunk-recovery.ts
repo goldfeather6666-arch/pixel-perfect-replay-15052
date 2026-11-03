@@ -71,6 +71,7 @@ export function recoverChunkLoad() {
   } catch { /* storage may be blocked */ }
   const now = Date.now();
   if (windowStart && now - windowStart > RECOVERY_WINDOW) { attempts = 0; windowStart = 0; } // budget refilled
+  if (recoveryExhausted(now, attempts, windowStart)) return false; // stop the reload loop and let the page show its own error
   const target = chunkRecoveryUrl(window.location.href, now, previous, attempts, windowStart);
   if (!target) {
     // Inside the throttle window: don't leave the tab calling dead function IDs — come back for the fresh manifest when it expires.
@@ -78,12 +79,13 @@ export function recoverChunkLoad() {
       const wait = Math.max(0, previous + RELOAD_INTERVAL - now) + 250;
       pendingReload = window.setTimeout(() => {
         pendingReload = null;
+        const later = Date.now();
         try {
           window.sessionStorage.removeItem("forge-chunk-reload");
-          window.sessionStorage.removeItem("forge-chunk-reload-window");
           window.sessionStorage.setItem("forge-chunk-reload-tries", String(attempts + 1));
+          window.sessionStorage.setItem("forge-chunk-reload-window", String(windowStart || later));
         } catch { /* storage may be blocked */ }
-        const next = chunkRecoveryUrl(window.location.href, Date.now(), 0, attempts + 1, windowStart || Date.now()) || window.location.href;
+        const next = chunkRecoveryUrl(window.location.href, later, 0, attempts + 1, windowStart || later) || window.location.href;
         window.location.replace(next);
       }, wait);
     }
