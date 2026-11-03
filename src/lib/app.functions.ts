@@ -7,6 +7,7 @@ import type { Credential, ChatMessage, PendingChange } from "./providers";
 import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
 import { aggregateModelStats } from "./model-stats";
 import { buildReproBundle } from "./repro-bundle";
+import { tagAuthorship } from "./authorship";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -401,7 +402,12 @@ export const getDiff = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
+    const diff = await (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
+    const paths = diff.files.map((f) => f.filename);
+    const { data: prov } = paths.length
+      ? await context.supabase.from("change_provenance").select("path").eq("session_id", s.id).in("path", paths.slice(0, 300))
+      : { data: [] as { path: string }[] };
+    return { ...diff, authorship: tagAuthorship(paths, ((prov ?? []) as { path: string }[]).map((p) => p.path)) };
   });
 
 /** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,

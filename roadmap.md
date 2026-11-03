@@ -5,7 +5,7 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 
 ## Add-ons (authorized scope)
 - [x] 1 Creative Director — `quality_score` tool scores the served HTML (contrast, headings, labels, alt, targets, metadata, measured LCP/payload) with blocker/major caps; `remember_style` tool + `style_memory` table record the project's palette/typefaces/radii/tokens and inject them into later tasks.
-- [ ] 1b Auto-tag pages as agent-authored vs human-edited (needs commit-author classification + Changes display).
+- [x] 1b Auto-tag changed files as agent-authored vs human-edited from recorded agent writes; shown in Changes.
 - [ ] 2 Public share links + demo gallery — explicit owner-selected verified builds only; read-only expiring/revocable tokens, private by default.
 - [x] 3 Prompt audit — `change_provenance` records prompt→path→run; "Why" dialog shows prompt, QA evidence and acceptance criteria per file.
 - [ ] 4 Ambient idle mode — opt-in maintenance (dep audit, dead code, security scan) producing reviewable recommended patches.
@@ -17,7 +17,8 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [x] 10 Model-agnostic gateway + comparison — per-task BYOK model/credential (existing) plus a Performance tab comparing quality/cost per model from real run records.
 
 ## Current verification hardening
-- [ ] Prevent successful QA cache entries from bypassing a failed or unmeasured budget; expose per-commit measured history.
+- [x] Prevent successful QA cache entries from bypassing a failed budget.
+- [ ] Expose per-commit measured budget history.
 
 ## Remaining platform work
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.

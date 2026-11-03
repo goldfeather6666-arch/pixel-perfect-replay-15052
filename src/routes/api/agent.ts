@@ -496,7 +496,6 @@ export const Route = createFileRoute("/api/agent")({
                   : checkFailure(result);
               }
               const gate = phase === "check" && "stdout" in result ? parseGateLog(String(result.stdout ?? ""), String(result.stderr ?? "")) : undefined;
-              if (gate?.passed && revision === 0 && before === after) { passedChecks.set(cacheKey, Date.now()); if (passedChecks.size > 200) passedChecks.delete(passedChecks.keys().next().value!); }
               if (gate) rec.set("qaGateMs", gate.totalMs);
               if (gate) rec.event("qa.gate", { passed: gate.passed, totalMs: gate.totalMs, failedStep: gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
               // Performance budget-as-code: a committed budget.json is measured against the real build
@@ -520,6 +519,8 @@ export const Route = createFileRoute("/api/agent")({
                 }
               }
               const branchChanged = before !== after;
+              // Cache only a fully passing gate, including any committed budget, so a reused result never skips a budget.
+              if (gate?.passed && (budget?.ok ?? true) && revision === 0 && !branchChanged) { passedChecks.set(cacheKey, Date.now()); if (passedChecks.size > 200) passedChecks.delete(passedChecks.keys().next().value!); }
               const breach = budget && !budget.ok ? budget.summary : undefined;
               const problem = [branchChanged ? "Branch changed during checks; run checks again on the current commit." : undefined, breach].filter(Boolean).join(" ");
               return { ...result, ...(gate ? { gate: { passed: gate.passed && (budget?.ok ?? true), summary: [gate.summary, budget?.summary].filter(Boolean).join(" "), steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(problem ? { error: problem } : {}) };

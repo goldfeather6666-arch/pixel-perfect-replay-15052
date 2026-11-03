@@ -945,14 +945,14 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} />)}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} author={diff.data?.authorship?.[f.filename]} />)}
         </div>
       </section>
     </div>
   );
 }
 
-function DiffFile({ id, filename, status, patch }: { id: string; filename: string; status: string; patch: string }) {
+function DiffFile({ id, filename, status, patch, author }: { id: string; filename: string; status: string; patch: string; author?: "agent" | "human" }) {
   const [open, setOpen] = useState(true);
   const lines = patch.split("\n");
   const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
@@ -965,6 +965,7 @@ function DiffFile({ id, filename, status, patch }: { id: string; filename: strin
           <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
         </button>
         <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
+        {author && <span className="shrink-0 rounded-full border px-1.5 py-px text-[10px] text-muted-foreground" title={author === "agent" ? "Written by the agent" : "Changed outside the agent"}>{author === "agent" ? "Agent" : "Human"}</span>}
         <FileProvenance id={id} path={filename} />
       </div>
       {open && <PatchView patch={patch} />}
