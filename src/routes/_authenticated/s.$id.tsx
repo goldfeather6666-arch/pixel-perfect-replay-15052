@@ -393,6 +393,11 @@ function Workspace() {
             </select>
             <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
             {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
+            <span className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 lg:flex ${running || bgRunning ? "text-primary" : pending.length ? "text-warning" : "text-muted-foreground"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} />
+              {running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"}
+            </span>
+            <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
             {usage.input + usage.output > 0 && (
               <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
                 <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
@@ -464,10 +469,6 @@ function Workspace() {
                     className={`rounded px-2.5 py-0.5 text-xs capitalize ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>{m}</button>
                 ))}
               </div>
-              <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" disabled={running || bgRunning} title="Deploy the current version to your live website (link a website in Deploy first)"
-                onClick={() => { if (confirm("Publish the current version to your live website?")) void send("Publish the current version.", false, true); }}>
-                <Rocket className="h-3 w-3" /> Publish
-              </Button>
               {["/test", "/review", "/explain", "/plan"].map((c) => (
                 <Button key={c} type="button" size="sm" variant="ghost" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
                   className="h-7 shrink-0 text-xs text-muted-foreground">{c}</Button>
@@ -530,30 +531,34 @@ function Workspace() {
         {desktop && right && (
           <aside className="relative flex min-h-0 flex-col border-l bg-card/30" style={{ width: `${dockPct}%` }}>
             <div role="separator" aria-label="Resize panels" onPointerDown={startResize} className="absolute -left-1 top-0 z-20 h-full w-2 cursor-col-resize hover:bg-primary/30" />
-            <div className="flex items-center gap-1 border-b px-2 py-1.5">
-              {MAIN.map(([k, label, Icon]) => (
-                <button key={k} type="button" onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${right === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}><Icon className="h-3.5 w-3.5" />{label}</button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className={`relative flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${MORE.some((m) => m[0] === right) ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-                    <MoreHorizontal className="h-3.5 w-3.5" />{MORE.find((m) => m[0] === right)?.[1] ?? "More"}
-                    {pending.length > 0 && <span className="rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+            <div role="tablist" aria-label="Canvas" className="flex items-center gap-1 border-b px-2 py-1.5">
+              <div className="flex rounded-lg bg-muted p-0.5">
+                {MAIN.map(([k, label, Icon]) => (
+                  <button key={k} type="button" role="tab" aria-selected={right === k} onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${right === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                    <Icon className="h-3.5 w-3.5" />{label}
+                    {k === "changes" && pending.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{pending.length}</span>}
                   </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {MORE.map(([k, label, Icon]) => (
-                    <DropdownMenuItem key={k} onSelect={() => setRight(k)}><Icon className="h-4 w-4" />{label}{k === "changes" && pending.length > 0 && <span className="ml-auto text-xs text-primary">{pending.length}</span>}</DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button type="button" aria-label="Close dock" onClick={() => setRight(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelRightClose className="h-4 w-4" /></button>
+                ))}
+              </div>
+              <button type="button" aria-label="Close canvas" onClick={() => setRight(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><PanelRightClose className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">{renderPanel(right)}</div>
+            <div className="border-t bg-card">
+              <div role="tablist" aria-label="Power tools" className="flex items-center gap-1 overflow-x-auto px-2 py-1">
+                {MORE.map(([k, label, Icon]) => (
+                  <button key={k} type="button" role="tab" aria-selected={tool === k} onClick={() => setTool(tool === k ? null : k)} className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${tool === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                    <Icon className="h-3.5 w-3.5" />{label}
+                    {k === "swarm" && (running || bgRunning) && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+                  </button>
+                ))}
+                {tool && <button type="button" aria-label="Close tools" onClick={() => setTool(null)} className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
+              </div>
+              {tool && <div className="h-[42vh] overflow-hidden border-t">{renderPanel(tool)}</div>}
+            </div>
           </aside>
         )}
         {desktop && !right && (
-          <button type="button" onClick={() => setRight("preview")} className="flex w-10 shrink-0 flex-col items-center gap-2 border-l bg-card/30 py-3 text-xs text-muted-foreground hover:text-foreground" aria-label="Open side panel"><Globe className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setRight("preview")} className="flex w-10 shrink-0 flex-col items-center gap-2 border-l bg-card/30 py-3 text-xs text-muted-foreground hover:text-foreground" aria-label="Open canvas"><Globe className="h-4 w-4" /></button>
         )}
         {!desktop && view !== "chat" && <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(view)}</div>}
       </div>
@@ -563,20 +568,19 @@ function Workspace() {
             <button key={k} type="button" onClick={() => setView(k)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${view === k ? "text-primary" : "text-muted-foreground"}`}>
               <Icon className="h-5 w-5" />{label}
               {k === "chat" && (running || bgRunning) && <span className="absolute right-1/3 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
+              {k === "changes" && pending.length > 0 && <span className="absolute right-1/4 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
             </button>
           ))}
           <button type="button" onClick={() => setMoreOpen(true)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${MORE.some((m) => m[0] === view) ? "text-primary" : "text-muted-foreground"}`}>
-            <MoreHorizontal className="h-5 w-5" />{MORE.find((m) => m[0] === view)?.[1] ?? "More"}
-            {pending.length > 0 && <span className="absolute right-1/4 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
+            <MoreHorizontal className="h-5 w-5" />{MORE.find((m) => m[0] === view)?.[1] ?? "Tools"}
           </button>
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetContent side="bottom" className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-              <SheetHeader><SheetTitle>More tools</SheetTitle></SheetHeader>
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <SheetHeader><SheetTitle>Power tools</SheetTitle></SheetHeader>
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {MORE.map(([k, label, Icon]) => (
-                  <button key={k} type="button" onClick={() => { setView(k); setMoreOpen(false); }} className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs ${view === k ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                  <button key={k} type="button" onClick={() => { setView(k); setMoreOpen(false); }} className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${view === k ? "border-primary text-primary" : "text-muted-foreground"}`}>
                     <Icon className="h-5 w-5" />{label}
-                    {k === "changes" && pending.length > 0 && <span className="absolute right-2 top-2 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
                   </button>
                 ))}
               </div>
@@ -584,6 +588,18 @@ function Workspace() {
           </Sheet>
         </nav>
       )}
+      <Sheet open={publishOpen} onOpenChange={setPublishOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+          <SheetHeader className="border-b p-4">
+            <SheetTitle>Publish</SheetTitle>
+            <p className="text-sm text-muted-foreground">Check your accounts, then send the current version live.</p>
+            <Button className="mt-2 w-full gap-2" disabled={running || bgRunning} onClick={() => { if (!confirm("Publish the current version to your live website?")) return; setPublishOpen(false); if (!desktop) setView("chat"); void send("Publish the current version.", false, true); }}>
+              <Rocket className="h-4 w-4" /> Publish current version
+            </Button>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">{publishOpen && s && <DeployPanel id={id} onSend={(p) => { setPublishOpen(false); autoFixSend(p); }} />}</div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
