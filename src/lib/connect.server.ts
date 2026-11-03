@@ -17,6 +17,7 @@ const safe = (e: unknown) => {
 
 export async function syncProject(sb: any, s: Session, opts: { applyMigrations?: boolean } = {}) {
   const steps: SyncStep[] = [];
+  const buildErrors: string[] = [];
   const [gt, st, vt] = await Promise.all([
     accountToken(sb, s.user_id, "github", s.accounts),
     accountToken(sb, s.user_id, "supabase", s.accounts),
@@ -97,12 +98,13 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
       else if (d.state === "ERROR") {
         const log = await v.buildLog(d.id).catch(() => "");
         const { firstErrorLines } = await import("./deployment-quality");
-        const errs = firstErrorLines(String(log ?? ""), 12);
-        steps.push({ key: "build", label: "Latest build", state: "fail", note: errs[0] ?? "Build failed" });
+        buildErrors.push(...firstErrorLines(String(log ?? ""), 12));
+        steps.push({ key: "build", label: "Latest build", state: "fail", note: buildErrors[0] ?? "Build failed" });
       } else if (d.state === "READY") {
         const log = await v.buildLog(d.id).catch(() => null);
         const { vercelBuildFindings } = await import("./vercel-build-review");
         const issues = log === null ? [] : vercelBuildFindings(log);
+        buildErrors.push(...issues.map((issue) => issue.evidence));
         steps.push({ key: "build-review", label: "Vercel build issues", state: log === null || issues.length ? "warn" : "ok", note: log === null ? "Build log unavailable; issue review is unverified" : issues.length ? `${issues.length} issue(s) to review: ${issues[0]?.evidence}` : "No warnings found in available build logs" });
         const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
         const r = await checkDeploymentRuntime(d.url);
@@ -111,5 +113,5 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
     } catch (e) { steps.push({ key: "build", label: "Latest build", state: "warn", note: safe(e) }); }
   }
 
-  return { steps, overall: overall(steps) };
+  return { steps, overall: overall(steps), buildErrors };
 }

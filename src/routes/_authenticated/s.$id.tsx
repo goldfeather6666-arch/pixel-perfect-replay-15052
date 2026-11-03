@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
-import { AutoFixButton } from "@/components/ProjectHealth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/AppHeader";
@@ -406,8 +405,7 @@ function Workspace() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
-            <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
+             <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
           </div>
         )}
       </AppHeader>
@@ -467,7 +465,6 @@ function Workspace() {
           </Conversation>
           <div className="border-t bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
-              {!desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
               <div role="radiogroup" aria-label="Agent mode" className="flex shrink-0 rounded-md border bg-muted p-0.5">
                 {(["chat", "plan", "build"] as const).map((m) => (
                   <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
