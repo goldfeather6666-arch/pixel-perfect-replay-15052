@@ -31,3 +31,14 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.
 - [ ] Canary matrix, baseline/post benchmarks, full end-to-end customer project verification and final release documentation.
 - [ ] Publish the app (user go-ahead).
+
+## v4.1 addendum (C18–C25)
+- [x] C18 automatic rollback of failed releases, runtime stack → file:line, live response-time regression alerts
+- [x] C19 docs_drift_check (stale paths/scripts/env vars)
+- [x] C20 workspace_map + symbol index survives moves
+- [x] C21 per-model minQualityScore deploy gate + maxRunCostUsd per-run cost record (forge.policy.json)
+- [x] C22 OSV check on every package.json change + 90-day secret rotation reminder
+- [x] C23 "Wrong?" on replies → saved correction
+- [x] C24 cold-start runbook on brand-new repos
+- [x] C25 build-failure triage with proposed fix
+- [ ] Live verification of rollback / triage / perf on a real failing deploy (needs a real failed release)

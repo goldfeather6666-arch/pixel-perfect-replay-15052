@@ -213,8 +213,10 @@ export const Route = createFileRoute("/api/agent")({
         // interrupted. Resume it from recorded facts — provably done vs unverified — never restart.
         let resumeContext = "";
         let resumedFrom: string | null = null;
+        let hadPrevRun = false;
         {
           const { data: prev } = await prefetch.prev;
+          hadPrevRun = !!prev;
           const { isInterrupted } = await import("@/lib/engine/checkpoint");
           if (prev && isInterrupted(prev, false)) {
             const { data: evs } = await sb.from("agent_events").select("type, payload").eq("run_id", prev.id).order("seq", { ascending: true }).limit(2000);
@@ -251,6 +253,8 @@ export const Route = createFileRoute("/api/agent")({
         let syncedRef: string | null = null;
         let envRebuildNeeded = false;
         const quality: QualityState = { changed: !plan && /deploy|build.*fail/i.test(message), localPassed: false, localAttempted: false, linked: !!s.vercel_project_id, supervised };
+        let lowestQualityScore: number | null = null;
+        const verifiedDeployments = new Set<string>();
         let checkRoot = ".";
         let revision = 0;
         let buildFindings: BuildFinding[] = [];
@@ -299,6 +303,17 @@ export const Route = createFileRoute("/api/agent")({
             blob_sha: content === undefined ? null : await gitBlobSha(content),
           }); } catch { rec.event("provenance.error", { path }); }
         };
+        // C22: every dependency bump is checked against the free OSV vulnerability database.
+        const depWatch = async (path: string, before: string | null | undefined, after: string) => {
+          if (!/(^|\/)package\.json$/.test(path)) return undefined;
+          const { changedDependencies, osvCheck } = await import("@/lib/security-watch");
+          const changes = changedDependencies(before ?? null, after);
+          if (!changes.length) return undefined;
+          const vulns = await osvCheck(changes, fetch, runAbort.signal);
+          rec.event("security.watch", { path, changed: changes.length, vulnerable: vulns === null ? null : vulns.length });
+          if (vulns === null) return { changed: changes, vulnerabilities: "unverified", note: "The vulnerability database could not be reached; security of these versions is unverified." };
+          return { changed: changes, vulnerabilities: vulns, note: vulns.length ? "Known vulnerabilities affect these versions. Choose patched versions before continuing." : "No known vulnerabilities for these versions." };
+        };
         const tools = {
           list_files: tool({
             description: "List repository file paths, optionally filtered by a path prefix.",
@@ -341,8 +356,15 @@ export const Route = createFileRoute("/api/agent")({
             execute: async ({ name }) => {
               const { data, error } = await sb.from("repo_symbol_index").select("path, content_hash, symbols, imports").eq("user_id", u.user.id).eq("repo", repo).limit(5000);
               if (error) return { error: error.message };
-              const files = (data ?? []).map((r) => ({ path: r.path, hash: r.content_hash, symbols: r.symbols as unknown as SymbolEntry[], imports: r.imports as unknown as string[] }));
-              return { indexedFiles: files.length, ...lookupSymbol(files, name), note: "Index may lag the branch; verify with read_file before editing." };
+              // C20: the index survives moves/renames — remap vanished paths to their unique new location, drop the rest.
+              const current = await tree().catch(() => null);
+              const { remapMovedPaths } = await import("@/lib/workspaces");
+              const { moved, removed } = current ? remapMovedPaths((data ?? []).map((r) => r.path), current) : { moved: {} as Record<string, string>, removed: [] as string[] };
+              const gone = new Set(removed);
+              for (const [from, to] of Object.entries(moved)) void sb.from("repo_symbol_index").update({ path: to }).eq("user_id", u.user.id).eq("repo", repo).eq("path", from).then(() => {}, () => {});
+              if (removed.length) void sb.from("repo_symbol_index").delete().eq("user_id", u.user.id).eq("repo", repo).in("path", removed.slice(0, 200)).then(() => {}, () => {});
+              const files = (data ?? []).filter((r) => !gone.has(r.path)).map((r) => ({ path: moved[r.path] ?? r.path, hash: r.content_hash, symbols: r.symbols as unknown as SymbolEntry[], imports: r.imports as unknown as string[] }));
+              return { indexedFiles: files.length, ...lookupSymbol(files, name), ...(Object.keys(moved).length ? { movedFiles: moved } : {}), note: "Index may lag the branch; verify with read_file before editing." };
             },
           }),
           search_files: tool({
@@ -410,11 +432,13 @@ export const Route = createFileRoute("/api/agent")({
                 await remember(path, "write_file", "write", content);
                 return { staged: true, note: "Staged for user approval." };
               }
+              const before = /(^|\/)package\.json$/.test(path) ? original ?? await readCurrent(path) : null;
               const sha = await gh.putFile(repo, branch, path, content, commit_message);
               invalidateChecks();
               treeCache = null;
               await remember(path, "write_file", "write", content);
-              return { committed: sha.slice(0, 7) };
+              const security = await depWatch(path, before, content);
+              return { committed: sha.slice(0, 7), ...(security ? { security } : {}) };
             },
           }),
           edit_file: tool({
@@ -437,7 +461,8 @@ export const Route = createFileRoute("/api/agent")({
               invalidateChecks();
               treeCache = null;
               await remember(path, "edit_file", "write", r.content);
-              return { committed: sha.slice(0, 7), replaced: r.replaced };
+              const security = await depWatch(path, current, r.content);
+              return { committed: sha.slice(0, 7), replaced: r.replaced, ...(security ? { security } : {}) };
             },
           }),
           write_files: tool({
@@ -720,7 +745,12 @@ export const Route = createFileRoute("/api/agent")({
             execute: async () => {
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
-              return row ? await m.previewErrors(row) : { error: "No preview started" };
+              if (!row) return { error: "No preview started" };
+              const errors = await m.previewErrors(row);
+              // C18: map stack frames back to repository file:line so fixes start at the source.
+              const { sourceLocations } = await import("@/lib/runtime-source-map");
+              const sources = sourceLocations(JSON.stringify(errors).replace(/\\n/g, "\n"), await tree().catch(() => []));
+              return { ...errors, sources };
             },
           }),
           preview_check_route: tool({
@@ -751,6 +781,7 @@ export const Route = createFileRoute("/api/agent")({
               if (!page.html.trim()) return { status: page.status, error: "Preview returned no HTML to score" };
               const q = scorePage(page.html, { lcpMs: lcpMs ?? null, totalKb: totalKb ?? null });
               rec.event("quality.score", { path, score: q.score, findings: q.findings.length, blockers: q.findings.filter((f) => f.severity === "blocker").length });
+              lowestQualityScore = lowestQualityScore === null ? q.score : Math.min(lowestQualityScore, q.score);
               return { path, status: page.status, score: q.score, grades: q.grades, findings: q.findings, measured: q.measured, summary: formatQualityScore(q) };
             },
           }),
@@ -847,6 +878,15 @@ export const Route = createFileRoute("/api/agent")({
                   return { error: "Database token missing. Connect it before verifying the linked deployment." };
                 }
               }
+              // C21: a committed per-model quality floor must be met before any build may deploy.
+              {
+                const pf = await gh.getFile(repo, branch, "forge.policy.json").catch(() => null);
+                const gov = pf?.content ? parseQaPolicy(pf.content).policy : undefined;
+                const { qualityGate } = await import("@/lib/quality-governance");
+                const qg = qualityGate(gov, s.model, lowestQualityScore);
+                if (qg.min !== null) rec.event("quality.gate", { model: s.model, min: qg.min, score: qg.score, ok: qg.ok });
+                if (!qg.ok) return { state: "BLOCKED", error: qg.summary };
+              }
               // Build exactly one deployment of the current code, created through the Vercel API (pushes to agent/* don't build).
               let commitSha = await gh.headSha(repo, branch);
               let deploymentId: string | undefined;
@@ -869,7 +909,9 @@ export const Route = createFileRoute("/api/agent")({
               if (!latest) return { state: "NONE", commit: commitSha, envNote, note: "Vercel accepted the build but it has not appeared yet. Call deploy_status again once." };
               if (!["READY", "ERROR", "CANCELED"].includes(latest.state)) return { state: latest.state, url: latest.url, envNote, note: "Still building after 3 minutes; call deploy_status again." };
               const { checkDeploymentRuntime } = await import("@/lib/deployment-runtime.server");
+              const probeStart = Date.now();
               const runtime = latest.state === "READY" ? await checkDeploymentRuntime(latest.url, runAbort.signal) : null;
+              const runtimeMs = Date.now() - probeStart;
               const verifiedState = runtime && runtime.state !== "PASSED" ? (runtime.state === "ERROR" ? "RUNTIME_ERROR" : "UNVERIFIED") : latest.state;
               if (await gh.headSha(repo, branch) !== commitSha || revision !== deployedRevision) return { state: "STALE", note: "The branch changed during runtime verification. Check the new commit." };
               quality.deploymentState = verifiedState;
@@ -878,7 +920,43 @@ export const Route = createFileRoute("/api/agent")({
               buildFindings = log === null ? [] : vercelBuildFindings(log);
               reviewedBuildCommit = log === null ? null : commitSha;
               quality.buildReviewIssue = log === null ? "Vercel build log could not be read; successful-build issue review remains unverified. Check the pinned account's access." : buildFindings.length ? `Review ${buildFindings.length} Vercel build issue(s) with review_vercel_issues, fix actionable findings and verify the new commit.` : undefined;
-              return { state: verifiedState, buildState: latest.state, runtime, commit: commitSha, url: latest.url, envNote, log, buildIssues: buildFindings, buildReview: log === null ? "UNVERIFIED" : buildFindings.length ? "NEEDS_REVIEW" : "CLEAN" };
+              // C25: classify a failed build and propose the fix.
+              let triage: import("@/lib/build-triage").Triage | undefined;
+              if (latest.state === "ERROR" && log) {
+                const { triageBuildFailure } = await import("@/lib/build-triage");
+                triage = triageBuildFailure(log);
+                rec.event("build.triage", { commit: commitSha, kind: triage.kind, proposed: !!triage.proposal, retryable: triage.retryable });
+              }
+              // C18: a failed release is rolled back automatically to the last working build (owner opted in).
+              let rollback: Record<string, unknown> | undefined;
+              const { isFailedRelease, pickRollbackTarget, rollbackMethod } = await import("@/lib/release-rollback");
+              if (isFailedRelease(latest.state, runtime?.state)) {
+                const history = await (latest.target === "production" ? v.deployments(fresh.vercel_project_id) : v.deployments(fresh.vercel_project_id, branch)).catch(() => []);
+                const target = pickRollbackTarget(history, latest.id, verifiedDeployments);
+                if (!target) rollback = { restored: null, note: "No earlier working build exists to roll back to." };
+                else {
+                  const method = rollbackMethod(target);
+                  try {
+                    if (method === "promote") await v.promote(fresh.vercel_project_id, target.id); else await v.redeploy(target);
+                    rollback = { restored: target.id, commit: target.commitSha, url: target.url, method, note: "Rolled back to the last working build. Fix the failure, then deploy again." };
+                    rec.event("release.rollback", { failed: latest.id, restored: target.id, commit: target.commitSha, method, ok: true });
+                  } catch (e) {
+                    rollback = { restored: null, error: `Rollback failed: ${errorText(e)}` };
+                    rec.event("release.rollback", { failed: latest.id, restored: target.id, method, ok: false });
+                  }
+                }
+              }
+              // C18: production response-time regression alert from measured probes of this project.
+              let perf: import("@/lib/perf-regression").PerfAlert | undefined;
+              if (verifiedState === "READY" && runtime?.state === "PASSED") {
+                verifiedDeployments.add(latest.id);
+                const { data: prior } = await sb.from("agent_events").select("payload").eq("user_id", u.user.id).eq("type", "runtime.perf").eq("payload->>vercelProjectId", fresh.vercel_project_id).order("created_at", { ascending: false }).limit(10);
+                const { detectPerfRegression } = await import("@/lib/perf-regression");
+                perf = detectPerfRegression((prior ?? []).map((r) => Number((r.payload as { ms?: unknown })?.ms)).reverse(), runtimeMs);
+                rec.event("runtime.perf", { vercelProjectId: fresh.vercel_project_id, deploymentId: latest.id, ms: runtimeMs });
+                if (perf.regressed) rec.event("perf.regression", { vercelProjectId: fresh.vercel_project_id, deploymentId: latest.id, baselineMs: perf.baselineMs, ms: runtimeMs });
+              }
+              return { state: verifiedState, buildState: latest.state, runtime, commit: commitSha, url: latest.url, envNote, log, buildIssues: buildFindings, buildReview: log === null ? "UNVERIFIED" : buildFindings.length ? "NEEDS_REVIEW" : "CLEAN", ...(triage ? { triage } : {}), ...(rollback ? { rollback } : {}), ...(perf ? { perf } : {}) };
             },
           }),
           review_vercel_issues: tool({
@@ -892,6 +970,40 @@ export const Route = createFileRoute("/api/agent")({
                 rec.event("deployment.issues.reviewed", { commit: reviewedBuildCommit, decisions: decisions.map((d) => ({ id: d.id, disposition: d.disposition })), unresolved: !!blocker });
                 return { reviewed: decisions.length, blocker, decisions };
               } catch (e) { return { error: errorText(e) }; }
+            },
+          }),
+          docs_drift_check: tool({
+            description: "Check documentation (README, docs/, AGENTS.md, any .md) against the code: flags file paths, scripts and environment variables a doc mentions that no longer exist. Run after any doc change or code move, and fix or report every stale claim. Read-only.",
+            inputSchema: z.object({ paths: z.array(z.string()).max(30).optional() }),
+            execute: async ({ paths }) => {
+              const { checkDocDrift, envNamesFromTemplate, isDocFile } = await import("@/lib/docs-drift");
+              const files = await tree();
+              const docs = (paths?.length ? paths : files.filter(isDocFile)).slice(0, 30);
+              const pkg = await readCurrent("package.json").catch(() => null);
+              let scripts: string[] = [];
+              try { scripts = Object.keys((JSON.parse(pkg ?? "{}") as { scripts?: Record<string, string> }).scripts ?? {}); } catch { /* no root scripts */ }
+              const envFile = files.find((f) => /^\.env\.(example|sample|template)$/.test(f));
+              const envText = envFile ? await readCurrent(envFile).catch(() => null) : null;
+              const facts = { files, scripts, envNames: envText ? envNamesFromTemplate(envText) : null };
+              const findings = (await parallelMap(docs, 6, async (d) => { const t = await readCurrent(d).catch(() => null); return t ? checkDocDrift(d, t, facts) : []; }, runAbort.signal)).flat();
+              rec.event("docs.drift", { docs: docs.length, stale: findings.length, inSync: docs.length - new Set(findings.map((f) => f.doc)).size });
+              return { checked: docs.length, stale: findings.slice(0, 80), note: findings.length ? "Update each stale claim to match the code (or restore what it describes)." : "All checked docs match the repository." };
+            },
+          }),
+          workspace_map: tool({
+            description: "Monorepo map: workspace packages, external dependencies declared with conflicting versions across packages, and which packages depend on a given package (blast radius for cross-package refactors). Read-only.",
+            inputSchema: z.object({ package: z.string().max(200).optional() }),
+            execute: async ({ package: pkgName }) => {
+              const w = await import("@/lib/workspaces");
+              const files = await tree();
+              const rootText = await readCurrent("package.json").catch(() => null);
+              let root: { workspaces?: unknown } | null = null;
+              try { root = rootText ? JSON.parse(rootText) : null; } catch { root = null; }
+              const pnpm = files.includes("pnpm-workspace.yaml") ? await readCurrent("pnpm-workspace.yaml").catch(() => null) : null;
+              const dirs = w.workspaceDirs(w.workspaceGlobs(root, pnpm), files).slice(0, 80);
+              if (!dirs.length) return { monorepo: false, note: "No workspace packages declared; single-package repository." };
+              const pkgs = (await parallelMap(dirs, 6, async (d) => { const t = await readCurrent(`${d}/package.json`).catch(() => null); return t ? w.parseWorkspacePackage(d, t) : null; }, runAbort.signal)).filter((p): p is NonNullable<typeof p> => !!p);
+              return { monorepo: true, packages: pkgs.map((p) => ({ name: p.name, dir: p.dir })), versionConflicts: w.versionConflicts(pkgs), ...(pkgName ? { dependents: w.dependents(pkgs, pkgName) } : {}) };
             },
           }),
           read_proposals: tool({
@@ -1162,6 +1274,18 @@ export const Route = createFileRoute("/api/agent")({
           } catch { /* fall back to plain truncation */ }
         })();
         const recentAll = history.slice(Math.max(summarizedCount, history.length - 20));
+        // C24: a brand-new repo gets its basics (README, env template, CI, license, roadmap) before the first feature.
+        if (!chat && !plan && !resumedFrom) {
+          try {
+            const { isColdStart, coldStartGaps, coldStartBrief } = await import("@/lib/cold-start");
+            const files = await tree();
+            if (isColdStart(files, hadPrevRun)) {
+              const gaps = coldStartGaps(files);
+              resumeContext += `\n\n${coldStartBrief(gaps)}`;
+              rec?.event?.("cold_start.offered", { gaps });
+            }
+          } catch { /* tree unavailable: skip the runbook rather than block the run */ }
+        }
         const fitted = fitToBudget(recentAll, (m) => estimateTokens(toText(m)), caps, estimateTokens(`${baseSystem}${projectDoc}${skillText}${resumeContext}${memoryNotes}${typedMemory}${summary}${message}`) + 6_000);
         const recent = fitted.kept;
         const messages: ModelMessage[] = [
@@ -1487,6 +1611,15 @@ export const Route = createFileRoute("/api/agent")({
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 const costBreakdown = Object.entries(usageByModel).map(([model, tokens]) => ({ model, input: tokens.input, output: tokens.output, costUsd: costUsd(modelCaps(model), tokens) }));
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);
+                // C21: cost + quality per request, checked against the repo's committed budget.
+                try {
+                  const pf = await gh.getFile(repo, branch, "forge.policy.json").catch(() => null);
+                  const gov = pf?.content ? parseQaPolicy(pf.content).policy : undefined;
+                  const { costBudget } = await import("@/lib/quality-governance");
+                  const known = costBreakdown.every((c) => typeof c.costUsd === "number");
+                  const cb = costBudget(gov, known ? totalCostUsd : null);
+                  rec.event("request.cost", { model: s.model, costUsd: known ? totalCostUsd : null, qualityScore: lowestQualityScore, budgetUsd: cb.max, withinBudget: cb.ok });
+                } catch { /* cost recording never breaks a run */ }
                 const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: !!quality.changed && !plan, checksAttempted: !!quality.localAttempted, checksPassed: !!quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
                 rec.event("outcome.assessed", outcome);
                 // Verification-first handoff + failure intelligence: both come from what this run

@@ -37,6 +37,7 @@ import { MentionPicker } from "@/components/MentionPicker";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { CopyTextButton } from "@/components/CopyTextButton";
+import { ReplyFeedback } from "@/components/ReplyFeedback";
 import { FileProvenance } from "@/components/FileProvenance";
 import { BugAutopsy } from "@/components/BugAutopsy";
 import { MaintenancePanel } from "@/components/MaintenancePanel";
@@ -748,6 +749,7 @@ function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolea
       {!live && m.content.trim() && (
         <div className="-mt-1 flex items-center gap-1">
           <CopyTextButton text={m.content} label="Copy reply" />
+          <ReplyFeedback taskId={sessionId} reply={m.content} />
         </div>
       )}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />

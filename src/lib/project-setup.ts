@@ -8,7 +8,7 @@ export const secretRequestInput = z.object({
   targets: z.array(z.enum(["production", "preview", "development"])).min(1).max(3).default(["production"]),
 });
 export type SecretRequestInput = z.infer<typeof secretRequestInput>;
-export type SecretRequestSummary = { id: string; name: string; purpose: string; source_url: string; targets: string[]; state: string };
+export type SecretRequestSummary = { id: string; name: string; purpose: string; source_url: string; targets: string[]; state: string; updated_at?: string };
 export type DnsRecord = { type: string; name: string; value: string };
 export function domainReady(record: { verified?: boolean; redirect?: string | null; gitBranch?: string | null; customEnvironmentId?: string | null }, config: { misconfigured?: boolean }) {
   return record.verified === true && config.misconfigured === false && !record.redirect && !record.gitBranch && !record.customEnvironmentId;
