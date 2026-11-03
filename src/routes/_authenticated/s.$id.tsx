@@ -419,21 +419,22 @@ function Workspace() {
   };
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader>
+      <AppHeader actions={s ? (
+        <>
+          <span className="hidden lg:block"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>
+          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3.5 w-3.5" /> Publish</Button>
+        </>
+      ) : undefined}>
         {s && (
-          <div className="flex min-w-0 max-w-[60vw] items-center gap-2 overflow-x-auto text-xs sm:max-w-none">
-            <span className="hidden min-w-0 truncate md:inline" title={`${s.repo} · ${s.work_branch}`}>
-              <span className="font-medium text-foreground">{s.repo.split("/").pop()}</span>
-              <span className="font-mono text-muted-foreground"> / {s.work_branch}</span>
-            </span>
-            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
-            <span role="status" className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 lg:flex ${running || bgRunning ? "text-primary" : pending.length ? "text-warning" : "text-muted-foreground"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} />
-              {running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"}
+          <div className="flex min-w-0 items-center gap-2 text-xs">
+            <span className={`size-2 shrink-0 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} role="status" aria-label={running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"} />
+            <span className="min-w-0 truncate" title={`${s.repo} · ${s.work_branch}`}>
+              <span className="text-sm font-medium text-foreground">{s.title || s.repo.split("/").pop()}</span>
+              <span className="hidden font-mono text-muted-foreground sm:inline"> · {s.work_branch}</span>
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" aria-label="Task settings"><Wrench className="h-3 w-3" /><span className="hidden sm:inline">{AUTONOMY_LABEL[asAutonomy(s.mode)].title}</span></Button>
+                <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs text-muted-foreground" aria-label="Task settings"><Wrench className="h-3 w-3" /><span className="hidden xl:inline">{AUTONOMY_LABEL[asAutonomy(s.mode)].title}</span></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
                 <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">How much the agent may do alone</p>
@@ -457,7 +458,6 @@ function Workspace() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-             <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
           </div>
         )}
       </AppHeader>
@@ -515,19 +515,7 @@ function Workspace() {
             </ConversationContent>
             <ConversationScrollButton />
           </Conversation>
-          <div className="border-t bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
-            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
-              <div role="radiogroup" aria-label="Agent mode" className="flex shrink-0 rounded-md border bg-muted p-0.5">
-                {(["chat", "plan", "build"] as const).map((m) => (
-                  <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
-                    className={`rounded px-2.5 py-0.5 text-xs capitalize ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>{m}</button>
-                ))}
-              </div>
-              {["/test", "/review", "/explain", "/plan"].map((c) => (
-                <Button key={c} type="button" size="sm" variant="ghost" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
-                  className="h-7 shrink-0 text-xs text-muted-foreground">{c}</Button>
-              ))}
-            </div>
+          <div className="bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 sm:px-4 sm:pb-4">
             {(running || bgRunning) && (
               <RunStatus
                 start={running ? runStart.current : null}
@@ -556,7 +544,7 @@ function Workspace() {
             )}
             <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={stopping} />
             <MentionPicker sessionId={id} text={input} caret={caret} onPick={(t, c) => { setInput(t); setCaret(c); requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(c, c); }); }} />
-            <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
+            <PromptInput className="mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--workspace-shadow)]" onSubmit={() => { void send(); }}>
               <PromptInputTextarea
                 ref={taRef}
                 aria-label="Task prompt"
@@ -566,19 +554,38 @@ function Workspace() {
                 onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
                 onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
                                 placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
-                className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
+                className="max-h-48 min-h-14 px-4 pt-3.5 text-base leading-relaxed md:text-sm"
                 rows={2}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-              <PromptInputFooter className="px-3 pb-3">
-                <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
-                {(running || bgRunning) && <Button type="button" size="icon" variant="outline" className="ml-auto size-10" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>}
-                <PromptInputSubmit className="size-10" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
+              <PromptInputFooter className="gap-1 px-2.5 pb-2.5">
+                <Button type="button" size="icon" variant="ghost" className="size-8 rounded-full text-muted-foreground" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" size="icon" variant="ghost" className="size-8 rounded-full font-mono text-sm text-muted-foreground" aria-label="Quick commands" title="Quick commands">/</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    {([["/test", "Run and fix checks"], ["/review", "Review for bugs"], ["/explain", "Explain the code"], ["/plan", "Plan before building"]] as const).map(([c, hint]) => (
+                      <DropdownMenuItem key={c} onSelect={() => { setInput((v) => `${c} ${v.replace(/^\/\w+\s*/, "")}`); requestAnimationFrame(() => taRef.current?.focus()); }}>
+                        <span className="font-mono text-xs">{c}</span><span className="ml-auto text-xs text-muted-foreground">{hint}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div role="radiogroup" aria-label="Agent mode" className="ml-1 flex shrink-0 rounded-full bg-secondary p-0.5">
+                  {(["chat", "plan", "build"] as const).map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize transition ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{m}</button>
+                  ))}
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  {s && <span className="hidden max-w-36 sm:block lg:hidden"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>}
+                  <PromptInputSubmit className="size-8 rounded-full" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
+                </div>
               </PromptInputFooter>
             </PromptInput>
-            <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
-              <span className="tabular-nums">{capacity.used.toLocaleString("en-US")} / {MAX_PROMPT_CHARS.toLocaleString("en-US")} characters</span>
-              <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
+            <div id="prompt-capacity" aria-live="polite" className={`mx-auto mt-1.5 flex max-w-3xl justify-end px-1 text-[11px] tabular-nums ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground/80"} ${capacity.used ? "" : "sr-only"}`}>
+              {capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.used.toLocaleString("en-US")} / ${MAX_PROMPT_CHARS.toLocaleString("en-US")} · ${capacity.remaining.toLocaleString("en-US")} left${capacity.nearLimit ? " — nearing limit" : ""}`}
             </div>
           </div>
         </section>
@@ -972,20 +979,14 @@ function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stoppin
   const elapsed = start ? now - start : 0;
   const avg = start && steps > 0 ? elapsed / steps : 0;
   return (
-    <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-      <Loader2 className="h-3 w-3 animate-spin text-primary" />
-      {background ? (
-        <span className="min-w-0 flex-1">{stopping ? "Stopping… saving progress" : `${cloud ? "Running in the cloud" : "Running in browser"} · last update ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · ${steps} steps done`}</span>
-      ) : (
-        <>
-          <span>Running in browser</span>
-          <span className="font-mono text-foreground">⌛ {mmss(elapsed)}</span>
-          <span>{steps} step{steps === 1 ? "" : "s"} done</span>
-          {avg > 0 && <span>~{Math.round(avg / 1000)}s per step</span>}
-          {avg > 0 && <span>at most ~{Math.ceil(((limit - steps) * avg) / 60000)} min left (step cap {limit}); usually finishes sooner</span>}
-        </>
-      )}
-      <Button type="button" size="sm" variant="outline" className="ml-auto shrink-0" disabled={stopping} onClick={onStop} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button>
+    <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2.5 rounded-full border bg-card py-1 pl-3 pr-1 text-xs text-muted-foreground shadow-sm">
+      <span className="relative flex size-2 shrink-0"><span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" /><span className="relative inline-flex size-2 rounded-full bg-primary" /></span>
+      <span className="min-w-0 flex-1 truncate">
+        {stopping ? "Stopping — saving progress" : background
+          ? `${cloud ? "Working in the cloud" : "Working"} · ${steps} steps · updated ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "just now"}`
+          : `Working · ${mmss(elapsed)} · ${steps} step${steps === 1 ? "" : "s"}${avg > 0 ? ` · ≤${Math.ceil(((limit - steps) * avg) / 60000)} min left` : ""}`}
+      </span>
+      <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 rounded-full px-2.5 text-xs" disabled={stopping} onClick={onStop} aria-label="Stop work"><Square className="h-3 w-3 fill-current" />{stopping ? "Stopping…" : "Stop"}</Button>
     </div>
   );
 }

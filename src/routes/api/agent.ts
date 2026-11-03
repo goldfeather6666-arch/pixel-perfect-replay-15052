@@ -52,7 +52,7 @@ function userClient(token: string) {
 
 const SYSTEM = `You are an autonomous software engineering agent working on a GitHub repository.
 ${productionInstructions}
-You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, write_files (many files in one commit — prefer it for multi-file changes), delete_file, run_command (cloud sandbox shell), preview_start/preview_status/preview_logs/preview_errors/preview_check_route/preview_restart/preview_stop (private live preview in the task sandbox; after creating or changing a web app, call preview_start and fix errors until status is 'ready' — never claim the preview works otherwise; a working preview never means deploy — production deploys stay separate and need the normal approval), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: never deploy on your own initiative. When the user explicitly asks you to deploy/publish/check the live build (or presses Publish), call deploy_status: it syncs database settings, APP_URL and project secrets to Vercel, builds the current commit, waits, probes the live URL and returns the build log; review findings with review_vercel_issues, fix, and call deploy_status again. You DO have this tool — never tell the user you lack Vercel deploy/status access.
+You have real tools: list_files, read_file, read_files (batch, parallel), search_files (whole-repo git grep), write_file, write_files (many files in one commit — prefer it for multi-file changes), delete_file, run_command (cloud sandbox shell), preview_start/preview_status/preview_logs/preview_errors/preview_check_route/preview_restart/preview_stop (private live preview in the task sandbox; after creating or changing a web app, call preview_start and fix errors until status is 'ready' — never claim the preview works otherwise; a working preview never means deploy — production deploys stay separate and need the normal approval), delegate (up to 12 specialist jobs: explorers, coders, reviewers, testers; four workers run concurrently), apply_proposals (master-only review/merge of helper code), list_databases/link_database (if the preview log says the database was not provided, list the user's databases and link the matching one yourself — never stop at that blocker), apply_migrations (applies new supabase/migrations/*.sql files to the user's linked Supabase database), deploy_status (Vercel deployment state + build log for this branch).\nDatabase: when the task changes the database schema, add a new migration file, commit it, then call apply_migrations and fix any SQL error. Deploys: never deploy on your own initiative. When the user explicitly asks you to deploy/publish/check the live build (or presses Publish), call deploy_status: it syncs database settings, APP_URL and project secrets to Vercel, builds the current commit, waits, probes the live URL and returns the build log; review findings with review_vercel_issues, fix, and call deploy_status again. You DO have this tool — never tell the user you lack Vercel deploy/status access.
 Speed: you can call several tools in ONE step and they run in parallel — batch independent reads/searches together; use read_files for multiple files; for broad or multi-area work, split it with delegate instead of exploring serially; while writing code, a 'tester' helper can run checks.\nWorkflow: inspect the repository structure, read relevant files before editing, plan briefly, then make focused changes.
 You are the MASTER agent: own the plan, dependencies, assignments and final integration. For multi-area implementation, delegate independent coding areas in one team call; assign each coder exact non-overlapping file paths and acceptance criteria. Coders read files and submit complete code proposals, never commit. Review their reports and read proposed contents before apply_proposals; use read_proposals to inspect them without repeating contents in your response. Merge dependencies before importers; reassign stale/conflicting files. Delegate a reviewer after integration, then run final production checks yourself. PARALLEL-FIRST (mandatory): for every implementation request, after at most two quick mapping steps, divide the work into subgroups and dispatch them in ONE delegate call — e.g. explorer/architect for mapping, several writers (frontend/backend/database/integration) with exclusive paths, and a tester/qa job using after. Independent groups must run in the same wave. Never do multi-file implementation solo; do directly only tiny one-file fixes after dispatching the rest. Helpers cannot delegate, deploy, change databases or approve external actions. More helpers consume more of the user's provider tokens; use only the specialists needed.
 write_file replaces the ENTIRE file content — always send the complete file.
@@ -601,6 +601,30 @@ export const Route = createFileRoute("/api/agent")({
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
               return row ? await m.stopPreview(sb, row) : { ok: true };
+            },
+          }),
+          list_databases: tool({
+            description: "List the database projects in the user's connected database account and show which one this task uses. Use when the preview log says the database was not provided.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const { data: fresh } = await sb.from("agent_sessions").select("supabase_ref, accounts").eq("id", sessionId).single();
+              const projects = await m.listTaskDatabases(s.user_id, fresh?.accounts).catch(() => null);
+              if (!projects) return { error: "No database account connected. Ask the user to connect it in Settings → Accounts (one click)." };
+              return { linked: fresh?.supabase_ref ?? null, projects: projects.map((p) => ({ ref: p.ref, name: p.name, status: p.status })) };
+            },
+          }),
+          link_database: tool({
+            description: "Link one of the user's existing database projects to this task, then reload the preview and agent shell settings (URL, public key, project id). Pick the project matching this app; ask the user if unclear. Does not create projects or change data.",
+            inputSchema: z.object({ ref: z.string().min(6).max(64) }),
+            execute: async ({ ref }) => {
+              if (plan) return { error: "Plan mode cannot change task links." };
+              const m = await import("@/lib/preview-manager.server");
+              try { await m.linkTaskDatabase(s.user_id, sessionId, ref); } catch (e) { return { error: (e as Error).message }; }
+              const linked = { ...sbxSession, supabase_ref: ref, accounts: s.accounts };
+              const row = await m.latestPreview(sb, sessionId);
+              if (row) { await m.restartPreview(sb, row, linked); return { linked: ref, note: "Settings written; preview restarting. Call preview_status, then test sign-up/sign-in." }; }
+              return { linked: ref, note: "Linked. Call preview_start — the preview and shell receive the database settings." };
             },
           }),
           apply_migrations: tool({
