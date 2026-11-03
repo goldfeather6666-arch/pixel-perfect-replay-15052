@@ -968,7 +968,10 @@ export const Route = createFileRoute("/api/agent")({
         let summary: string = (s as { summary?: string | null }).summary ?? "";
         let summarizedCount: number = (s as { summarized_count?: number }).summarized_count ?? 0;
         const toText = (m: ChatMessage) => `${m.role}: ${m.content || ""}${m.tools?.length ? `\n[tools: ${m.tools.map((t) => `${t.name}${t.ok === false ? "(failed)" : ""}`).join(", ")}]` : ""}`;
-        if (history.length - summarizedCount > KEEP + 8) {
+        // Summary refresh runs in the background so the first reply never waits on an extra model call;
+        // this turn uses the saved summary plus the last 20 messages, and the refreshed summary is saved at the end.
+        let summaryUpdate: Promise<void> | null = null;
+        if (history.length - summarizedCount > KEEP + 8) summaryUpdate = (async () => {
           const chunk = history.slice(summarizedCount, history.length - KEEP);
           try {
             const { generateText } = await import("ai");
@@ -980,7 +983,7 @@ export const Route = createFileRoute("/api/agent")({
             summary = r.text.trim();
             summarizedCount = history.length - KEEP;
           } catch { /* fall back to plain truncation */ }
-        }
+        })();
         const recentAll = history.slice(Math.max(summarizedCount, history.length - 20));
         const fitted = fitToBudget(recentAll, (m) => estimateTokens(toText(m)), caps, estimateTokens(`${baseSystem}${projectDoc}${skillText}${resumeContext}${memoryNotes}${typedMemory}${summary}${message}`) + 6_000);
         const recent = fitted.kept;
@@ -1017,12 +1020,11 @@ export const Route = createFileRoute("/api/agent")({
         rec.to("DISCOVERING", "Loading project context, skills and external tools");
         if (resumedFrom) rec.event("run.resumed", { from: resumedFrom });
         rec.event("context.loaded", { repoMemory: !!memoryNotes, typedMemories: typedMem.length, savedMemories: allMem?.length ?? 0, projectDoc: !!projectDoc, history: history.length, keptMessages: recent.length, droppedForBudget: fitted.dropped, contextWindow: caps.contextWindow, modelKnown: caps.known });
-        for (const sk of allSkills) {
-          const loaded = loadedNames.has(sk.name);
-          rec.skill({ name: sk.name, hash: skillHashes.get(sk.name) ?? "", status: loaded ? "loaded" : "listed", reason: loaded ? skillReasons.get(sk.name) ?? "selected" : "not relevant to this request; available via read_skill" });
-        }
+        // Only loaded skills get their own record; the other ~140 listed skills are counted in the summary event,
+        // so recording no longer queues 100+ writes ahead of the run's live events.
+        for (const sk of allSkills) if (loadedNames.has(sk.name)) rec.skill({ name: sk.name, hash: skillHashes.get(sk.name) ?? "", status: "loaded", reason: skillReasons.get(sk.name) ?? "selected" });
         for (const dep of picked.missingDeps) rec.skill({ name: dep, hash: "", status: "missing", reason: "required by a selected skill but not saved or enabled" });
-        rec.event("skills.discovery.completed", { total: allSkills.length, loaded: [...loadedNames].map((n) => ({ name: n, reason: skillReasons.get(n) ?? "" })), missing: picked.missingDeps });
+        rec.event("skills.discovery.completed", { total: allSkills.length, listed: allSkills.length - loadedNames.size, loaded: [...loadedNames].map((n) => ({ name: n, reason: skillReasons.get(n) ?? "" })), missing: picked.missingDeps });
         const keeperId = request.headers.get("x-forge-keeper");
         const ownKeeper = !!keeperId && keeperId === (s as { keeper_id?: string | null }).keeper_id;
         let closeStream = () => {};
@@ -1246,6 +1248,7 @@ export const Route = createFileRoute("/api/agent")({
                 { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
                 { role: "assistant", content: text, tools: logs },
               ];
+              await summaryUpdate?.catch(() => {});
               await sb
                 .from("agent_sessions")
                 .update({
