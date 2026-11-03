@@ -497,7 +497,30 @@ export const Route = createFileRoute("/api/agent")({
               if (gate?.passed && revision === 0 && before === after) { passedChecks.set(cacheKey, Date.now()); if (passedChecks.size > 200) passedChecks.delete(passedChecks.keys().next().value!); }
               if (gate) rec.set("qaGateMs", gate.totalMs);
               if (gate) rec.event("qa.gate", { passed: gate.passed, totalMs: gate.totalMs, failedStep: gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
-              return { ...result, ...(gate ? { gate: { passed: gate.passed, summary: gate.summary, steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
+              // Performance budget-as-code: a committed budget.json is measured against the real build
+              // output; a breach blocks the gate with the fix suggestion attached, and anything that
+              // could not be measured is reported as unmeasured rather than passed.
+              let budget: { ok: boolean; summary: string } | undefined;
+              if (phase === "check" && gate?.passed) {
+                const bf = await gh.getFile(repo, branch, "budget.json").catch(() => null);
+                if (bf?.content) {
+                  const parsed = parsePerfBudget(bf.content);
+                  if (parsed.error) budget = { ok: false, summary: parsed.error };
+                  else {
+                    const appRoot = /^[A-Za-z0-9._/-]{1,200}$/.test(root) ? root.replace(/\/+$/, "") || "." : ".";
+                    const listing = await sbxRun(`find ${appRoot}/dist ${appRoot}/build ${appRoot}/.next/static -type f \\( -name '*.js' -o -name '*.mjs' -o -name '*.css' \\) ! -name '*.map' -printf '%p %s\\n' 2>/dev/null | head -400`);
+                    const measured = payloadKb(parseAssetListing("stdout" in listing ? String(listing.stdout ?? "") : ""));
+                    const res = evaluateBudget(parsed.budget, measured);
+                    budget = { ok: res.ok, summary: formatBudgetResult(res) };
+                    rec.event("budget.check", { ok: res.ok, violations: res.violations.map((v) => ({ metric: v.metric, limit: v.limit, actual: v.actual })), unmeasured: res.unmeasured });
+                  }
+                  if (budget && !budget.ok) { quality.localPassed = false; quality.localIssue = budget.summary; }
+                }
+              }
+              const branchChanged = before !== after;
+              const breach = budget && !budget.ok ? budget.summary : undefined;
+              const problem = [branchChanged ? "Branch changed during checks; run checks again on the current commit." : undefined, breach].filter(Boolean).join(" ");
+              return { ...result, ...(gate ? { gate: { passed: gate.passed && (budget?.ok ?? true), summary: [gate.summary, budget?.summary].filter(Boolean).join(" "), steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(problem ? { error: problem } : {}) };
             },
           }),
           share_file: tool({
