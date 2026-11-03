@@ -71,7 +71,7 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
         index: cur.hunks.length,
         oldStart: Number(m[1]), oldLines: m[2] ? Number(m[2]) : 1,
         newStart: Number(m[3]), newLines: m[4] ? Number(m[4]) : 1,
-        header: m[5].trim(),
+        header: (m[5] ?? "").trim(),
         lines: [],
       };
       cur.hunks.push(hunk);
@@ -168,8 +168,8 @@ export function groupByIntent(files: FileDiff[]): IntentGroup[] {
   for (const f of files) {
     const path = f.newPath || f.oldPath;
     const parts = path.split("/");
-    const area = parts.length > 1 ? (parts[0] === "src" && parts.length > 2 ? `${parts[0]}/${parts[1]}` : parts[0]) : "(root)";
-    const g = groups.get(area) ?? { intent: area, files: [], additions: 0, deletions: 0 };
+    const area = parts.length > 1 ? (parts[0] === "src" && parts.length > 2 ? `${parts[0]}/${parts[1]}` : parts[0]!) : "(root)";
+    const g: IntentGroup = groups.get(area) ?? { intent: area, files: [], additions: 0, deletions: 0 };
     g.files.push(f); g.additions += f.additions; g.deletions += f.deletions;
     groups.set(area, g);
   }
