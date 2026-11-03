@@ -961,7 +961,7 @@ export const Route = createFileRoute("/api/agent")({
             try {
               const { loadMcpTools } = await import("@/lib/mcp-client.server");
                const mcpStart = Date.now();
-               const loading = loadMcpTools(sb, u.user.id, sessionId, (row) => rec.mcp(row));
+               const loading = loadMcpTools(sb, u.user.id, sessionId, (row) => rec.mcp(row), { readOnly: plan });
                void loading.then((loaded) => { if (runAbort.signal.aborted) void loaded.close().catch(() => {}); }, () => {});
                external = await abortable(loading, runAbort.signal);
                rec.set("mcpDiscoveryMs", Date.now() - mcpStart);

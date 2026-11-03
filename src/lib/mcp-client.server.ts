@@ -29,7 +29,8 @@ export async function inspectMcp(client: MCPClient, url: string, allowActions = 
 export type McpAudit = (row: { server: string; tool: string; decision: "executed" | "staged" | "denied" | "invalid"; ok?: boolean; ms?: number }) => void;
 export type ToolPolicy = "allow" | "ask" | "deny";
 
-export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string, sessionId?: string, audit: McpAudit = () => {}) {
+/** readOnly: chat/plan runs get only read-only, approval-free tools so they can never stage external writes. */
+export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string, sessionId?: string, audit: McpAudit = () => {}, opts: { readOnly?: boolean } = {}) {
   const { data, error } = await sb.from("mcp_connections").select("*").eq("user_id", userId).eq("enabled", true).eq("state", "ready");
   if (error) throw new Error("Could not load external tool connections");
   const clients: MCPClient[] = [];
@@ -75,6 +76,7 @@ export async function loadMcpTools(sb: SupabaseClient<Database>, userId: string,
         if (policy === "deny") continue;
         const isReadOnly = readOnlyTool(def);
         const needsApproval = policy === "ask" || !allowedMcpTool(row.url, def);
+        if (opts.readOnly && (needsApproval || !isReadOnly)) continue;
         let validate;
         try { validate = compileMcpSchema(def.inputSchema as Record<string, unknown>); }
         catch { issues.push({ server: row.name, reason: `Unsupported input schema for tool ${def.name}` }); continue; }
