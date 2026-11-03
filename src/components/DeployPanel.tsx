@@ -1,4 +1,5 @@
 import { TOKEN_LINKS } from "@/lib/token-links";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -30,7 +31,7 @@ const TOKEN_URL: Partial<Record<Svc, string>> = { vercel: TOKEN_LINKS.vercel.url
 /** Deploy tab: three steps — database, website, go live. */
 export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
   const qc = useQueryClient();
-  const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }), retry: false, throwOnError: false });
+  const info = useQuery({ queryKey: ["integrations", id], queryFn: useServerFn(getIntegrations).bind(null, { data: { id } }), ...transientRetry, throwOnError: false });
   const refresh = () => {
     for (const k of ["integrations", "session", "deps", "migr", "sb-opts", "vc-access"]) qc.invalidateQueries({ queryKey: [k, id] });
   };
@@ -248,7 +249,7 @@ function DatabaseStep({ id, account, linked, onChange }: { id: string; account: 
   const [org, setOrg] = useState("");
   const [region, setRegion] = useState("us-east-1");
   const opts = useQuery({ queryKey: ["sb-opts", id, account], queryFn: useServerFn(listSupabaseOptions).bind(null, { data: { id, ...(account ? { account } : {}) } }), enabled: !linked });
-  const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000, retry: false, throwOnError: false });
+  const status = useQuery({ queryKey: ["migr", id, linked], queryFn: useServerFn(getMigrationStatus).bind(null, { data: { id } }), enabled: !!linked, refetchInterval: 15000, ...transientRetry, throwOnError: false });
   const link = useServerFn(linkSupabase);
   const apply = useServerFn(applyMigrations);
   const orgId = org || opts.data?.orgs[0]?.id || "";

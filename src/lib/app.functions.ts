@@ -6,6 +6,8 @@ import { z } from "zod";
 import type { Credential, ChatMessage, PendingChange } from "./providers";
 import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
 import { aggregateModelStats } from "./model-stats";
+import { summarizeRuns, type PostRunReport, type RunReportRow } from "./failure-intelligence";
+import type { EvidenceRow } from "./verification-first";
 import { buildReproBundle } from "./repro-bundle";
 import { tagAuthorship } from "./authorship";
 import { verificationHistory, type VerificationEvent } from "./verification-history";
@@ -822,4 +824,51 @@ export const clearRepoMemory = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("repo_memory").delete().eq("user_id", context.userId).eq("repo", data.repo);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/** Cross-project failure intelligence: top failure modes, rework ratio, human interventions and the
+ * prior-context rate — computed only from this owner's own recorded runs, never another tenant's. */
+export const failureIntelligence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ days: z.number().int().min(1).max(180).default(30) }))
+  .handler(async ({ data, context }) => {
+    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    const { data: rows, error } = await context.supabase
+      .from("agent_runs")
+      .select("id, outcome, stage, metrics, started_at, agent_sessions(repo)")
+      .eq("user_id", context.userId)
+      .gte("started_at", since)
+      .limit(2000);
+    if (error) throw new Error("Could not read run history.");
+    const reports: RunReportRow[] = [];
+    for (const r of (rows ?? []) as unknown as { metrics: Record<string, unknown> | null; agent_sessions: { repo?: string } | null }[]) {
+      const failure = r.metrics?.["failure"];
+      if (!failure || typeof failure !== "object" || Array.isArray(failure)) continue;
+      reports.push({ repo: r.agent_sessions?.repo ?? "unknown", report: failure as PostRunReport });
+    }
+    return summarizeRuns(reports);
+  });
+
+/** One task's verification-first evidence: the table of checks that really ran plus its post-run report. */
+export const getRunEvidence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: events, error } = await context.supabase
+      .from("agent_events")
+      .select("seq, run_id, type, payload, created_at")
+      .eq("session_id", s.id)
+      .eq("user_id", context.userId)
+      .in("type", ["verification.table", "run.report"])
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error("Could not read the run's evidence.");
+    const rows = (events ?? []) as unknown as VerificationEvent[];
+    const tableEvent = rows.find((e) => e.type === "verification.table");
+    const reportEvent = rows.find((e) => e.type === "run.report");
+    const payload = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+    const table = Array.isArray(payload(tableEvent?.payload)["rows"]) ? (payload(tableEvent?.payload)["rows"] as EvidenceRow[]) : [];
+    const report = reportEvent ? (reportEvent.payload as unknown as PostRunReport) : null;
+    return { table, report, at: tableEvent?.created_at ?? reportEvent?.created_at ?? null };
   });

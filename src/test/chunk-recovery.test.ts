@@ -67,3 +67,23 @@ it2("comes back for the fresh manifest when the immediate reload is throttled", 
   run?.();
   expect2(replaced).toContain("_forge_refresh");
 });
+
+import { isTransientServerError as transient, transientRetry } from "@/lib/chunk-recovery";
+it2("retries a request the restarting server aborted, but not a refused action", () => {
+  expect2(transient(new Error("Error: aborted"))).toBe(true);
+  expect2(transient(new Error("The app returned 500 while handling GET /_serverFn/eyJmaWxl"))).toBe(true);
+  expect2(transient(new Error("Failed to fetch"))).toBe(true);
+  expect2(transient(new Error("Invalid server function ID: eyJmaWxlIjoi"))).toBe(false);
+  expect2(transient(new Error("Unauthorized"))).toBe(false);
+  expect2(transient(new Error("Database permission denied"))).toBe(false);
+});
+
+it2("stops retrying a transient failure after three tries", () => {
+  const aborted = new Error("Error: aborted");
+  expect2(transientRetry.retry(0, aborted)).toBe(true);
+  expect2(transientRetry.retry(2, aborted)).toBe(true);
+  expect2(transientRetry.retry(3, aborted)).toBe(false);
+  expect2(transientRetry.retry(0, new Error("Unauthorized"))).toBe(false);
+  expect2(transientRetry.retryDelay(0)).toBe(400);
+  expect2(transientRetry.retryDelay(5)).toBe(2000);
+});

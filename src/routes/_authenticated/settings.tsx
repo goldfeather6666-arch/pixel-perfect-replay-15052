@@ -7,6 +7,7 @@ import { ProfileSettings } from "@/components/ProfileSettings";
 import { toast } from "sonner";
 import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink, Cpu, Link2, Wrench, User, CheckCircle2, BarChart3 } from "lucide-react";
 import { ModelPerformance } from "@/components/ModelPerformance";
+import { FailureIntelligence } from "@/components/FailureIntelligence";
 import { NotifySettings } from "@/components/ReviewShare";
 import { SetupOverview } from "@/components/SetupOverview";
 import { TOKEN_LINKS, hasTokenLink } from "@/lib/token-links";
@@ -101,7 +102,7 @@ function SettingsPage() {
             <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => pickTab(k)} className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 font-medium transition-colors ${tab === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}><Icon className="size-3.5" />{label}</button>
           ))}
         </div>
-        {tab === "profile" ? <><ProfileSettings /><NotifySettings /></> : tab === "performance" ? <ModelPerformance /> : tab === "tools" ? (
+        {tab === "profile" ? <><ProfileSettings /><NotifySettings /></> : tab === "performance" ? <><ModelPerformance /><FailureIntelligence /></> : tab === "tools" ? (
           <>
             <section className="rounded-lg border bg-card p-5">
               <h2 className="font-semibold">Skills</h2>

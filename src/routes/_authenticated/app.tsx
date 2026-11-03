@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { AUTONOMY, AUTONOMY_LABEL, type Autonomy } from "@/lib/engine/autonomy";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -71,7 +72,7 @@ function Dashboard() {
   const [mode, setMode] = useState<Autonomy>("supervised");
 
   const branches = useQuery({ queryKey: ["branches", repo, ghId], queryFn: () => fetchBranches({ data: { repo, ...ghData } }), enabled: !!repo });
-  const models = useQuery({ queryKey: ["models", credId], queryFn: () => fetchModels({ data: { id: credId } }), enabled: !!credId, retry: false });
+  const models = useQuery({ queryKey: ["models", credId], queryFn: () => fetchModels({ data: { id: credId } }), enabled: !!credId, ...transientRetry });
 
   useEffect(() => {
     const r = repos.data?.find((x) => x.full_name === repo);

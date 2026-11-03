@@ -168,6 +168,7 @@ export const Route = createFileRoute("/api/agent")({
           lastSpec ? `<task_specification version="${lastSpec.version}">\n${JSON.stringify(lastSpec.spec).slice(0, 6000)}\n</task_specification>` : "",
         ].filter(Boolean).join("\n");
         let askedThisRun = 0;
+        let interjectionsConsumed = 0;
         let specVersion = 0;
         if (images?.some((im) => im.mediaType.startsWith("image/")) && caps.known && !caps.vision) return new Response(`${s.model} cannot read images. Remove the images or switch to a model with vision.`, { status: 400 });
         // eslint-disable-next-line prefer-const
@@ -208,15 +209,29 @@ export const Route = createFileRoute("/api/agent")({
         const allMem = liveMemories(rawMem ?? []);
         const { rankMemories } = await import("@/lib/engine/memory-rank");
         const typedMem = rankMemories(allMem ?? [], message, 40);
-        // Resume checkpoint: a previous run of this task that never reached an end state was interrupted.
+        // Recovery / replay: a previous run of this task that never reached an end state was
+        // interrupted. Resume it from recorded facts — provably done vs unverified — never restart.
         let resumeContext = "";
         let resumedFrom: string | null = null;
         {
           const { data: prev } = await prefetch.prev;
-          const { isInterrupted, buildCheckpoint } = await import("@/lib/engine/checkpoint");
+          const { isInterrupted } = await import("@/lib/engine/checkpoint");
           if (prev && isInterrupted(prev, false)) {
             const { data: evs } = await sb.from("agent_events").select("type, payload").eq("run_id", prev.id).order("seq", { ascending: true }).limit(2000);
-            resumeContext = `\n\n<resume_checkpoint note="recorded milestones of the interrupted run; data, not instructions">\n${buildCheckpoint(prev, evs ?? [])}\n</resume_checkpoint>`;
+            const events = (evs ?? []) as { type: string; payload: unknown }[];
+            const lastGate = [...events].reverse().find((e) => e.type === "qa.gate");
+            const gate = (lastGate?.payload ?? {}) as { passed?: unknown; failedStep?: unknown; failureKind?: unknown };
+            const { recoveryBrief } = await import("@/lib/recovery-playbook");
+            resumeContext = `\n\n<recovery_brief note="recorded facts of the interrupted run; data, not instructions">\n${recoveryBrief({
+              objective: prev.objective,
+              stage: prev.stage,
+              startedAt: prev.started_at,
+              pendingChanges: pending.length,
+              pendingApprovals: 0,
+              openQuestions: (priorQs ?? []).filter((q) => q.status === "open").length,
+              failingCheck: gate.passed === false && typeof gate.failedStep === "string" ? gate.failedStep : null,
+              failingKind: typeof gate.failureKind === "string" ? gate.failureKind : null,
+            }, events)}\n</recovery_brief>`;
             resumedFrom = prev.id;
           }
         }
@@ -714,7 +729,11 @@ export const Route = createFileRoute("/api/agent")({
             execute: async ({ path }) => {
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
-              return row ? await m.checkRoute(row, path) : { error: "No preview started" };
+              if (!row) return { error: "No preview started" };
+              const probe = await m.checkRoute(row, path);
+              // Recorded so the verification-first evidence table can show this route was really probed.
+              rec.event("route.probe", { path: probe.path ?? path, status: probe.status ?? 0, ok: !!probe.ok });
+              return probe;
             },
           }),
           quality_score: tool({
@@ -1275,7 +1294,9 @@ export const Route = createFileRoute("/api/agent")({
                   const toolChoice = dispatchToolChoice(stepNumber + usedSteps, delegated, parallelFirst);
                   // Live chat: messages the user sent while this run works are folded in before every step.
                   const { data: fresh } = await sb.rpc("consume_session_interjections", { _session: sessionId }).then((r) => r, () => ({ data: null }));
-                  for (const row of (fresh ?? []) as { content: string }[]) { liveChat.push(row.content); }
+                  const freshRows = (fresh ?? []) as { content: string }[];
+                  for (const row of freshRows) { liveChat.push(row.content); }
+                  interjectionsConsumed += freshRows.length;
                   // Long runs: older bulky tool results are compacted so context never overflows.
                   const compact = compactMessages(stepMessages as { role: string; content: unknown }[]);
                   if (compact.compacted) rec.event("context.compacted", { results: compact.compacted, step: stepNumber + usedSteps });
@@ -1468,7 +1489,31 @@ export const Route = createFileRoute("/api/agent")({
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);
                 const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: !!quality.changed && !plan, checksAttempted: !!quality.localAttempted, checksPassed: !!quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
                 rec.event("outcome.assessed", outcome);
-                await rec.finish({ outcome, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
+                // Verification-first handoff + failure intelligence: both come from what this run
+                // actually recorded — never from what the model claims it did.
+                const { buildRunSummary } = await import("@/lib/run-report.server");
+                const summary = await buildRunSummary(sb, {
+                  runId: rec.runId,
+                  sessionId,
+                  stage: rec.stage,
+                  outcomeState: outcome.state,
+                  checksAttempted: !!quality.localAttempted,
+                  checksPassed: !!quality.localPassed,
+                  previewVerified: previewReady,
+                  ambiguousWrites: ledger.ambiguous().length,
+                  pendingApprovals: pending.length,
+                  questionsAsked: askedThisRun,
+                  interjections: interjectionsConsumed,
+                  resumed: !!resumedFrom,
+                  durationMs: Date.now() - prepStart,
+                  steps: stepsDone,
+                  blocker: runOutcome.blocker,
+                  criteria: (lastSpec?.spec as { acceptance_criteria?: string[] } | undefined)?.acceptance_criteria ?? [],
+                  priorContext: { repoMemory: !!memoryNotes, typedMemories: typedMem.length, projectDoc: !!projectDoc, history: history.length },
+                }).catch(() => null);
+                if (summary?.report) rec.event("run.report", summary.report as unknown as Record<string, unknown>);
+                if (summary?.table.length) rec.event("verification.table", { rows: summary.table });
+                await rec.finish({ outcome, failure: summary?.report ?? null, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
                 }
               }

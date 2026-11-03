@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plug, RefreshCw, Trash2, LogIn } from "lucide-react";
@@ -20,7 +21,7 @@ export function McpConnections() {
   const connect = useServerFn(connectMcp);
   const change = useServerFn(changeMcpConnection);
   const begin = useServerFn(beginMcpOAuth);
-  const connections = useQuery({ queryKey: ["mcp-connections"], queryFn: () => list(), retry: false });
+  const connections = useQuery({ queryKey: ["mcp-connections"], queryFn: () => list(), ...transientRetry });
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");

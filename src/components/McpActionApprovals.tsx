@@ -1,4 +1,4 @@
-import { isStaleServerFunctionError, recoverChunkLoad } from "@/lib/chunk-recovery";
+import { isStaleServerFunctionError, recoverChunkLoad, transientRetry } from "@/lib/chunk-recovery";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +15,7 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
   const qc = useQueryClient();
   const list = useServerFn(listMcpActions);
   const resolve = useServerFn(resolveMcpActionRequest);
-  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 3000, refetchOnWindowFocus: true, retry: false, throwOnError: false });
+  const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 3000, refetchOnWindowFocus: true, ...transientRetry, throwOnError: false });
   const mutation = useMutation({
     mutationFn: (data: { id: string; approve: boolean; trust?: boolean }) => resolve({ data }),
     onMutate: (v) => { batch.current.add(v.id); },
