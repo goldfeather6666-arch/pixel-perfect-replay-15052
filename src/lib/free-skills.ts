@@ -37,6 +37,23 @@ export const freeSkillLibrary = domains.map(([category, triggers, body, referenc
   instructions: `---\nactivation: auto\ntriggers: [${triggers}]\nversion: 1.0.0\n---\n# ${String.fromCharCode(65 + index)}. ${category}\n${body}\nBefore using any linked software or service, verify its license, costs, quotas and compatibility; references are not pre-approved integrations.\nOfficial reference sources: ${references.join(', ')}`,
 }));
 
+/** Original Forge rewrites of proven web-app practices (MIT). Core ones are always on; the rest auto-load by trigger. */
+const platform = [
+  ['core-quality', 'always', 'build, fix, feature, page, app', 'Read files before editing; make surgical edits; keep every import resolvable and create every linked page in the same change. Verify with the fastest real signal (build errors, targeted tests, browser check) before claiming success. Never leave placeholders, demo data or fake success states.'],
+  ['core-security', 'always', 'auth, data, api, secret', 'Enable row-level security with owner-scoped policies and grants on every table; keep roles in a separate protected table checked by a security-definer function, never user metadata. Secrets stay server-side; browser gets only publishable keys. Validate all inputs server-side.'],
+  ['realtime', 'auto', 'realtime, live update, subscription, presence, broadcast, chat, notification, collaborative, websocket, channel', 'Enable a table with ALTER PUBLICATION supabase_realtime ADD TABLE. Subscribe inside useEffect and removeChannel on cleanup; give each postgres_changes subscription a unique channel name, while presence/broadcast rooms share one name joined once per page. RLS must restrict which rows subscribers receive. For clients that cannot read tables, use a security-definer trigger calling realtime.send on a private per-user topic with a realtime.messages SELECT policy comparing realtime.topic() to auth.uid(); clients refetch on each event.'],
+  ['server-functions', 'auto', 'server function, createserverfn, api route, webhook, cron, loader, backend', 'Use framework server functions for app logic and public routes only for webhooks/external callers, verifying signatures inside the handler. Read env inside handlers. Authenticated functions attach the bearer token via client middleware; admin clients load only after verifying the caller.'],
+  ['design-system', 'auto', 'ui, design, theme, dark mode, color, style, layout, landing', 'Define colors, gradients and shadows as semantic tokens in global CSS and theme components through variants; never hardcode colour utilities. Commit to one distinctive direction, avoid generic fonts and purple gradients, and check mobile and desktop views.'],
+  ['auth-flows', 'auto', 'sign up, sign in, login, password, oauth, google, session, profile', 'Provide sign-up, sign-in, password reset with a dedicated reset page, visible loading/success/specific errors. OAuth redirects use the same-origin public URL, then navigate after the session hydrates. Create profiles via an auth trigger and test it.'],
+  ['seo-metadata', 'auto', 'seo, meta, title, og, share, sitemap', 'Each route gets a unique title, description, og:title, og:description, og:type and twitter:card; og:image only with an absolute URL of the shown image.'],
+] as const;
+export const platformSkillLibrary = platform.map(([slug, activation, triggers, body]) => ({
+  name: `forge-${slug}`, category: 'Platform', description: triggers, repository: 'Forge bundled original instructions', version: '1.0.0',
+  license: 'MIT', installationStatus: 'bundled', securityStatus: 'instructions-only', compatibility: 'Forge',
+  dependencies: [] as string[], lastUpdate: '2026-11-03', verificationStatus: 'bundled-original', references: [] as string[],
+  instructions: `---\nactivation: ${activation}\ntriggers: [${triggers}]\nversion: 1.0.0\n---\n# ${slug}\n${body}`,
+}));
+
 export type SkillRegistry = {
   category: string; repository: string; version: string; license: string; licensePath: string | null;
   securityStatus: 'blocked' | 'review-required' | 'instructions-only'; verificationStatus: 'blocked' | 'verified' | 'local';

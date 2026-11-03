@@ -894,10 +894,10 @@ export const Route = createFileRoute("/api/agent")({
 
         // Project instructions from the repo + the user's enabled skills.
         const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions, source, registry").eq("user_id", u.user.id).eq("enabled", true);
-        const { freeSkillLibrary, skillUsable } = await import("@/lib/free-skills");
+        const { freeSkillLibrary, platformSkillLibrary, skillUsable } = await import("@/lib/free-skills");
         const { agentSkills } = await import("@/lib/agent-skills");
         if (skillsError) return new Response("Could not load your saved skills. Please retry.", { status: 503 });
-        const builtInSkills = [deploymentSkill, previewDiagnosisSkill, ...freeSkillLibrary];
+        const builtInSkills = [deploymentSkill, previewDiagnosisSkill, ...platformSkillLibrary, ...freeSkillLibrary];
         const builtInNames = new Set(builtInSkills.map((skill) => skill.name.toLowerCase()));
         const allSkills = [...builtInSkills, ...(skills ?? []).filter((skill) => !builtInNames.has(skill.name.toLowerCase()) && skillUsable(skill))];
         const metas = allSkills.map((sk) => parseSkill(sk.name, sk.instructions));
