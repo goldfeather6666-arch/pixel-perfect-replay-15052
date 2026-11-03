@@ -1,5 +1,6 @@
 import { contractFor, contractText } from "@/lib/engine/delegation";
 import { liveMemories, memoryLine, reviewMemory, MEMORY_TYPES } from "@/lib/engine/memory-types";
+import { assessRun } from "@/lib/engine/evaluation";
 import { brokerTools, ToolLedger } from "@/lib/engine/tool-broker";
 import { masterPromptIds, render as renderPrompts, ROLE_PROMPTS } from "@/lib/engine/prompts";
 import { hasE2b } from "@/lib/e2b-pool";
@@ -20,7 +21,7 @@ import { serializeBy } from "@/lib/branch-write-queue";
 import { sharedReads } from "@/lib/shared-reads";
 import { asAutonomy, deployAllowed, migrationNeedsApproval, writeNeedsApproval } from "@/lib/engine/autonomy";
 import { costUsd, estimateTokens, fitToBudget, modelCaps } from "@/lib/engine/model-registry";
-import { finalStage } from "@/lib/engine/lifecycle";
+import { finalStage, type Stage } from "@/lib/engine/lifecycle";
 import { contentHash, parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import type { Recorder } from "@/lib/engine/recorder.server";
 import { WORKER_REPORT_INSTRUCTIONS } from "@/lib/engine/worker-report";
@@ -233,6 +234,7 @@ export const Route = createFileRoute("/api/agent")({
         if (hasE2b()) warm = sbxRun("true").catch(() => null);
         void tree().catch(() => {});
         const ledger = new ToolLedger(sessionId);
+        let previewReady = false;
         const brokerHooks = { onAmbiguous: (e: { name: string; risk: string; state: string }, kind: string) => rec.event("tool.ambiguous", { tool: e.name, risk: e.risk, sideEffect: e.state, failure: kind }) };
         const tools = {
           list_files: tool({
@@ -481,6 +483,7 @@ export const Route = createFileRoute("/api/agent")({
               const m = await import("@/lib/preview-manager.server");
               const started = await serializeBy(`sandbox:${sessionId}`, () => m.startPreview(sb, sbxSession, ghToken, { ...(command ? { command } : {}), ...(port ? { port } : {}), runId: rec?.runId ?? null }));
               const st = await m.waitReady(sb, started as never);
+              if (st.status === "ready") previewReady = true;
               return { status: st.status, framework: st.framework, port: st.port, command: st.command, http: (st.process as { last_http?: number })?.last_http ?? null, log_tail: st.status === "ready" ? undefined : st.logTail?.slice(-2500), note: st.status === "ready" ? "Ready and HTTP health check passed. The user can open it in the Preview tab." : "Not ready. Read the log tail, fix the cause, then call preview_restart or preview_start." };
             },
           }),
@@ -1146,7 +1149,9 @@ export const Route = createFileRoute("/api/agent")({
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 const costBreakdown = Object.entries(usageByModel).map(([model, tokens]) => ({ model, input: tokens.input, output: tokens.output, costUsd: costUsd(modelCaps(model), tokens) }));
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);
-                await rec.finish({ steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
+                const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: !!quality.changed && !plan, checksAttempted: !!quality.localAttempted, checksPassed: !!quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
+                rec.event("outcome.assessed", outcome);
+                await rec.finish({ outcome, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
                 }
               }
