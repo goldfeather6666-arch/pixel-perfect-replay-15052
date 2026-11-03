@@ -9,9 +9,9 @@ export type Measured = Partial<Record<BudgetMetric, number | null>>;
 export type Violation = { metric: BudgetMetric; limit: number; actual: number; hint: string };
 export type BudgetResult = { ok: boolean; violations: Violation[]; unmeasured: BudgetMetric[]; checked: BudgetMetric[] };
 
-const METRICS: BudgetMetric[] = ["lcpMs", "cls", "jsKb", "cssKb", "totalKb"];
+export const METRICS: BudgetMetric[] = ["lcpMs", "cls", "jsKb", "cssKb", "totalKb"];
 
-const HINT: Record<BudgetMetric, string> = {
+export const HINT: Record<BudgetMetric, string> = {
   lcpMs: "Serve the largest above-the-fold image early (fetchpriority=high, no lazy-load on it), defer non-critical JS, and preconnect to the origin that serves it.",
   cls: "Give every image, embed and ad slot explicit width/height or aspect-ratio, and reserve space for fonts with size-adjust or font-display: optional.",
   jsKb: "Code-split the heaviest route, lazy-load below-the-fold components, and check for a dependency that only a small part of the app uses.",
@@ -19,7 +19,7 @@ const HINT: Record<BudgetMetric, string> = {
   totalKb: "Trim the whole payload: code-split the largest route, replace a heavy dependency, and lazy-load anything below the fold.",
 };
 
-const LABEL: Record<BudgetMetric, string> = {
+export const LABEL: Record<BudgetMetric, string> = {
   lcpMs: "largest contentful paint",
   cls: "cumulative layout shift",
   jsKb: "JavaScript payload",
