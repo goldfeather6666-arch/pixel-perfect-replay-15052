@@ -9,7 +9,7 @@ import { NightModeToggle } from "@/components/AppearanceProvider";
 const NAV = [
   { to: "/app", label: "Workspace", icon: LayoutDashboard },
   { to: "/skills", label: "Skills", icon: BookOpen },
-  { to: "/settings", label: "Connections", icon: Settings },
+  { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function AppHeader({ children }: { children?: ReactNode }) {
