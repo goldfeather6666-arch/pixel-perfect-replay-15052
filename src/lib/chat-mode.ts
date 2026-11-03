@@ -60,7 +60,7 @@ export function chatBranchContext(b: BranchState): string {
   return lines.join("\n");
 }
 
-/** True when a chat reply claims an action the mode cannot perform — used to correct the answer honestly. */
+/** True when a chat reply claims past-tense work this mode cannot perform (it has no write, shell or deploy tools). */
 export function chatOverclaim(text: string): boolean {
-  return /\b(?:i (?:have |')?(?:written|wrote|edited|updated|created|deleted|fixed|implemented|committed|pushed|deployed|published)|i (?:have |')?ran |preview (?:is )?(?:ready|live)|deployment (?:is )?(?:live|ready))\b/i.test(text);
+  return /\bi(?:'ve| have| had)?\s+(?:written|wrote|edited|updated|created|deleted|fixed|implemented|refactored|committed|pushed|deployed|published|ran|tested|verified|previewed)\b/i.test(text);
 }
