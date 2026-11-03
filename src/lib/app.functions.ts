@@ -391,7 +391,7 @@ export const getDiff = createServerFn({ method: "POST" })
 
 export const resolvePending = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional(), paths: z.array(z.string()).max(500).optional() }))
+  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional(), paths: z.array(z.string()).max(500).optional(), edits: z.record(z.string(), z.string().max(2_000_000)).optional() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
     const results: string[] = [];
@@ -401,7 +401,10 @@ export const resolvePending = createServerFn({ method: "POST" })
       const gh = await github(context, s.accounts);
       for (const c of chosen) {
         const msg = data.message || `agent: ${c.action} ${c.path}`;
-        if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, c.content ?? "", msg);
+        // `edits` carries per-hunk review results: the user accepted only some hunks.
+        const content = data.edits && c.path in data.edits ? data.edits[c.path]! : (c.content ?? "");
+        if (c.action === "write") await gh.putFile(s.repo, s.work_branch, c.path, content, msg);
+        else if (data.edits && c.path in data.edits) await gh.putFile(s.repo, s.work_branch, c.path, content, msg);
         else await gh.deleteFile(s.repo, s.work_branch, c.path, msg);
         results.push(c.path);
       }
