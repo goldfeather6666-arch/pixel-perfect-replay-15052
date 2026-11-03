@@ -49,8 +49,12 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
     }
     if (raw.startsWith("+++ ")) {
       seenNew = raw.slice(4).trim();
-      if (seenNew === "/dev/null" && cur) {
-        cur.isDeleted = true; cur.isNew = false; cur.oldPath = stripPrefix(seenOld);
+      if (seenNew === "/dev/null") {
+        if (cur) { cur.isDeleted = true; cur.isNew = false; cur.oldPath = stripPrefix(seenOld); }
+        else if (seenOld && seenOld !== "/dev/null") {
+          cur = { oldPath: stripPrefix(seenOld), newPath: "", isNew: false, isDeleted: true, isRename: false, hunks: [], additions: 0, deletions: 0 };
+          files.push(cur);
+        }
       } else if (cur) {
         cur.newPath = stripPrefix(seenNew);
         if (!cur.oldPath) cur.oldPath = stripPrefix(seenOld);
