@@ -728,7 +728,11 @@ export const Route = createFileRoute("/api/agent")({
             execute: async ({ path }) => {
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
-              return row ? await m.checkRoute(row, path) : { error: "No preview started" };
+              if (!row) return { error: "No preview started" };
+              const probe = await m.checkRoute(row, path);
+              // Recorded so the verification-first evidence table can show this route was really probed.
+              rec.event("route.probe", { path: probe.path ?? path, status: probe.status ?? 0, ok: !!probe.ok });
+              return probe;
             },
           }),
           quality_score: tool({
@@ -1482,10 +1486,10 @@ export const Route = createFileRoute("/api/agent")({
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);
                 const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: !!quality.changed && !plan, checksAttempted: !!quality.localAttempted, checksPassed: !!quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
                 rec.event("outcome.assessed", outcome);
-                // Cross-project failure intelligence: this session's own post-run report, built from
-                // what it actually recorded — time, rework ratio, human interventions, failure mode.
-                const { buildRunReport } = await import("@/lib/run-report.server");
-                const report = await buildRunReport(sb, {
+                // Verification-first handoff + failure intelligence: both come from what this run
+                // actually recorded — never from what the model claims it did.
+                const { buildRunSummary } = await import("@/lib/run-report.server");
+                const summary = await buildRunSummary(sb, {
                   runId: rec.runId,
                   sessionId,
                   stage: rec.stage,
@@ -1501,10 +1505,12 @@ export const Route = createFileRoute("/api/agent")({
                   durationMs: Date.now() - prepStart,
                   steps: stepsDone,
                   blocker: runOutcome.blocker,
+                  criteria: (lastSpec?.spec as { acceptance_criteria?: string[] } | undefined)?.acceptance_criteria ?? [],
                   priorContext: { repoMemory: !!memoryNotes, typedMemories: typedMem.length, projectDoc: !!projectDoc, history: history.length },
                 }).catch(() => null);
-                if (report) rec.event("run.report", report as unknown as Record<string, unknown>);
-                await rec.finish({ outcome, failure: report, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
+                if (summary?.report) rec.event("run.report", summary.report as unknown as Record<string, unknown>);
+                if (summary?.table.length) rec.event("verification.table", { rows: summary.table });
+                await rec.finish({ outcome, failure: summary?.report ?? null, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
                 }
               }
