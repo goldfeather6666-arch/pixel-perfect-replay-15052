@@ -1,6 +1,25 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { BookOpen, LayoutDashboard, LogOut, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+
+function ProfileBadge() {
+  const [label, setLabel] = useState({ initials: "", title: "Profile" });
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const u = data.user;
+      if (!u) return;
+      const name = String(u.user_metadata?.["full_name"] || u.email || "");
+      const initials = name.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
+      setLabel({ initials, title: `Profile — ${u.email ?? name}` });
+    });
+  }, []);
+  return (
+    <Link to="/settings" search={{ tab: "profile" }} aria-label="Profile" title={label.title}
+      className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-primary hover:ring-2 hover:ring-ring">
+      {label.initials || "·"}
+    </Link>
+  );
+}
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import forgeMark from "@/assets/forge-mark.png";
@@ -31,6 +50,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
         ))}
       </nav>
       <NightModeToggle />
+      <ProfileBadge />
       <Button variant="ghost" size="icon" aria-label="Sign out" title="Sign out" className="size-9 shrink-0 rounded-lg"
         onClick={async () => { await supabase.auth.signOut(); nav({ to: "/auth" }); }}>
         <LogOut className="size-4" />

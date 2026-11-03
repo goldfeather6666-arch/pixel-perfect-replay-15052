@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowUpRight, Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck, Trash2 } from "lucide-react";
 import { PromptAssistance } from "@/components/PromptAssistance";
 import forgeMark from "@/assets/forge-mark.png";
 
@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModelSelect } from "@/components/ModelPicker";
-import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
+import { createRepo, createSession, deleteSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { taskRunStatus } from "@/lib/task-run-status";
@@ -87,6 +87,13 @@ function Dashboard() {
   const [newDesc, setNewDesc] = useState("");
   const [newPrivate, setNewPrivate] = useState(true);
   const qc = useQueryClient();
+  const removeSession = useServerFn(deleteSession);
+  const [deleting, setDeleting] = useState<{ id: string; title: string; running: boolean } | null>(null);
+  const deleteM = useMutation({
+    mutationFn: (id: string) => removeSession({ data: { id } }),
+    onSuccess: async () => { setDeleting(null); toast.success("Project deleted"); await qc.invalidateQueries({ queryKey: ["sessions"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const createRepoM = useMutation({
     mutationFn: () => makeRepo({ data: { name: newName.trim(), description: newDesc, private: newPrivate, ...ghData } }),
     onSuccess: async (r) => {
@@ -263,7 +270,12 @@ function Dashboard() {
           {!sessions.isLoading && !sessions.error && sessions.data && sessions.data.length > 0 && shown.length === 0 && <div className="panel p-5 text-center text-sm"><p className="font-medium">No matching projects</p><p className="mt-1 text-xs text-muted-foreground">Try another search or clear the current filter.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { setQ(""); setFilter("all"); }}>Clear filters</Button></div>}
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map(({ s, st, kind }) => (
-              <li key={s.id} className="min-w-0">
+              <li key={s.id} className="relative min-w-0">
+                <Button type="button" variant="ghost" size="icon" aria-label={`Delete ${s.title}`} title="Delete project"
+                  className="absolute bottom-3 right-3 z-10 size-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => setDeleting({ id: s.id, title: s.title, running: kind === "running" })}>
+                  <Trash2 className="size-4" />
+                </Button>
                 <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-lg border bg-card p-5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.title}</span>
@@ -283,6 +295,17 @@ function Dashboard() {
           </ul>
         </section>
       </main>
+      <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !deleteM.isPending) setDeleting(null); }}>
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-5">
+          <DialogTitle>Delete “{deleting?.title}”?</DialogTitle>
+          <DialogDescription>This removes the project and its chat history from Forge. Your GitHub repository, branches and commits stay untouched.</DialogDescription>
+          {deleting?.running && <p role="alert" className="text-sm text-destructive">This project is running. Stop it first from its workspace.</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={deleteM.isPending}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteM.isPending || deleting?.running} onClick={() => deleting && deleteM.mutate(deleting.id)}>{deleteM.isPending ? "Deleting…" : "Delete project"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!setupId} onOpenChange={(open) => { if (!open && setupId) void nav({ to: "/s/$id", params: { id: setupId } }); }}>
         <DialogContent className="max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto p-4">
           <DialogTitle>Connect your new project</DialogTitle>

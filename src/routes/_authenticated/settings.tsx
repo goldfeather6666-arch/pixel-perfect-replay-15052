@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ProfileSettings } from "@/components/ProfileSettings";
 import { toast } from "sonner";
 import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
 import { TOKEN_LINKS, hasTokenLink } from "@/lib/token-links";
@@ -19,8 +20,11 @@ import { OwnServerCard } from "@/components/OwnServerCard";
 import { OneClickConnect } from "@/components/OneClickConnect";
 import { pageMeta } from "@/lib/page-meta";
 
+type Tab = "profile" | "ai" | "accounts" | "tools";
+
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: pageMeta("Keys & connections — Forge", "Manage your AI provider keys, GitHub token and external tool connections.") }),
+  head: () => ({ meta: pageMeta("Settings — Forge", "Manage your profile, password, AI provider keys, accounts and tool connections.") }),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["profile", "ai", "accounts", "tools"].includes(String(s["tab"])) ? { tab: s["tab"] as Tab } : {}),
   component: SettingsPage,
 });
 
@@ -38,7 +42,9 @@ function SettingsPage() {
   const [models, setModels] = useState("");
   const [extra, setExtra] = useState("");
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"ai" | "accounts" | "tools">("ai");
+  const initialTab = Route.useSearch().tab;
+  const [tab, setTab] = useState<Tab>(initialTab ?? "ai");
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
   const ACCOUNT = ["github", "supabase", "vercel"];
   /** The Accounts tab always edits a real account service, never a leftover AI provider. */
   const svc = tab === "accounts" && !ACCOUNT.includes(provider) ? ("github" as ProviderId) : provider;
@@ -80,19 +86,19 @@ function SettingsPage() {
   });
 
   const meta = AI_PROVIDERS.find((p) => p.id === svc);
-  const pickTab = (t: "ai" | "accounts" | "tools") => { setTab(t); if (t === "ai" && ACCOUNT.includes(provider)) setProvider("openai"); if (t === "accounts" && !ACCOUNT.includes(provider)) setProvider("github" as ProviderId); };
+  const pickTab = (t: Tab) => { setTab(t); if (t === "ai" && ACCOUNT.includes(provider)) setProvider("openai"); if (t === "accounts" && !ACCOUNT.includes(provider)) setProvider("github" as ProviderId); };
   const shown = creds.data?.filter((c) => (tab === "accounts") === ACCOUNT.includes(c.provider)).filter((c) => `${c.label} ${providerName(c.provider)} ${c.base_url ?? ""} ${c.last4}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <div className="min-h-screen">
       <AppHeader><span className="text-sm text-muted-foreground">Settings</span></AppHeader>
       <main className="mx-auto max-w-4xl space-y-5 p-3 sm:space-y-7 sm:p-6 lg:p-8">
-        <div className="flex gap-1 rounded-lg border bg-card p-1 text-sm" role="tablist">
-          {([["ai", "AI models"], ["accounts", "Accounts"], ["tools", "Tools & skills"]] as const).map(([k, label]) => (
+        <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 text-sm" role="tablist">
+          {([["profile", "Profile"], ["ai", "AI models"], ["accounts", "Accounts"], ["tools", "Tools & skills"]] as const).map(([k, label]) => (
             <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => pickTab(k)} className={`flex-1 rounded-md px-3 py-2 ${tab === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
           ))}
         </div>
-        {tab === "tools" ? (
+        {tab === "profile" ? <ProfileSettings /> : tab === "tools" ? (
           <>
             <section className="rounded-lg border bg-card p-5">
               <h2 className="font-semibold">Skills</h2>
