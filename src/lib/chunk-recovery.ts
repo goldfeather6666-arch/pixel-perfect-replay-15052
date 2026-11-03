@@ -25,6 +25,22 @@ export function isStaleModuleExportError(error: unknown) {
   return /does not provide an export named/i.test(message);
 }
 
+/**
+ * A dev/preview server that restarts mid-request answers with an aborted socket or a 500. The same
+ * call a moment later normally succeeds, so reads retry these instead of landing in a hard error
+ * state that leaves a panel empty until the user refreshes by hand.
+ */
+export function isTransientServerError(error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message) : "";
+  return /aborted|returned 500|Internal Server Error|Failed to fetch|NetworkError|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up/i.test(message);
+}
+
+/** react-query options: retry only what a restarting server can still serve, and stop after three tries. */
+export const transientRetry = {
+  retry: (failureCount: number, error: unknown) => isTransientServerError(error) && failureCount < 3,
+  retryDelay: (attempt: number) => Math.min(400 * (attempt + 1), 2000),
+};
+
 export function isRecoverableModuleError(error: unknown) {
   return isChunkLoadError(error) || isStaleReactModuleError(error) || isStaleServerFunctionError(error) || isStaleModuleExportError(error);
 }
