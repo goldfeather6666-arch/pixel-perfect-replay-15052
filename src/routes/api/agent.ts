@@ -30,6 +30,7 @@ import { effectiveProfile, profilePolicy, reasoningOptions, routeModel, routingS
 import { actionFollowThrough, ACTION_FOLLOW_THROUGH } from "@/lib/engine/action-follow-through";
 import { vercelBuildFindings, reviewBuildFindings, type BuildFinding } from "@/lib/vercel-build-review";
 import { secretRequestInput } from "@/lib/project-setup";
+import { CHAT_MODE, CHAT_REMOVED_TOOLS, CHAT_SYSTEM, chatBranchContext, chatOverclaim } from "@/lib/chat-mode";
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
@@ -61,8 +62,6 @@ Repository memory: if <repo_memory> is provided, trust it as your starting map a
 Communication: work silently. Do NOT narrate steps ("Let me look at…", "Now I'll read…") — tool activity is shown to the user separately in a collapsed panel. Write text only for what matters: the final result, an analysis or plan the user asked for, a question you truly need answered, or a critical blocker.
 Finish with a concise summary of what changed and what was not verified.`;
 
-const CHAT_MODE = `\nCHAT MODE: Discuss, explain and answer questions only. No workspace, shell, preview or coding tools exist in this mode; you may read repository files when helpful. Do NOT ask the user to type "yes", "go ahead" or similar to start work — when they want it built, they press the Build button. Keep replies concise.`;
-const CHAT_REMOVED_TOOLS = ["write_file", "write_files", "delete_file", "run_command", "run_checks", "deployment_preflight", "share_file", "request_secret", "apply_migrations", "deploy_status", "review_vercel_issues", "read_proposals", "apply_proposals", "delegate", "preview_start", "preview_diagnose", "preview_status", "preview_logs", "preview_errors", "preview_check_route", "preview_restart", "preview_stop"] as const;
 const PUBLISH_MODE = `\nPUBLISH: The user reviewed the preview and pressed Publish. Do not change features. Run deployment_preflight (check), fix only build-breaking errors, then call deploy_status to deploy the current commit and report the live URL.`;
 const PLAN_MODE = `\nPLAN MODE: Do NOT write, delete, or stage any files. Investigate with read-only tools, then reply with a numbered implementation plan (files to change, approach, risks, how you will verify). End by asking the user to approve the plan.`;
 
@@ -235,6 +234,15 @@ export const Route = createFileRoute("/api/agent")({
         // Chat mode is pure conversation: never start or warm a workspace container.
         if (hasE2b() && !chat) warm = sbxRun("true").catch(() => null);
         void tree().catch(() => {});
+        // Chat reviews need the work-in-progress picture, not just the branch tip.
+        const branchNote: Promise<string> = chat
+          ? (async () => {
+              const base = (s as { base_branch?: string }).base_branch || "main";
+              const c = await gh.compare(repo, base, branch).catch(() => null);
+              if (!c) return "";
+              return chatBranchContext({ base, head: branch, aheadBy: c.ahead_by, commits: c.commits, files: c.files, staged: pending.map((p) => ({ path: p.path, action: p.action })) });
+            })()
+          : Promise.resolve("");
         const ledger = new ToolLedger(sessionId);
         let previewReady = false;
         const brokerHooks = { onAmbiguous: (e: { name: string; risk: string; state: string }, kind: string) => rec.event("tool.ambiguous", { tool: e.name, risk: e.risk, sideEffect: e.state, failure: kind }) };
@@ -308,6 +316,19 @@ export const Route = createFileRoute("/api/agent")({
               };
               await Promise.all(Array.from({ length: 2 }, worker));
               return { scanned: files.length, totalFiles: (await tree()).length, hits };
+            },
+          }),
+          recent_changes: tool({
+            description: "Show what this task branch changed: commits ahead of its base branch, changed files, and uncommitted changes awaiting approval. Read-only — use it to review work in progress.",
+            inputSchema: z.object({ detail: z.enum(["files", "patches"]).default("files") }),
+            execute: async ({ detail }) => {
+              const base = (s as { base_branch?: string }).base_branch || "main";
+              const c = await gh.compare(repo, base, branch).catch(() => null);
+              if (!c) return { error: "Could not compare the task branch with its base branch." };
+              const staged = pending.map((p) => ({ path: p.path, action: p.action }));
+              const commits = c.commits.map((x) => x.message.split("\n")[0].slice(0, 120));
+              if (detail === "patches") return { base, head: branch, ahead_by: c.ahead_by, commits, files: c.files.map((f) => ({ filename: f.filename, status: f.status, patch: f.patch.slice(0, 4000) })), staged };
+              return { base, head: branch, ahead_by: c.ahead_by, commits, files: c.files.map((f) => ({ filename: f.filename, status: f.status })), staged };
             },
           }),
           write_file: tool({
