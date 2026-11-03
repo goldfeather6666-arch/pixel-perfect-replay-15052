@@ -351,6 +351,27 @@ export const Route = createFileRoute("/api/agent")({
               return { committed: sha.slice(0, 7) };
             },
           }),
+          edit_file: tool({
+            description: "Edit an existing file with exact find/replace blocks (preferred for large files: no full rewrite, no truncation). Each find must match exactly once unless all=true. Read the file first.",
+            inputSchema: z.object({ path: z.string(), edits: z.array(z.object({ find: z.string().min(1), replace: z.string(), all: z.boolean().optional() })).min(1).max(40), commit_message: z.string() }),
+            execute: async ({ path, edits, commit_message }) => {
+              const staged = pending.findLast((p) => p.path === path && p.action === "write");
+              const current = staged?.content ?? await readCurrent(path, true);
+              if (current == null) return { error: "File does not exist; use write_file to create it." };
+              const r = applyEdits(current, edits);
+              if (!r.ok) return { error: r.error };
+              if (supervised || writeNeedsApproval(autonomy, { path, action: "write", content: r.content, original: current })) {
+                if (staged) staged.content = r.content;
+                else pending.push({ path, action: "write", content: r.content, original: current });
+                invalidateChecks();
+                return { staged: true, replaced: r.replaced, note: "Staged for user approval." };
+              }
+              const sha = await gh.putFile(repo, branch, path, r.content, commit_message);
+              invalidateChecks();
+              treeCache = null;
+              return { committed: sha.slice(0, 7), replaced: r.replaced };
+            },
+          }),
           write_files: tool({
             description: "Create or overwrite several files (2–30) with complete new content in ONE commit. Much faster than repeated write_file; prefer it whenever you change more than one file.",
             inputSchema: z.object({ files: z.array(z.object({ path: z.string().min(1), content: z.string() })).min(1).max(30), commit_message: z.string() }),
@@ -791,6 +812,21 @@ export const Route = createFileRoute("/api/agent")({
                       proposals.set(proposalId, { id: proposalId, path, content, original: originals.get(path) ?? null, label: job.label });
                       if (!submitted.includes(proposalId)) submitted.push(proposalId);
                       return { proposalId, path, note: "Awaiting master review; not saved to repository." };
+                    },
+                  }), propose_edit: tool({
+                    description: "Submit exact find/replace edits for an assigned file you already read (preferred for large existing files); no repository write occurs.",
+                    inputSchema: z.object({ path: z.string(), edits: z.array(z.object({ find: z.string().min(1), replace: z.string(), all: z.boolean().optional() })).min(1).max(40) }),
+                    execute: async ({ path, edits }) => {
+                      runAbort.signal.throwIfAborted();
+                      if (!ownsPath(job.paths, path)) return { error: "File is not assigned to this coder." };
+                      if (!originals.has(path)) return { error: "Read the full file first." };
+                      const proposalId = `${id}:${path}`;
+                      const baseText = proposals.get(proposalId)?.content ?? originals.get(path) ?? "";
+                      const r = applyEdits(baseText, edits);
+                      if (!r.ok) return { error: r.error };
+                      proposals.set(proposalId, { id: proposalId, path, content: r.content, original: originals.get(path) ?? null, label: job.label });
+                      if (!submitted.includes(proposalId)) submitted.push(proposalId);
+                      return { proposalId, path, replaced: r.replaced, note: "Awaiting master review; not saved to repository." };
                     },
                   }) };
                   const routed = modelFor(job.role);
