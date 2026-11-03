@@ -1032,7 +1032,7 @@ export const Route = createFileRoute("/api/agent")({
                   const toolChoice = dispatchToolChoice(stepNumber + usedSteps, delegated, parallelFirst);
                   // Live chat: messages the user sent while this run works are folded in before every step.
                   const { data: fresh } = await sb.rpc("consume_session_interjections", { _session: sessionId }).then((r) => r, () => ({ data: null }));
-                  for (const row of (fresh ?? []) as { content: string }[]) { liveChat.push(row.content); send({ t: "interjection", d: row.content }); }
+                  for (const row of (fresh ?? []) as { content: string }[]) { liveChat.push(row.content); }
                   const extra = liveChat.length ? { messages: [...stepMessages, { role: "user" as const, content: `Messages the user sent while you were working (newest last). Read them now: answer questions briefly in your next reply and adjust the work if they change direction, then continue.\n${liveChat.map((m, i) => `${i + 1}. ${m}`).join("\n")}` }] } : {};
                   const choice = toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : {};
                   return { ...extra, ...choice };
