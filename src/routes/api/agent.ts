@@ -1472,7 +1472,10 @@ export const Route = createFileRoute("/api/agent")({
                     const ms = rec.since(`tool:${part.toolCallId}`);
                     rec.tool(part.toolName, ms, okFinal);
                     const classified = okFinal ? null : rec.error(`tool:${part.toolName}`, summary);
-                    rec.event("tool.execution.completed", { id: part.toolCallId, tool: part.toolName, ok: okFinal, ms, ...(classified ? { category: classified.category, summary: classified.message.slice(0, 200) } : {}) });
+                    const inp = (log?.input ?? {}) as Record<string, unknown>;
+                    const files = Array.isArray(inp["files"]) ? (inp["files"] as { path?: string }[]).map((f) => f?.path).filter(Boolean).join(", ") : "";
+                    const target = String(inp["path"] ?? (files || (inp["query"] ?? inp["pattern"] ?? inp["command"] ?? inp["url"] ?? inp["name"] ?? inp["task"] ?? ""))).replace(/\s+/g, " ").slice(0, 160);
+                    rec.event("tool.execution.completed", { id: part.toolCallId, tool: part.toolName, ok: okFinal, ms, ...(target ? { target } : {}), ...(classified ? { category: classified.category, summary: classified.message.slice(0, 200) } : {}) });
                   }
                   if (part.toolName === "write_file" || part.toolName === "write_files" || part.toolName === "delete_file") send({ t: "pending", pending });
                 } else if (part.type === "finish-step") {
