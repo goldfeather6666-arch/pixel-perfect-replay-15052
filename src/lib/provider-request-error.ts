@@ -32,6 +32,13 @@ function safeReason(message: string): string {
 
 export function providerRequestError(error: unknown): string {
   const e = unwrapProviderError(error);
+  const reason = safeReason(String(e?.message ?? ""));
+  if (/no longer available|deprecated|not found for API version|model.*(does not exist|not found)/i.test(reason) || e?.statusCode === 404) {
+    return `The AI provider says this model can't be used${reason ? `: “${reason}”` : ""}. Pick another model with the model picker and resend.`;
+  }
+  if (e?.statusCode === 503 || e?.statusCode === 529 || /high demand|overloaded|temporarily unavailable|unavailable/i.test(reason)) {
+    return `The AI provider is overloaded right now${reason ? `: “${reason}”` : ""}. Forge retried automatically. Wait a minute and resend, or pick another model.`;
+  }
   if (e?.statusCode === 400 || /^bad request$/i.test(e?.message ?? "")) {
     return "The AI provider rejected the model request (400), after Forge accepted your prompt. Check the exact model ID, custom request options, and whether the model supports tools and this context size. No work completed; your prompt remains in the conversation.";
   }
@@ -45,13 +52,6 @@ export function providerRequestError(error: unknown): string {
   if (e?.statusCode === 401 || e?.statusCode === 403) {
     const reason = String(e?.message ?? "").replace(/\s+/g, " ").replace(/(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "[key]").slice(0, 240);
     return `The AI provider refused this API key (${e.statusCode})${reason ? `: “${reason}”` : ""}. Update or replace the key in Settings, or switch this task to another key with the model picker, then resend.`;
-  }
-  const reason = safeReason(String(e?.message ?? ""));
-  if (/no longer available|deprecated|not found for API version|model.*(does not exist|not found)/i.test(reason) || e?.statusCode === 404) {
-    return `The AI provider says this model can't be used${reason ? `: “${reason}”` : ""}. Pick another model with the model picker and resend.`;
-  }
-  if (e?.statusCode === 503 || e?.statusCode === 529 || /high demand|overloaded|temporarily unavailable|unavailable/i.test(reason)) {
-    return `The AI provider is overloaded right now${reason ? `: “${reason}”` : ""}. Forge retried automatically. Wait a minute and resend, or pick another model.`;
   }
   return "The agent request failed. Check the provider connection and try again after resolving the issue.";
 }
