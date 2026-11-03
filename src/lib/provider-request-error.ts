@@ -1,3 +1,4 @@
+import { googleQuotaMessage } from "./google-quota";
 export function modelConfigurationError(baseUrl: string | null, model: string): string | null {
   let host: string;
   try { host = new URL(baseUrl ?? "").hostname; } catch { return null; }
@@ -18,6 +19,8 @@ export function providerRequestError(error: unknown): string {
   if (e?.statusCode === 400 || /^bad request$/i.test(e?.message ?? "")) {
     return "The AI provider rejected the model request (400), after Forge accepted your prompt. Check the exact model ID, custom request options, and whether the model supports tools and this context size. No work completed; your prompt remains in the conversation.";
   }
+  const gq = googleQuotaMessage(String(e?.message ?? ""));
+  if (gq) return gq;
   if (isRateLimit(e)) {
     return "The AI provider's rate limit was reached (usually a cap on generated tokens per minute). Everything done so far is saved — wait a few minutes and send “continue”.";
   }
