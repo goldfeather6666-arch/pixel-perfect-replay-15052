@@ -12,6 +12,8 @@ function onDataError(error: unknown) {
 export const getRouter = () => {
   const queryClient = new QueryClient({
     queryCache: new QueryCache({ onError: onDataError }),
+    // Reuse fresh data when moving between pages instead of refetching everything on each visit.
+    defaultOptions: { queries: { staleTime: 30_000, gcTime: 5 * 60_000, refetchOnWindowFocus: false } },
     mutationCache: new MutationCache({ onError: onDataError }),
   });
 
@@ -19,6 +21,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    defaultPreload: "intent",
+    defaultPreloadDelay: 40,
     defaultPreloadStaleTime: 0,
   });
 
