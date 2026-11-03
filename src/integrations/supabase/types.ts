@@ -331,6 +331,42 @@ export type Database = {
         }
         Relationships: []
       }
+      change_provenance: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          path: string
+          prompt: string
+          run_id: string | null
+          session_id: string
+          tool: string
+          user_id: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          id?: string
+          path: string
+          prompt?: string
+          run_id?: string | null
+          session_id: string
+          tool?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          path?: string
+          prompt?: string
+          run_id?: string | null
+          session_id?: string
+          tool?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       deploy_oauth_states: {
         Row: {
           created_at: string
