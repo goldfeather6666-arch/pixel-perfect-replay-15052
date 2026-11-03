@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Database, Loader2 } from "lucide-react";
@@ -9,13 +10,13 @@ import { applyMigrations, getIntegrations, getMigrationStatus } from "@/lib/inte
 export function DatabaseApproval({ id, busy }: { id: string; busy: boolean }) {
   const qc = useQueryClient();
   const integrations = useServerFn(getIntegrations);
-  const info = useQuery({ queryKey: ["integrations", id], queryFn: () => integrations({ data: { id } }), refetchInterval: 10000, retry: false, throwOnError: false });
+  const info = useQuery({ queryKey: ["integrations", id], queryFn: () => integrations({ data: { id } }), refetchInterval: 10000, ...transientRetry, throwOnError: false });
   const linked = !!info.data?.supabase_ref;
   const getStatus = useServerFn(getMigrationStatus);
   const apply = useServerFn(applyMigrations);
   const [confirm, setConfirm] = useState(false);
   const [deferred, setDeferred] = useState("");
-  const status = useQuery({ queryKey: ["migrations", id], queryFn: () => getStatus({ data: { id } }), enabled: linked && !busy, refetchInterval: busy ? false : 5000, retry: false, throwOnError: false });
+  const status = useQuery({ queryKey: ["migrations", id], queryFn: () => getStatus({ data: { id } }), enabled: linked && !busy, refetchInterval: busy ? false : 5000, ...transientRetry, throwOnError: false });
   const files = status.data?.pending ?? [];
   const fingerprint = JSON.stringify(files);
   const mutation = useMutation({

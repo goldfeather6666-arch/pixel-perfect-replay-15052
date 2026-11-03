@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Globe, Check, RefreshCw, ExternalLink } from "lucide-react";
@@ -10,7 +11,7 @@ import { addCustomDomain, checkCustomDomain } from "@/lib/project-setup.function
 export function CustomDomainSetup({ taskId, onSend }: { taskId: string; onSend?: (message: string) => void }) {
   const [domain, setDomain] = useState(""); const [saving, setSaving] = useState(false);
   const add = useServerFn(addCustomDomain); const check = useServerFn(checkCustomDomain);
-  const q = useQuery({ queryKey: ["custom-domain", taskId], queryFn: () => check({ data: { taskId } }), refetchInterval: (query) => query.state.data?.state === "configured" ? 60000 : 15000, retry: false, throwOnError: false });
+  const q = useQuery({ queryKey: ["custom-domain", taskId], queryFn: () => check({ data: { taskId } }), refetchInterval: (query) => query.state.data?.state === "configured" ? 60000 : 15000, ...transientRetry, throwOnError: false });
   const d = q.data;
   return <section className="space-y-3 border-t pt-4">
     <h3 className="flex items-center gap-2 font-medium"><Globe className="h-4 w-4" /> Your own domain</h3>
