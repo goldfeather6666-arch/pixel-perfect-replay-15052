@@ -1614,7 +1614,7 @@ export const Route = createFileRoute("/api/agent")({
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 // Web push: reach the owner's devices even after the phone closed the tab.
                 try {
-                  const vapid = process.env.VAPID_PRIVATE_KEY;
+                  const vapid = process.env["VAPID_PRIVATE_KEY"];
                   const { runAlert, sendPush } = await import("@/lib/web-push");
                   const needsInput = (openCount ?? 0) + waitingSecrets + pending.length + (staged?.length ?? 0) > 0;
                   const alert = vapid && !runAbort.signal.aborted ? runAlert(errored ? "FAILED" : rec.stage, needsInput, String((s as any).title ?? message), sessionId) : null;
