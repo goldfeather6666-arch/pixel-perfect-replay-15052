@@ -979,20 +979,14 @@ function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stoppin
   const elapsed = start ? now - start : 0;
   const avg = start && steps > 0 ? elapsed / steps : 0;
   return (
-    <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-      <Loader2 className="h-3 w-3 animate-spin text-primary" />
-      {background ? (
-        <span className="min-w-0 flex-1">{stopping ? "Stopping… saving progress" : `${cloud ? "Running in the cloud" : "Running in browser"} · last update ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "—"} · ${steps} steps done`}</span>
-      ) : (
-        <>
-          <span>Running in browser</span>
-          <span className="font-mono text-foreground">⌛ {mmss(elapsed)}</span>
-          <span>{steps} step{steps === 1 ? "" : "s"} done</span>
-          {avg > 0 && <span>~{Math.round(avg / 1000)}s per step</span>}
-          {avg > 0 && <span>at most ~{Math.ceil(((limit - steps) * avg) / 60000)} min left (step cap {limit}); usually finishes sooner</span>}
-        </>
-      )}
-      <Button type="button" size="sm" variant="outline" className="ml-auto shrink-0" disabled={stopping} onClick={onStop} aria-label="Stop background work"><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop"}</Button>
+    <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2.5 rounded-full border bg-card py-1 pl-3 pr-1 text-xs text-muted-foreground shadow-sm">
+      <span className="relative flex size-2 shrink-0"><span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" /><span className="relative inline-flex size-2 rounded-full bg-primary" /></span>
+      <span className="min-w-0 flex-1 truncate">
+        {stopping ? "Stopping — saving progress" : background
+          ? `${cloud ? "Working in the cloud" : "Working"} · ${steps} steps · updated ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "just now"}`
+          : `Working · ${mmss(elapsed)} · ${steps} step${steps === 1 ? "" : "s"}${avg > 0 ? ` · ≤${Math.ceil(((limit - steps) * avg) / 60000)} min left` : ""}`}
+      </span>
+      <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 rounded-full px-2.5 text-xs" disabled={stopping} onClick={onStop} aria-label="Stop work"><Square className="h-3 w-3 fill-current" />{stopping ? "Stopping…" : "Stop"}</Button>
     </div>
   );
 }
