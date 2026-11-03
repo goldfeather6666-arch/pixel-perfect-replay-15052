@@ -51,7 +51,7 @@ describe("evaluateBudget", () => {
 
   it("treats an unmeasured metric as no evidence, never as passing", () => {
     const r = evaluateBudget({ lcpMs: 2500, jsKb: 200 }, { jsKb: 120 });
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
     expect(r.unmeasured).toEqual(["lcpMs"]);
     expect(formatBudgetResult(r)).toContain("Not measured");
     expect(formatBudgetResult(r)).toContain("largest contentful paint");

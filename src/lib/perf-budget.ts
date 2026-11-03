@@ -75,7 +75,7 @@ export function evaluateBudget(budget: PerfBudget, measured: Measured): BudgetRe
     checked.push(metric);
     if (actual > limit) violations.push({ metric, limit, actual, hint: HINT[metric] });
   }
-  return { ok: violations.length === 0, violations, unmeasured, checked };
+  return { ok: violations.length === 0 && unmeasured.length === 0, violations, unmeasured, checked };
 }
 
 /** One-line report the agent and the chat both read. */
