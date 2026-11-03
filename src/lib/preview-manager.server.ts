@@ -5,6 +5,7 @@ import type { PendingChange } from "./providers";
 import { openTaskBox } from "./sandbox.server";
 import { encryptSecret } from "./crypto.server";
 import { detectFramework, detectPackageManager, devCommand, gatewayBase, installCommand, isHealthy, nextMajor, parseListening, pickPort, type Framework } from "./preview-detect";
+import { isWorkspaceRoot, pickAppDir } from "./project-layout";
 
 const REPO_DIR = "/home/user/repo";
 export const TASK_ENV = "/tmp/forge-task.env";
@@ -200,6 +201,20 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const files = filesRaw.split("\n").map((f) => f.trim()).filter(Boolean);
   let pkg = null;
   try { pkg = JSON.parse(pkgRaw.trim() || "null"); } catch { pkg = null; }
+  // Monorepos: run the dev server from the detected web app folder (apps/web, web, ...); installs stay at the root.
+  let appDir = "";
+  if (isWorkspaceRoot(pkg, files) || !pkg) {
+    const scan = await sh(box, `cd ${REPO_DIR}; for d in apps/* packages/* web app site frontend client; do [ -f "$d/package.json" ] && { echo "@@$d"; ls -A "$d" | tr '\\n' ' '; echo; cat "$d/package.json"; echo; }; done 2>/dev/null`);
+    const candidates = scan.out.split("@@").slice(1).map((chunk) => {
+      const [dir = "", list = "", ...rest] = chunk.split("\n");
+      let cpkg = null;
+      try { cpkg = JSON.parse(rest.join("\n").trim() || "null"); } catch { cpkg = null; }
+      return { dir: dir.trim(), files: list.trim().split(/\s+/), pkg: cpkg };
+    });
+    const picked = pickAppDir({ pkg, files }, candidates);
+    const hit = picked ? candidates.find((c) => c.dir === picked) : undefined;
+    if (hit) { appDir = hit.dir; pkg = hit.pkg; files.push(...hit.files); }
+  }
   const framework = detectFramework(pkg, files);
   const pm = detectPackageManager(files);
   const port = pickPort(parseListening(ssRaw), opts.port);
