@@ -54,7 +54,7 @@ export function BugAutopsy({ id, onReplay }: { id: string; onReplay: (text: stri
                   <pre className="max-h-48 overflow-auto rounded border bg-muted/40 p-2 whitespace-pre-wrap font-mono text-[11px]">{b.minimalRepro}</pre>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void copyText(b.minimalRepro).then((ok) => ok ? undefined : undefined)}><Copy className="size-3.5" /> Copy report</Button>
+                  <Button size="sm" variant="outline" onClick={() => void copyText(b.minimalRepro)}><Copy className="size-3.5" /> Copy report</Button>
                   <Button size="sm" variant="outline" onClick={() => void copyText(b.replayPrompt)}><Copy className="size-3.5" /> Copy replay prompt</Button>
                   <Button size="sm" onClick={() => onReplay(b.replayPrompt)}><Play className="size-3.5" /> Replay this run</Button>
                 </div>
