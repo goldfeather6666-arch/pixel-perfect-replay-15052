@@ -1101,6 +1101,13 @@ export const Route = createFileRoute("/api/agent")({
                 send({ t: "text", d: `\n\n${blocker}` });
                 break;
               }
+              // Chat has no write tools: a reply that claims it changed something is corrected honestly.
+              if (chat && chatOverclaim(text)) {
+                const notice = "\n\nNothing was changed — Chat mode only reads the repository. Press Build to apply this.";
+                text += notice;
+                rec.event("chat.overclaim_corrected", { steps: usedSteps });
+                send({ t: "text", d: notice });
+              }
               const blocker = publish && !askedThisRun ? qualityBlocker(quality) : null;
               if (blocker && repairRound < 3 && !exhausted && !runAbort.signal.aborted) {
                 rec.to("REPAIRING", blocker);
