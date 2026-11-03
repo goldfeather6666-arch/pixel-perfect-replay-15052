@@ -118,9 +118,13 @@ describe('free-only import audit', () => {
     expect(result.candidates[0]?.registry.verificationStatus).toBe('verified');
     expect(result.candidates[0]?.instructions).toContain('activation: manual');
   });
-  it('blocks script-bearing skills pending a complete manual audit', async () => {
+  it('imports instructions from script-bearing skills without installing the scripts', async () => {
     const result = await listSkillCandidates(client({ LICENSE:mit, 'x/SKILL.md':'Write tests.', 'x/scripts/run.py':'print(1)' }), { repo:'acme/test', branch:null, path:null });
-    expect(result.candidates[0]?.registry.verificationStatus).toBe('blocked');
+    expect(result.candidates[0]?.registry.verificationStatus).toBe('verified');
     expect(result.candidates[0]?.registry.dependencies).toContain('x/scripts/run.py');
+  });
+  it('still blocks skills without an open license', async () => {
+    const result = await listSkillCandidates(client({ 'x/SKILL.md':'Write tests.' }), { repo:'acme/test', branch:null, path:null });
+    expect(result.candidates[0]?.registry.verificationStatus).toBe('blocked');
   });
 });
