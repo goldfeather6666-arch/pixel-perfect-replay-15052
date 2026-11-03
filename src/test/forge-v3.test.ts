@@ -85,7 +85,9 @@ describe("routing and team sizing", () => {
   it("small tasks never force a team; large ones do unless speed", () => {
     expect(teamPolicy("small", "balanced").required).toBe(false);
     expect(teamPolicy("large", "balanced").required).toBe(true);
-    expect(teamPolicy("large", "speed").required).toBe(false);
+    expect(teamPolicy("large", "speed").required).toBe(true);
+    expect(teamPolicy("medium", "balanced").required).toBe(true);
+    expect(teamPolicy("medium", "speed").required).toBe(false);
     expect(teamPolicy("small", "deep").maxWorkers).toBe(1);
   });
 });
