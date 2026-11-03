@@ -129,7 +129,11 @@ export function scorePage(html: string, measured: { lcpMs?: number | null; total
     targets: clamp(100 - byArea("targets").reduce((s, f) => s + penalty(f.severity), 0)),
     metadata: clamp(100 - byArea("metadata").reduce((s, f) => s + penalty(f.severity), 0)),
   };
-  const score = clamp(Object.values(grades).reduce((s, g) => s + g, 0) / 6);
+  const average = clamp(Object.values(grades).reduce((s, g) => s + g, 0) / 6);
+  // A blocker caps the whole page: averaging six areas must never let one hide behind good grades.
+  const blockers = findings.filter((f) => f.severity === "blocker").length;
+  const majors = findings.filter((f) => f.severity === "major").length;
+  const score = blockers ? Math.min(average, 40) : majors ? Math.min(average, 70) : average;
   return { score, grades, findings, measured: measuredList };
 }
 
