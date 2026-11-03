@@ -4,14 +4,14 @@
 - [x] Gap report written: docs/forge-v2-gap-report.md
 
 ## Phase 1 — Metrics baseline & telemetry
-- [ ] Baseline capture: start→first-diff, QA gate duration, autonomy rate (recorder metrics exist; add first-diff + gate timers)
+- [x] Baseline capture: start→first-diff, QA gate duration, autonomy rate (recorder metrics exist; add first-diff + gate timers)
 
 ## Phase 2 — Persistent repo index + auto-context
 - [ ] Symbol/file index persisted per repo across sessions
 - [ ] Auto-retrieved context (symbols, call sites) instead of re-reading files
 
 ## Phase 3 — Incremental cache/build layer
-- [ ] Content-hash cache for typecheck/lint/test/build in sandbox
+- [x] Content-hash cache for typecheck/lint/test/build in sandbox
 - [ ] Warm-start preview via E2B snapshot restore (needs paid idle compute decision)
 
 ## Phase 4 — Diff engine + review UI + checkpoints
@@ -21,7 +21,7 @@
 - [x] Intent-grouped multi-file review layout (groupByIntent surfaced in UI)
 
 ## Phase 5 — One-command QA gate
-- [ ] Gate pipeline: typecheck → lint → unit → e2e → visual → axe → Lighthouse
+- [x] Gate pipeline: typecheck → lint → unit → e2e → visual → axe → Lighthouse
 - [x] Evidence-backed reports with measured numbers; failure taxonomy (flaky/regression/config)
 
 ## Phase 6 — Approval UX + auto-PR
