@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Publishable keys are public by design"
+regexes = ['''sb_publishable_[A-Za-z0-9_-]+''', '''sb_publishable_ci_placeholder''']
