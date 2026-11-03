@@ -951,13 +951,17 @@ export const PromptInputBody = ({
 
 export type PromptInputTextareaProps = ComponentProps<
   typeof InputGroupTextarea
->;
+> & {
+  /** When false, Enter inserts a new line; Ctrl/Cmd+Enter still sends. */
+  submitOnEnter?: boolean;
+};
 
 export const PromptInputTextarea = ({
   onChange,
   onKeyDown,
   className,
   placeholder = "What would you like to know?",
+  submitOnEnter = true,
   ...props
 }: PromptInputTextareaProps) => {
   const controller = useOptionalPromptInputController();
@@ -979,6 +983,9 @@ export const PromptInputTextarea = ({
           return;
         }
         if (e.shiftKey) {
+          return;
+        }
+        if (!submitOnEnter && !e.ctrlKey && !e.metaKey) {
           return;
         }
         e.preventDefault();
@@ -1008,7 +1015,7 @@ export const PromptInputTextarea = ({
         }
       }
     },
-    [onKeyDown, isComposing, attachments]
+    [onKeyDown, isComposing, attachments, submitOnEnter]
   );
 
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = useCallback(

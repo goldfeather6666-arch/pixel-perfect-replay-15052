@@ -439,7 +439,8 @@ function Workspace() {
       <AppHeader actions={s ? (
         <>
           <span className="hidden lg:block"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>
-          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3.5 w-3.5" /> Publish</Button>
+          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" disabled={deploying} onClick={() => { void publishNow(); }}><Rocket className="h-3.5 w-3.5" /> {deploying ? "Deploying…" : "Publish"}</Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 rounded-full px-2 text-xs" aria-label="Publish settings" onClick={() => setPublishOpen(true)}>Setup</Button>
         </>
       ) : undefined}>
         {s && (
@@ -573,6 +574,7 @@ function Workspace() {
                                 placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
                 className="max-h-48 min-h-14 px-4 pt-3.5 text-base leading-relaxed md:text-sm"
                 rows={2}
+                submitOnEnter={false}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
               <PromptInputFooter className="gap-1 px-2.5 pb-2.5">
