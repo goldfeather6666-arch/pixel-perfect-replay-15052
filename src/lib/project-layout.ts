@@ -20,7 +20,7 @@ export function pickAppDir(root: { pkg: Pkg; files: string[] }, candidates: AppC
   const rootFw = detectFramework(root.pkg, root.files);
   if (WEB_FRAMEWORKS.includes(rootFw) && !isWorkspaceRoot(root.pkg, root.files)) return "";
   const web = candidates.filter((c) => /^[\w.\-/]+$/.test(c.dir) && WEB_FRAMEWORKS.includes(detectFramework(c.pkg, c.files)));
-  const best = web.find((c) => PREFERRED.test(c.dir)) ?? web.find((c) => c.pkg?.scripts?.dev) ?? web[0];
+  const best = web.find((c) => PREFERRED.test(c.dir)) ?? web.find((c) => c.pkg?.scripts?.["dev"]) ?? web[0];
   if (best) return best.dir;
-  return WEB_FRAMEWORKS.includes(rootFw) || root.pkg?.scripts?.dev ? "" : null;
+  return WEB_FRAMEWORKS.includes(rootFw) || root.pkg?.scripts?.["dev"] ? "" : null;
 }

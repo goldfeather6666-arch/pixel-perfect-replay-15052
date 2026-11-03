@@ -15,3 +15,10 @@
 - [x] Calm header with account menu; slim workspace bar and single-card chat box
 - [x] New landing page
 - [ ] Deeper dashboard, settings and skills page redesign (next pass)
+
+# Improvement plan (8.5 → 9.5)
+- [x] Monorepo app-folder detection for previews
+- [x] Repair malformed tool arguments from smaller models
+- [x] Preview runtime errors already feed auto-repair (capped at 3)
+- [ ] Pre-warmed sandbox pool (needs paid idle compute decision)
+- [ ] Auto-set Vercel root folder from detected app folder
