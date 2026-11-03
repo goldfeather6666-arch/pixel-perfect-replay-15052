@@ -334,6 +334,7 @@ export type Database = {
       change_provenance: {
         Row: {
           action: string
+          blob_sha: string | null
           created_at: string
           id: string
           path: string
@@ -345,6 +346,7 @@ export type Database = {
         }
         Insert: {
           action?: string
+          blob_sha?: string | null
           created_at?: string
           id?: string
           path: string
@@ -356,6 +358,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          blob_sha?: string | null
           created_at?: string
           id?: string
           path?: string
