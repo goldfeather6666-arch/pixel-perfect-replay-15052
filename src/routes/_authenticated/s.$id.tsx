@@ -238,7 +238,7 @@ function Workspace() {
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!stale || running || stopping || manualStopRef.current || sd?.stop_requested || !sd?.updated_at) return;
-    if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
+    if (resumedFor.current === sd.updated_at || autoResumes.current >= 10) return;
     resumedFor.current = sd.updated_at;
     void (async () => {
       const fresh = await session.refetch().then((r) => r.data, () => null);
@@ -322,7 +322,7 @@ function Workspace() {
       if (bg && (await bg.json() as { mode?: string }).mode === "background") {
         accepted = true;
         backgrounded = true;
-        toast.success("Running in the cloud — you can switch apps or lock your phone.");
+        if (!silent) toast.success("Running in the cloud — you can switch apps or lock your phone.");
         return;
       }
       const res = await fetch("/api/agent", {
@@ -374,7 +374,7 @@ function Workspace() {
         if (done) break;
       }
       // A clean EOF is not proof the agent finished: the API emits an explicit done event.
-      if (!receivedDoneEvent && !receivedErrorEvent && !(await followIfStillRunning())) {
+      if (!receivedDoneEvent && !receivedErrorEvent && !(await followIfStillRunning()) && !silent) {
         const detail = "The agent stream ended before completion was confirmed. Your saved progress is preserved; continue from the latest state.";
         setSendError(detail);
         setStreamInterrupted(true);
@@ -383,13 +383,18 @@ function Workspace() {
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         const detail = (err as Error).message;
-        if (!accepted) {
+        if (!accepted && silent) {
+          // Invisible recovery: retry quietly on the next stale check instead of showing an error.
+          setMessages((ms) => { const last = ms.at(-1); return last?.role === "assistant" && !last.content && !last.tools?.length ? ms.slice(0, -1) : ms; });
+          setWaitNote(null);
+          setTimeout(() => { resumedFor.current = null; void session.refetch(); }, 10_000);
+        } else if (!accepted) {
           setSendError(detail);
           toast.error(detail);
           setInput(text);
           setImages(sentImages);
           setMessages((ms) => ms.slice(0, -2));
-        } else if (!(await followIfStillRunning())) {
+        } else if (!(await followIfStillRunning()) && !silent) {
           // Server-side actions may have completed before the stream disconnected.
           // Do not replay the original prompt automatically; offer a safe continuation.
           setSendError(detail);
@@ -542,7 +547,7 @@ function Workspace() {
                 </div>
               )}
               {messages.map((m, i) => (
-                <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
+                isRecoveryMessage(m) ? null : <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
               <McpActionApprovals sessionId={id} chat busy={running || bgRunning || stopping} onResume={(m) => void send(m, false)} />
@@ -571,7 +576,6 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs"><p className="min-w-0 flex-1 text-foreground">No progress update for over 1 minute. Your saved work is safe. {autoResumes.current >= 3 ? "Automatic recovery has reached its limit." : "Forge is refreshing and will reconnect automatically."}</p><Button type="button" size="sm" variant="outline" onClick={() => void session.refetch()} disabled={session.isFetching}>Check status</Button>{autoResumes.current >= 3 && <Button type="button" size="sm" onClick={() => { autoResumes.current = 0; resumedFor.current = null; void send("Continue from the latest saved progress. First inspect the current state and completed work; do not repeat completed steps."); }}>Resume task</Button>}<Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={stopping} onClick={stopWork}><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop run"}</Button></div>}
             {sendError && <div role="alert" className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm"><p className="min-w-0 flex-1 break-words text-destructive">{sendError}</p>{streamInterrupted && <Button type="button" size="sm" variant="outline" disabled={running || bgRunning} onClick={() => void send("The previous response stream disconnected. Inspect the current repository and task state, identify what was completed, then continue only unfinished work. Do not repeat completed actions.")}>Continue from saved progress</Button>}</div>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
@@ -713,7 +717,13 @@ function Workspace() {
   );
 }
 
-function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
+// Recovery is automatic and invisible: hide internal resume prompts and stall notes from the transcript.
+const RECOVERY_USER = /^(continue the previous command from saved progress|continue \(the previous run was cut off|Continue from the latest saved progress\.)/i;
+const RECOVERY_NOTE = /\s*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)/g;
+function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVERY_USER.test(m.content.trim()); }
+
+function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
+  const m = raw.role === "assistant" ? { ...raw, content: raw.content.replace(RECOVERY_NOTE, "").trimEnd() } : raw;
   if (m.role === "user")
     return <Message from="user"><MessageContent className="whitespace-pre-wrap break-words group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground">{m.content}</MessageContent></Message>;
   return (
@@ -723,7 +733,7 @@ function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; se
       {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-      {!live && !m.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
+      {!live && !raw.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
     </Message>
   );
 }
