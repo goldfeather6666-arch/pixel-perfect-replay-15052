@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
+import { parseGateLog } from "@/lib/engine/qa-gate";
 import { checkFailure, deploymentSkill, previewDiagnosisSkill, productionInstructions, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
 import { agentRequest, attachmentPart, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
@@ -447,7 +448,9 @@ export const Route = createFileRoute("/api/agent")({
                   ? "The branch changed during production checks; check the current commit again."
                   : checkFailure(result);
               }
-              return { ...result, commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
+              const gate = phase === "check" && "stdout" in result ? parseGateLog(String(result.stdout ?? ""), String(result.stderr ?? "")) : undefined;
+              if (gate) rec.event("qa.gate", { passed: gate.passed, totalMs: gate.totalMs, failedStep: gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
+              return { ...result, ...(gate ? { gate: { passed: gate.passed, summary: gate.summary, steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
             },
           }),
           share_file: tool({
