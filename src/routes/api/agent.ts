@@ -454,20 +454,23 @@ export const Route = createFileRoute("/api/agent")({
             },
           }),
           remember: tool({
-            description: "Save one durable typed memory for this repository: project (stack/architecture/conventions), preference (the user's stated preferences), decision (choice + reason + rejected alternative), error (bug, root cause, fix, regression risk). One fact per call, max 2000 chars. Never include secrets.",
-            inputSchema: z.object({ category: z.enum(["project", "preference", "decision", "error"]), content: z.string().min(3).max(2000) }),
-            execute: async ({ category, content }) => {
+            description: "Save one durable typed memory (UAF tiers). episodic: outcome/error/decision summary; semantic: validated fact; procedural: reusable workflow proven repeatedly (confidence>=0.8); project: architecture/conventions/dependencies; preference: user's explicit preference. Include source_ref (commit, file, or 'user'). If it contradicts an older memory, pass supersedes with that memory id. One fact per call, max 2000 chars. Never include secrets or unverified claims.",
+            inputSchema: z.object({ category: z.enum([...MEMORY_TYPES, "decision", "error"]), content: z.string().min(3).max(2000), confidence: z.number().min(0).max(1).default(0.8), source_ref: z.string().max(200).optional(), supersedes: z.string().uuid().optional() }),
+            execute: async ({ category, content, confidence, source_ref, supersedes }) => {
               const { redact } = await import("@/lib/engine/errors");
-              const { error } = await sb.from("project_memories").insert({ user_id: u.user.id, repo, category, content: redact(content, 2000), session_id: sessionId });
+              const verdict = reviewMemory({ category, content, confidence });
+              if (verdict.verdict === "REJECT") return { rejected: true, reason: verdict.reason };
+              const { data: row, error } = await sb.from("project_memories").insert({ user_id: u.user.id, repo, category, content: redact(content, 2000), session_id: sessionId, confidence, source_ref: source_ref ?? null, supersedes: supersedes ?? null, expires_at: verdict.expiresAt, validated_at: new Date().toISOString() }).select("id").single();
               if (error) return { error: "Could not save memory" };
-              rec.event("memory.saved", { category });
-              return { saved: true };
+              if (supersedes) await sb.from("project_memories").update({ status: "superseded" }).eq("id", supersedes).eq("user_id", u.user.id).eq("repo", repo);
+              rec.event("memory.saved", { category, superseded: !!supersedes });
+              return { saved: true, id: row?.id, expiresAt: verdict.expiresAt };
             },
           }),
           recall_memory: tool({
             description: "Search all saved typed memories for this repository by topic (the prompt only includes the most relevant 40).",
             inputSchema: z.object({ query: z.string().min(2).max(300), limit: z.number().int().min(1).max(30).default(10) }),
-            execute: async ({ query, limit }) => ({ matches: rankMemories(allMem ?? [], query, limit).map((m) => ({ category: m.category, content: m.content, updated: m.updated_at })) }),
+            execute: async ({ query, limit }) => ({ matches: rankMemories(allMem ?? [], query, limit).map((m) => ({ id: m.id, category: m.category, content: m.content, confidence: m.confidence, source: m.source_ref, updated: m.updated_at })) }),
           }),
           preview_start: tool({
             description: "Start (or reuse) the live preview of this task's branch inside the task sandbox. Framework, package manager, install, dev command and port are detected automatically; pass `command`/`port` only to override. Waits for readiness (up to ~2.5 min) and returns the real status. Never tell the user a preview works unless status is 'ready'. The user sees it in Forge's Preview tab (private by default). This is NOT production.",
