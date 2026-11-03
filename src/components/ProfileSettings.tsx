@@ -18,12 +18,12 @@ export function ProfileSettings() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
-      setName(String(data.user?.user_metadata?.full_name ?? ""));
+      setName(String(data.user?.user_metadata?.["full_name"] ?? ""));
     });
   }, []);
 
   const hasPassword = user?.identities?.some((i) => i.provider === "email") ?? false;
-  const methods = user?.identities?.map((i) => (i.provider === "email" ? "Email" : i.provider[0].toUpperCase() + i.provider.slice(1))).join(", ");
+  const methods = user?.identities?.map((i) => (i.provider === "email" ? "Email" : (i.provider[0] ?? "").toUpperCase() + i.provider.slice(1))).join(", ");
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +44,7 @@ export function ProfileSettings() {
     if (error) return toast.error(error.message);
     setCurrent(""); setPw(""); setPw2("");
     toast.success("Password changed");
+    return undefined;
   }
 
   return (

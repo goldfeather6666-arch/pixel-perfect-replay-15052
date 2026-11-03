@@ -81,6 +81,7 @@ function AuthPage() {
                 if (!email) return toast.error("Enter your email above first.");
                 const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/reset-password" });
                 if (error) toast.error(error.message); else toast.success("Check your email for a reset link.");
+                return undefined;
               }}>Forgot password?</button>
             )}
             <button className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMode(mode === "in" ? "up" : "in")}>

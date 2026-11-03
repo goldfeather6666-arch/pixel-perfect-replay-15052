@@ -42,6 +42,7 @@ function ResetPassword() {
     if (error) return toast.error(error.message);
     toast.success("Password updated");
     nav({ to: "/app" });
+    return undefined;
   }
 
   return (

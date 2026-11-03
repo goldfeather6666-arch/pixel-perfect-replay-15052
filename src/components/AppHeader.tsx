@@ -8,7 +8,7 @@ function ProfileBadge() {
     supabase.auth.getUser().then(({ data }) => {
       const u = data.user;
       if (!u) return;
-      const name = String(u.user_metadata?.full_name || u.email || "");
+      const name = String(u.user_metadata?.["full_name"] || u.email || "");
       const initials = name.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
       setLabel({ initials, title: `Profile — ${u.email ?? name}` });
     });

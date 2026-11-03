@@ -24,7 +24,7 @@ type Tab = "profile" | "ai" | "accounts" | "tools";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: pageMeta("Settings — Forge", "Manage your profile, password, AI provider keys, accounts and tool connections.") }),
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["profile", "ai", "accounts", "tools"].includes(String(s.tab)) ? { tab: s.tab as Tab } : {}),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["profile", "ai", "accounts", "tools"].includes(String(s["tab"])) ? { tab: s["tab"] as Tab } : {}),
   component: SettingsPage,
 });
 
