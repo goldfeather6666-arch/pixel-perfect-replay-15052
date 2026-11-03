@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowUpRight, Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bug, CheckCircle2, CircleDashed, Database, GitBranch, Layers, LayoutTemplate, Plus, Rocket, ShieldCheck, Trash2 } from "lucide-react";
 import { PromptAssistance } from "@/components/PromptAssistance";
 import forgeMark from "@/assets/forge-mark.png";
 
@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ModelSelect } from "@/components/ModelPicker";
-import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
+import { createRepo, createSession, deleteSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { taskRunStatus } from "@/lib/task-run-status";
