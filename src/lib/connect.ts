@@ -1,5 +1,4 @@
-// Pure rules for "Connect & sync": sign-in return links, health steps and the Auto-fix brief.
-import { productionInstructions } from "./deployment-quality";
+// Pure rules for "Connect & sync": sign-in return links and health steps.
 
 export type StepState = "ok" | "warn" | "fail" | "skip";
 export type SyncStep = { key: string; label: string; state: StepState; note: string };
