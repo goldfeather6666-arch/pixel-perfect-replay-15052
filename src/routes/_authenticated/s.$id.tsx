@@ -35,6 +35,7 @@ import { PromptAssistance } from "@/components/PromptAssistance";
 import { MentionPicker } from "@/components/MentionPicker";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import forgeMark from "@/assets/forge-mark.png";
@@ -231,21 +232,27 @@ function Workspace() {
     }
   }
 
-  // A run that dies silently (server cut off) is resumed automatically, at most 3 times per visit.
+  // A run that goes quiet is first re-checked (refresh) and followed if still alive; only a truly dead run is
+  // resumed, silently — no new chat message, the reply continues in the same bubble. At most 3 times per visit.
   const autoResumes = useRef(0);
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!stale || running || stopping || manualStopRef.current || sd?.stop_requested || !sd?.updated_at) return;
     if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
     resumedFor.current = sd.updated_at;
-    autoResumes.current++;
-    toast.info(`The run was cut off — resuming automatically (${autoResumes.current}/3)`);
-    void send("continue (the previous run was cut off; resume from saved progress, avoid repeating finished steps)");
+    void (async () => {
+      const fresh = await session.refetch().then((r) => r.data, () => null);
+      const freshAt = (fresh as { updated_at?: string } | null)?.updated_at;
+      if (fresh?.running && freshAt && freshAt !== sd.updated_at) return; // still alive: keep following
+      if (fresh?.stop_requested || manualStopRef.current) return;
+      autoResumes.current++;
+      void send(RESUME_MESSAGE, undefined, undefined, true);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stale, running, stopping, sd?.updated_at]);
 
 
-  async function send(override?: string, forcePlan?: boolean, publish?: boolean) {
+  async function send(override?: string, forcePlan?: boolean, publish?: boolean, silent = false) {
     let text = (override ?? input).trim();
     if (text && override === undefined && (running || bgRunning)) {
       // Live chat: the running agent reads this before its next step — no waiting, no queue.
@@ -277,7 +284,7 @@ function Workspace() {
     sendLockRef.current = true;
     setSendError(null);
     setStreamInterrupted(false);
-    setWaitNote(null);
+    if (!silent) setWaitNote(null);
     const sentImages = images;
     let accepted = false;
     setInput("");
@@ -285,6 +292,15 @@ function Workspace() {
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
     setRunning(true);
     lastWasPlan.current = !publish && (plan || (forcePlan === undefined && chatMode !== "build"));
+    if (silent) {
+      setWaitNote("Reconnecting to the agent…");
+      setMessages((m) => {
+        const last = m.at(-1);
+        if (last?.role !== "assistant") return [...m, { role: "assistant", content: "", tools: [] }];
+        const cleaned = last.content.replace(/\n*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)\s*$/, "").trimEnd();
+        return [...m.slice(0, -1), { ...last, content: cleaned ? `${cleaned}\n\n` : "" }];
+      });
+    } else
     setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${text}\n\n📎 ${sentImages.map((im) => im.name).join(", ")}` : text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
       setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
@@ -555,7 +571,7 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs"><p className="min-w-0 flex-1 text-foreground">No progress update for over 2 minutes. Your saved work is safe. {autoResumes.current >= 3 ? "Automatic recovery has reached its limit." : "Forge is checking whether the run can recover."}</p><Button type="button" size="sm" variant="outline" onClick={() => void session.refetch()} disabled={session.isFetching}>Check status</Button>{autoResumes.current >= 3 && <Button type="button" size="sm" onClick={() => { autoResumes.current = 0; resumedFor.current = null; void send("Continue from the latest saved progress. First inspect the current state and completed work; do not repeat completed steps."); }}>Resume task</Button>}<Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={stopping} onClick={stopWork}><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop run"}</Button></div>}
+            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs"><p className="min-w-0 flex-1 text-foreground">No progress update for over 2 minutes. Your saved work is safe. {autoResumes.current >= 3 ? "Automatic recovery has reached its limit." : "Forge is refreshing and will reconnect automatically."}</p><Button type="button" size="sm" variant="outline" onClick={() => void session.refetch()} disabled={session.isFetching}>Check status</Button>{autoResumes.current >= 3 && <Button type="button" size="sm" onClick={() => { autoResumes.current = 0; resumedFor.current = null; void send("Continue from the latest saved progress. First inspect the current state and completed work; do not repeat completed steps."); }}>Resume task</Button>}<Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={stopping} onClick={stopWork}><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop run"}</Button></div>}
             {sendError && <div role="alert" className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm"><p className="min-w-0 flex-1 break-words text-destructive">{sendError}</p>{streamInterrupted && <Button type="button" size="sm" variant="outline" disabled={running || bgRunning} onClick={() => void send("The previous response stream disconnected. Inspect the current repository and task state, identify what was completed, then continue only unfinished work. Do not repeat completed actions.")}>Continue from saved progress</Button>}</div>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
