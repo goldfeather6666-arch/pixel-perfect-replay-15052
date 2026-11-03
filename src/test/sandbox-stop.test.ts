@@ -12,9 +12,11 @@ describe("sandbox Stop", () => {
     const ready = new Promise<void>((resolve) => { started = resolve; });
     let end: () => void = () => {};
     fake.kill.mockImplementation(async () => { end(); return true; });
-    fake.run.mockResolvedValueOnce({ exitCode: 0 }).mockImplementationOnce(() => {
+    // Setup commands (swap, env seeding, checkout) succeed; only the user's long command hangs until Stop.
+    fake.run.mockImplementation((cmd: string) => {
+      if (!String(cmd).includes("long command") && !String(cmd).includes("cmd.sh")) return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" });
       started();
-      return new Promise((resolve) => { end = () => resolve({ exitCode: -1 }); });
+      return new Promise((resolve) => { end = () => resolve({ exitCode: -1, stdout: "", stderr: "" }); });
     });
     const chain: any = { update: () => chain, eq: () => chain, then: (resolve: (v: unknown) => void) => Promise.resolve({}).then(resolve) };
     const work = runInSandbox({ from: () => chain }, { id: "task", user_id: "owner", repo: "owner/repo", work_branch: "agent/test", sandbox_id: "box" }, "test-token", "long command", [], undefined, controller.signal);
