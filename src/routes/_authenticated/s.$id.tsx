@@ -37,6 +37,7 @@ import { MentionPicker } from "@/components/MentionPicker";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { CopyTextButton } from "@/components/CopyTextButton";
+import { FileProvenance } from "@/components/FileProvenance";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
@@ -880,7 +881,7 @@ function PendingApprovals({ id, pending, onResolved }: { id: string; pending: Pe
               <Button size="sm" variant="ghost" className="h-6 px-2" disabled={resolveM.isPending} onClick={() => resolveM.mutate({ approve: true, paths })} aria-label={`Accept all in ${g.intent}`}><Check /></Button>
             </>}
           </div>
-          {pending.filter((c) => paths.includes(c.path)).map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+          {pending.filter((c) => paths.includes(c.path)).map((c) => <PendingView key={c.path} id={id} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
         </div>
       );
     })}
@@ -942,25 +943,28 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => <DiffFile key={f.filename} filename={f.filename} status={f.status} patch={f.patch} />)}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} />)}
         </div>
       </section>
     </div>
   );
 }
 
-function DiffFile({ filename, status, patch }: { filename: string; status: string; patch: string }) {
+function DiffFile({ id, filename, status, patch }: { id: string; filename: string; status: string; patch: string }) {
   const [open, setOpen] = useState(true);
   const lines = patch.split("\n");
   const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
   const del = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
   return (
     <div className="panel overflow-hidden">
-      <button type="button" onClick={() => setOpen(!open)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/60 px-3 py-2 text-left font-mono text-xs">
-        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
-        <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
+      <div className="flex items-center gap-2 border-b bg-muted/60 px-3 py-2 font-mono text-xs">
+        <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
+        </button>
         <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
-      </button>
+        <FileProvenance id={id} path={filename} />
+      </div>
       {open && <PatchView patch={patch} />}
     </div>
   );
@@ -1009,7 +1013,7 @@ function HunkView({ hunk }: { hunk: Hunk }) {
   );
 }
 
-function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: boolean; onAccept: (edited?: string) => void; onReject: () => void }) {
+function PendingView({ id, c, busy, onAccept, onReject }: { id: string; c: PendingChange; busy: boolean; onAccept: (edited?: string) => void; onReject: () => void }) {
   const original = c.original ?? "";
   const target = c.action === "delete" ? "" : (c.content ?? "");
   const hunks = useMemo(() => diffFile(original, target), [original, target]);
@@ -1030,6 +1034,7 @@ function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: 
           <span className="ml-2 tabular-nums"><span className="text-success">+{adds}</span> <span className="text-destructive">−{dels}</span></span>
           {rejected.size > 0 && <span className="ml-2 text-warning">{rejected.size} hunk(s) excluded</span>}
         </span>
+        <FileProvenance id={id} path={c.path} />
         <Button size="sm" variant="ghost" disabled={busy} onClick={onReject} aria-label={`Reject ${c.path}`}><X /></Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={accept} aria-label={`Accept ${c.path}`}><Check /></Button>
       </div>
