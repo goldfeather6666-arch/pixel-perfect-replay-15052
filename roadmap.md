@@ -33,7 +33,7 @@
 
 ## Phase 8 — Plugin/MCP marketplace + VS Code extension (beta, feature-flagged)
 
-## Phase 9 — Enterprise hardening (BYO-model done; residency, SSO/RBAC, audit logs)
+## Phase 9 — Enterprise hardening (BYO-model done; audit log done; residency, SSO/RBAC open)
 
 ## Phase 10 — Full test pass, benchmarks, canary matrix
 
