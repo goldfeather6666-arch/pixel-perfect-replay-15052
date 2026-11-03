@@ -67,7 +67,7 @@ export function AutoFixButton({ id, onSend, onSteps, compact, disabled }: { id: 
     onError: (e: Error) => toast.error(e.message),
   });
   return (
-    <Button size="sm" onClick={() => m.mutate()} disabled={disabled || m.isPending} title="Sync everything and fix build, deploy and sign-in problems">
+    <Button size="sm" variant="outline" className="h-7 shrink-0 gap-1 text-xs" onClick={() => m.mutate()} disabled={disabled || m.isPending} title="Sync everything and fix build, deploy and sign-in problems">
       {m.isPending ? <Loader2 className="animate-spin" /> : <Wand2 />}{compact ? null : " Auto-fix"}
     </Button>
   );
