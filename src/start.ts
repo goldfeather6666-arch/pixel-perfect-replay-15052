@@ -8,6 +8,14 @@ const recoverServerFunctions = createMiddleware({ type: "function" }).client(asy
   next({ fetch: recoveringServerFetch }),
 );
 
+/** True when the error, or anything in its cause chain, is a client disconnect. */
+function isAbort(error: unknown): boolean {
+  for (let e = error, i = 0; e != null && typeof e === "object" && i < 5; e = (e as { cause?: unknown }).cause, i++) {
+    if ((e as { name?: string }).name === "AbortError") return true;
+  }
+  return false;
+}
+
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
@@ -16,7 +24,7 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
       throw error;
     }
     // The browser dropped the request (reload, navigation, closed tab): not a server crash.
-    if (error != null && typeof error === "object" && (error as { name?: string }).name === "AbortError") {
+    if (isAbort(error)) {
       return new Response(null, { status: 499 });
     }
     console.error(error);
