@@ -13,7 +13,6 @@ import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { RunTimeline } from "@/components/RunTimeline";
 import { StreamTimeline } from "@/components/StreamTimeline";
-import { ListTree } from "lucide-react";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
 import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
@@ -805,18 +804,6 @@ function ActivityView({ tools, live, onOpen }: { tools: ToolLog[]; live: boolean
         </ul>
       )}
     </button>
-  );
-}
-
-function ToolView({ t }: { t: ToolLog }) {
-  if (t.name === "note") return <p className="px-1 py-0.5 text-xs italic text-muted-foreground">{t.summary}</p>;
-  const arg = (t.input as { path?: string; prefix?: string; query?: string }) ?? {};
-  const label = arg.path ?? arg.query ?? (arg.prefix || "/");
-  return (
-    <Tool defaultOpen={false} className="text-xs">
-      <ToolHeader type="dynamic-tool" toolName={t.name} state={t.ok === undefined ? "input-available" : t.ok ? "output-available" : "output-error"} title={`${t.name === "worker" ? "Helper" : t.name} · ${label}`} className="flex-wrap gap-2 p-2 [&_span]:break-all" />
-      <ToolContent className="max-h-72 overflow-auto border-t p-3"><ToolInput input={t.input} /><ToolOutput output={t.ok === false ? undefined : t.summary ?? "Running…"} errorText={t.ok === false ? t.summary ?? "Step failed" : undefined} /></ToolContent>
-    </Tool>
   );
 }
 
