@@ -2,7 +2,7 @@ import { isStaleServerFunctionError, recoverChunkLoad } from "@/lib/chunk-recove
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Check, RefreshCw, X, Plug, CircleCheck, CircleX } from "lucide-react";
+import { Check, RefreshCw, X, Plug } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { listMcpActions, resolveMcpActionRequest } from "@/lib/mcp-approval.functions";
@@ -10,7 +10,6 @@ import { approvalResumeMessage, isResolvedAction, shouldResumeAfterApproval } fr
 
 export function McpActionApprovals({ sessionId, chat = false, busy = false, onResume }: { sessionId: string; chat?: boolean; busy?: boolean; onResume?: (message: string) => void }) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [showDone, setShowDone] = useState(false);
   // IDs approved/rejected in this tab; resume fires once when they are all resolved.
   const batch = useRef<Set<string>>(new Set());
   const qc = useQueryClient();
@@ -37,8 +36,8 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
   }, [items, mutation.isPending, busy, onResume]);
 
   const pending = items.filter((a) => !isResolvedAction(a.state));
-  const done = items.filter((a) => isResolvedAction(a.state));
-  if (chat && !query.isError && !items.length) return null;
+  // Chat shows only actions waiting for you; finished ones live in the Changes tab.
+  if (chat && !query.isError && !pending.length) return null;
   const titleId = `external-actions-${chat ? "chat" : "panel"}`;
 
   const card = (action: (typeof items)[number]) => {
@@ -61,7 +60,6 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
     </li>;
   };
 
-  // Chat: finished actions collapse to small chips; full details stay in the Changes tab.
   if (chat) {
     return (
       <section className="space-y-2" aria-labelledby={titleId} aria-live="polite">
@@ -70,18 +68,6 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
           <h3 id={titleId} className="flex items-center gap-2 font-semibold"><Plug className="size-4" /> External action approvals</h3>
           <ul className="space-y-3">{pending.map(card)}</ul>
         </>}
-        {done.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {!pending.length && <span id={titleId} className="sr-only">Finished external actions</span>}
-            {(showDone ? done : done.slice(-3)).map((a) => (
-              <span key={a.id} className="inline-flex max-w-full items-center gap-1 truncate rounded-full border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {a.state === "succeeded" ? <CircleCheck className="size-3 shrink-0 text-success" /> : <CircleX className="size-3 shrink-0 text-destructive" />}
-                <span className="truncate">{a.server_name} · {a.tool_name}</span>
-              </span>
-            ))}
-            {done.length > 3 && <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setShowDone((v) => !v)}>{showDone ? "Show fewer" : `+${done.length - 3} more`}</button>}
-          </div>
-        )}
       </section>
     );
   }
