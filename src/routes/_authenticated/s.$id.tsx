@@ -68,6 +68,8 @@ function Workspace() {
   const [view, setView] = useState<PanelKey>("chat");
   const [right, setRight] = useState<PanelKey | null>("preview");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [tool, setTool] = useState<PanelKey | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [dockPct, setDockPct] = useState(46);
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
