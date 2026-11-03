@@ -15,8 +15,23 @@ export function isRateLimit(error: unknown): boolean {
   return e?.statusCode === 429 || /rate.?limit|too many requests|output token limit|token limit|insufficient_quota/i.test(String(e?.message ?? ""));
 }
 
+/** AI SDK retry wrappers hide the provider's own error; unwrap to the last real attempt. */
+function unwrapProviderError(error: unknown): { statusCode?: number; message?: string } {
+  let e = error as { statusCode?: number; message?: string; lastError?: unknown; cause?: unknown } | undefined;
+  for (let i = 0; i < 4 && e && e.statusCode === undefined; i++) {
+    const next = (e.lastError ?? e.cause) as typeof e;
+    if (!next || typeof next !== "object") break;
+    e = next;
+  }
+  return e ?? {};
+}
+
+function safeReason(message: string): string {
+  return message.replace(/\s+/g, " ").replace(/(sk|key|AIza)[-_]?[A-Za-z0-9_-]{8,}/gi, "[key]").replace(/^Failed after \d+ attempts\. Last error: /i, "").slice(0, 240).trim();
+}
+
 export function providerRequestError(error: unknown): string {
-  const e = error as { statusCode?: number; message?: string };
+  const e = unwrapProviderError(error);
   if (e?.statusCode === 400 || /^bad request$/i.test(e?.message ?? "")) {
     return "The AI provider rejected the model request (400), after Forge accepted your prompt. Check the exact model ID, custom request options, and whether the model supports tools and this context size. No work completed; your prompt remains in the conversation.";
   }
@@ -31,5 +46,14 @@ export function providerRequestError(error: unknown): string {
     const reason = String(e?.message ?? "").replace(/\s+/g, " ").replace(/(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "[key]").slice(0, 240);
     return `The AI provider refused this API key (${e.statusCode})${reason ? `: “${reason}”` : ""}. Update or replace the key in Settings, or switch this task to another key with the model picker, then resend.`;
   }
-  return "The agent request failed. Check the provider connection and try again after resolving the issue.";
+  const reason = safeReason(String(e?.message ?? ""));
+  if (/no longer available|deprecated|not found for API version|model.*(does not exist|not found)/i.test(reason) || e?.statusCode === 404) {
+    return `The AI provider says this model can't be used${reason ? `: “${reason}”` : ""}. Pick another model with the model picker and resend.`;
+  }
+  if (e?.statusCode === 503 || e?.statusCode === 529 || /high demand|overloaded|temporarily unavailable|unavailable/i.test(reason)) {
+    return `The AI provider is overloaded right now${reason ? `: “${reason}”` : ""}. Forge retried automatically. Wait a minute and resend, or pick another model.`;
+  }
+  return reason
+    ? `The AI provider returned an error: “${reason}”. Your prompt is saved; fix the issue or pick another model, then resend.`
+    : "The agent request failed. Check the provider connection and try again after resolving the issue.";
 }
