@@ -711,36 +711,57 @@ export type Database = {
       project_memories: {
         Row: {
           category: string
+          confidence: number
           content: string
           created_at: string
+          expires_at: string | null
           id: string
           repo: string
+          sensitivity: string
           session_id: string | null
           source: string
+          source_ref: string | null
+          status: string
+          supersedes: string | null
           updated_at: string
           user_id: string
+          validated_at: string | null
         }
         Insert: {
           category: string
+          confidence?: number
           content: string
           created_at?: string
+          expires_at?: string | null
           id?: string
           repo: string
+          sensitivity?: string
           session_id?: string | null
           source?: string
+          source_ref?: string | null
+          status?: string
+          supersedes?: string | null
           updated_at?: string
           user_id?: string
+          validated_at?: string | null
         }
         Update: {
           category?: string
+          confidence?: number
           content?: string
           created_at?: string
+          expires_at?: string | null
           id?: string
           repo?: string
+          sensitivity?: string
           session_id?: string | null
           source?: string
+          source_ref?: string | null
+          status?: string
+          supersedes?: string | null
           updated_at?: string
           user_id?: string
+          validated_at?: string | null
         }
         Relationships: []
       }
