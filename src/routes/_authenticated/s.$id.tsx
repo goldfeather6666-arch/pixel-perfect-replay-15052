@@ -44,13 +44,13 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
 });
 
 type PanelKey = "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
-// Simple by default: Preview and Deploy up front, everything advanced under "More".
-const MAIN = [["preview", "Preview", Globe], ["deploy", "Deploy", Rocket]] as const;
+// Studio layout: the canvas shows the product (preview, code, changes); power tools live in a
+// collapsible drawer beneath it; going live lives behind the header Publish button.
+const MAIN = [["preview", "Preview", Globe], ["files", "Code", FolderTree], ["changes", "Changes", GitCompare]] as const;
 const MORE = [
-  ["changes", "Changes", GitCompare], ["files", "Files", FolderTree], ["terminal", "Terminal", TerminalSquare],
-  ["run", "Run timeline", Activity], ["swarm", "Agents", Network], ["knowledge", "Knowledge", BookOpen],
+  ["terminal", "Terminal", TerminalSquare], ["swarm", "Agents", Network],
+  ["run", "Activity", Activity], ["knowledge", "Knowledge", BookOpen],
 ] as const;
-const ALL = [...MAIN, ...MORE];
 
 function useIsDesktop() {
   const [d, setD] = useState(false);
