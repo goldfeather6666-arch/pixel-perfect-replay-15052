@@ -37,25 +37,28 @@ describe("evidence rows", () => {
 
   it("marks a criterion with no matching check as unverified, never as passing", () => {
     const rows = evidenceRows(criteriaToItems([{ text: "Payments retry on network failure", required: true }], checks));
-    expect(rows[0].result).toBe("unverified");
-    expect(rows[0].testRun).toBe("no check ran");
+    const row = rows[0];
+    expect(row?.result).toBe("unverified");
+    expect(row?.testRun).toBe("no check ran");
   });
 
   it("reports a real failure as fail with its exit code", () => {
     const rows = evidenceRows([{ item: "build is clean", criteria: "required", check: { name: "build", exit: 2 } }]);
-    expect(rows[0].result).toBe("fail");
-    expect(rows[0].testRun).toContain("exit 2");
+    const row = rows[0];
+    expect(row?.result).toBe("fail");
+    expect(row?.testRun).toContain("exit 2");
   });
 
   it("pairs a criterion with the check that proves it", () => {
     const rows = evidenceRows(criteriaToItems([{ text: "unit tests pass", required: true }], checks));
-    expect(rows[0].result).toBe("pass");
-    expect(rows[0].testRun).toContain("test");
+    const row = rows[0];
+    expect(row?.result).toBe("pass");
+    expect(row?.testRun).toContain("test");
   });
 
   it("treats a check that never finished as unverified", () => {
     const rows = evidenceRows([{ item: "e2e journey", criteria: "required", check: { name: "e2e", exit: null } }]);
-    expect(rows[0].result).toBe("unverified");
+    expect(rows[0]?.result).toBe("unverified");
   });
 });
 
