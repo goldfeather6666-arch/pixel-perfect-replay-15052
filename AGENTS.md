@@ -28,7 +28,7 @@
 - Edits invalidate deploy checks; omitted final preflight runs once; Vercel READY requires current commit and entry probe; agent/* disables git deploys and uses one API deploy; quota refusal is LIMITED. Why: avoid stale readiness and double deploys.
 - accounts.ts pins task GitHub/database/Vercel IDs; missing inherits latest repo links, null means none, account switches clear links atomically only while idle; tokens label/dedupe real account identities. Why: truthful multi-account tasks.
 - Connect & sync is the single wiring path for env sync, auth allow-list merge (never remove links), migrations and build/live probe; Auto-fix syncs then sends real blockers to agents. Why: one repair path.
-- Chat/Preview/Deploy are primary; Changes/Files/Terminal/Run/Agents/Knowledge live under More. Why: simple by default.
+- Workspace is a studio: chat left; canvas tabs Preview/Code/Changes right; Terminal/Agents/Activity/Knowledge in a collapsible drawer; Deploy lives in the header Publish sheet. Why: one clear layout without hiding power tools.
 
 ## Customer-owned infrastructure
 - Resolve resources only from owner-scoped task-pinned accounts, never operator/other customer fallbacks; missing/null links block setup. Inspect identity before remote effects; reuse selected projects and ask before creating/changing them. Why: ownership and consent.

@@ -24,7 +24,6 @@ import { createRepo, createSession, listBranches, listCredentials, listModels, l
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { taskRunStatus } from "@/lib/task-run-status";
-import { WorkSplitPanel } from "@/components/WorkSplitPanel";
 import { DeployPanel } from "@/components/DeployPanel";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -43,7 +42,7 @@ function Dashboard() {
   const create = useServerFn(createSession);
   const makeRepo = useServerFn(createRepo);
   const [setupId, setSetupId] = useState<string | null>(null);
-  const [setupConnections, setSetupConnections] = useState(true);
+  const [setupConnections, setSetupConnections] = useState(false);
 
   const sessions = useQuery({
     queryKey: ["sessions"],
@@ -228,7 +227,7 @@ function Dashboard() {
                         </Select>
                       </div>
                     </div>
-                    <Input className="h-11 text-base sm:text-sm" value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="…or type a model ID" aria-label="Model ID" />
+                    {(models.error || models.data?.length === 0) && <Input className="h-11 text-base sm:text-sm" value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="…or type a model ID" aria-label="Model ID" />}
                     <div className="grid grid-cols-2 gap-2">
                       {AUTONOMY.map((m) => (
                         <button type="button" key={m} onClick={() => setMode(m)} className={`min-w-0 rounded-md border p-2.5 text-left text-sm ${mode === m ? "border-primary bg-accent" : "bg-background"}`}>
@@ -237,10 +236,9 @@ function Dashboard() {
                         </button>
                       ))}
                     </div>
-                    <WorkSplitPanel credId={credId} model={manualModel || model} repo={repo} onPrompt={(p) => setGoal(p ?? "")} />
                   </div>
                 )}
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={setupConnections} onChange={(e) => setSetupConnections(e.target.checked)} /> Connect database & website first</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={setupConnections} onChange={(e) => setSetupConnections(e.target.checked)} /> Connect database & website now (you can also do it later from Publish)</label>
                 {createM.error && <p role="alert" className="text-sm text-destructive">{(createM.error as Error).message}</p>}
                 <Button disabled={!repo || !branch || !credId || !(model || manualModel) || !goal.trim() || createM.isPending || !!setupId} className="h-12 w-full text-base">
                   {createM.isPending ? "Creating your workspace…" : "Let’s build"}<ArrowUpRight />
