@@ -24,8 +24,8 @@ const NAME: Record<Svc, string> = { supabase: "database", vercel: "Vercel" };
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
 const trig = "h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left";
 const TOKEN_URL: Record<Svc, string> = {
-  supabase: "https://supabase.com/dashboard/account/tokens",
-  vercel: "https://vercel.com/account/settings/tokens",
+  supabase: TOKEN_LINKS.supabase.url,
+  vercel: TOKEN_LINKS.vercel.url,
 };
 
 /** Deploy tab: three steps — database, website, go live. */
