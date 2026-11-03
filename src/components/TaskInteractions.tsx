@@ -1,4 +1,4 @@
-import { isStaleServerFunctionError, recoverChunkLoad } from "@/lib/chunk-recovery";
+import { isStaleServerFunctionError, recoverChunkLoad, transientRetry } from "@/lib/chunk-recovery";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,7 +13,7 @@ import { ProjectSecrets } from "@/components/ProjectSecrets";
 /** Question cards, improvement suggestions and the task spec, inline in the chat. */
 export function TaskInteractions({ sessionId, busy, onSend }: { sessionId: string; busy: boolean; onSend: (message: string) => void }) {
   const fetchAll = useServerFn(listInteractions);
-  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 4000, retry: false, throwOnError: false });
+  const q = useQuery({ queryKey: ["interactions", sessionId], queryFn: async () => { try { return await fetchAll({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 4000, ...transientRetry, throwOnError: false });
   const open = q.data?.questions.filter((x) => x.status === "open") ?? [];
   const sugs = q.data?.suggestions.filter((x) => x.status === "proposed") ?? [];
   const spec = q.data?.spec;
