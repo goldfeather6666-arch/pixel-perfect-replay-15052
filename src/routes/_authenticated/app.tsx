@@ -142,7 +142,7 @@ function Dashboard() {
         <section className="mx-auto mb-12 max-w-3xl space-y-5">
           <div className="text-center">
             <img src={forgeMark} alt="Forge" width={72} height={72} className="mx-auto mb-3 size-16 object-contain" />
-            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">What will you build today?</h1>
+            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">What will you <span className="text-gradient">build</span> today?</h1>
             <p className="mt-3 text-sm text-muted-foreground">Your ideas. Your code. A little help from Forge.</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs">
               {([["AI key", aiCreds.length > 0, true], ["GitHub", hasGh, true], ["Database", hasDb, false], ["Vercel", hasVercel, false]] as const).map(([label, ok, required]) => (
@@ -152,7 +152,7 @@ function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="rounded-lg border bg-card p-4 shadow-glow sm:p-6">
+          <div className="rounded-3xl border bg-card p-4 shadow-[var(--workspace-shadow)] sm:p-6">
             {creds.data && !ready ? (
               <div className="space-y-3 text-sm">
                 <p>Two quick things first: {aiCreds.length === 0 && "an AI key"}{aiCreds.length === 0 && !hasGh && " and "}{!hasGh && "a GitHub token"}.</p>
@@ -278,7 +278,7 @@ function Dashboard() {
                   onClick={() => setDeleting({ id: s.id, title: s.title, running: kind === "running" })}>
                   <Trash2 className="size-4" />
                 </Button>
-                <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-lg border bg-card p-5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
+                <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-3xl border bg-card p-5 shadow-[var(--workspace-shadow)] transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.title}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${kind === "running" ? "bg-accent text-primary" : kind === "needs" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>

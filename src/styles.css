@@ -49,23 +49,23 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Forge workspace: quiet porcelain surfaces, ink typography and coral actions. */
+/* Forge: soft warm canvas, rounded surfaces, coral→violet glow accents (Lovable-like calm). */
 :root {
   color-scheme: light;
-  --radius: 0.5rem;
-  --background: oklch(0.984 0.002 250);
-  --foreground: oklch(0.24 0.008 260);
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.006 75);
+  --foreground: oklch(0.22 0.012 285);
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
   --primary: oklch(0.59 0.21 28);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.945 0.005 255);
+  --secondary: oklch(0.955 0.008 70);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.955 0.003 255);
-  --muted-foreground: oklch(0.5 0.012 260);
-  --accent: oklch(0.955 0.013 28);
+  --muted: oklch(0.962 0.007 70);
+  --muted-foreground: oklch(0.5 0.015 285);
+  --accent: oklch(0.952 0.025 25);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.55 0.21 25);
   --destructive-foreground: oklch(0.98 0 0);
@@ -73,10 +73,10 @@
   --success: oklch(0.5 0.13 155);
   --added: oklch(0.94 0.035 155);
   --removed: oklch(0.94 0.035 25);
-  --border: oklch(0.9 0.005 255);
+  --border: oklch(0.91 0.008 70);
   --input: var(--border);
   --ring: var(--primary);
-  --sidebar: oklch(0.97 0.004 255);
+  --sidebar: oklch(0.972 0.007 70);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -85,16 +85,19 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --glow: 0 2px 8px -2px color-mix(in oklab, var(--foreground) 14%, transparent);
-  --workspace-shadow: 0 4px 24px -12px color-mix(in oklab, var(--foreground) 18%, transparent);
+  --workspace-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--foreground) 22%, transparent);
+  --brand-2: oklch(0.62 0.2 300);
+  --gradient-brand: linear-gradient(135deg, var(--primary), var(--brand-2));
+  --aurora: radial-gradient(60% 50% at 15% 0%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%), radial-gradient(50% 45% at 90% 10%, color-mix(in oklab, var(--brand-2) 14%, transparent), transparent 70%);
   --grid: linear-gradient(to right, color-mix(in oklab, var(--border) 50%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in oklab, var(--border) 50%, transparent) 1px, transparent 1px);
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.18 0.004 260);
+  --background: oklch(0.17 0.008 285);
   --foreground: oklch(0.94 0.003 260);
-  --card: oklch(0.215 0.004 260);
+  --card: oklch(0.205 0.009 285);
   --primary: oklch(0.73 0.16 28);
   --primary-foreground: oklch(0.18 0.01 28);
   --secondary: oklch(0.27 0.006 260);
@@ -107,8 +110,9 @@
   --success: oklch(0.76 0.13 155);
   --added: oklch(0.3 0.04 155);
   --removed: oklch(0.3 0.04 25);
-  --border: oklch(0.33 0.006 260);
-  --sidebar: oklch(0.2 0.004 260);
+  --border: oklch(0.3 0.01 285);
+  --sidebar: oklch(0.19 0.008 285);
+  --brand-2: oklch(0.72 0.16 300);
 }
 
 @layer base {
@@ -150,10 +154,20 @@
   color: var(--muted-foreground);
 }
 @utility text-gradient {
-  color: var(--foreground);
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 @utility bg-aurora {
-  background: var(--background);
+  background: var(--aurora), var(--background);
+}
+@utility bg-brand {
+  background: var(--gradient-brand);
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
