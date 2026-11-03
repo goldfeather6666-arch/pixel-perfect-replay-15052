@@ -42,3 +42,12 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [x] C24 cold-start runbook on brand-new repos
 - [x] C25 build-failure triage with proposed fix
 - [ ] Live verification of rollback / triage / perf on a real failing deploy (needs a real failed release)
+
+## v4.2 (C26–C32) — awaiting scope choice
+- [ ] C26 prompt/session versioning
+- [ ] C27 change provenance drill-down
+- [ ] C28 stale-project health checks
+- [ ] C29 visual annotation → source
+- [ ] C30 plan-cost gating
+- [ ] C31 platform self-test (dogfood)
+- [ ] C32 deprecation discipline
