@@ -307,7 +307,7 @@ function Workspace() {
     let accepted = false;
     setInput("");
     setImages([]);
-    if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+    void import("@/lib/push-client").then((m) => m.enablePushAlerts());
     setRunning(true);
     lastWasPlan.current = !publish && (plan || (forcePlan === undefined && chatMode !== "build"));
     if (silent) {
