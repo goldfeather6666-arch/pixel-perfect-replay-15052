@@ -97,7 +97,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     // Detached terminal job: output streams to a log file the client polls, so long commands
     // (installs, builds) never hit the request time limit.
     const dir = `/tmp/forge-jobs/${job}`;
-    await box.files.write(`${dir}/cmd.sh`, command);
+    await box.files.write(`${dir}/cmd.sh`, `[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env\n${command}`);
     const envStr = Object.entries(RUN_ENV).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
     const h = await box.commands.run(
       `${envStr} bash ${dir}/cmd.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`,
@@ -114,7 +114,8 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     return { url: `https://${box.getHost(preview.port)}`, log: String(log?.stdout ?? ""), note: "Preview stays up while the sandbox is active (15 min idle)." };
   }
   const started = Date.now();
-  const r = await box.commands.run(command, { cwd: REPO_DIR, envs: RUN_ENV, timeoutMs: CMD_TIMEOUT_MS }).catch((e: any) => e);
+  // Agent commands see the same database settings as the preview, so login/data flows can be exercised.
+  const r = await box.commands.run(`[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env; ${command}`, { cwd: REPO_DIR, envs: RUN_ENV, timeoutMs: CMD_TIMEOUT_MS }).catch((e: any) => e);
   signal?.throwIfAborted();
   const timedOut = typeof r?.exitCode !== "number" && Date.now() - started >= CMD_TIMEOUT_MS - 2000;
   return {
