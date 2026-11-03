@@ -1,5 +1,5 @@
 /** C18: decide when a release failed and which earlier build to restore. Pure; the caller performs the Vercel call. */
-export type ReleaseDeployment = { id: string; state: string; created: number; commitSha: string | null; target: string | null; url: string };
+export type ReleaseDeployment = { id: string; state: string; created: number; commitSha?: string | null | undefined; target?: string | null | undefined; url: string };
 
 /** A release failed when Vercel could not build it or the built site answers with a server error. */
 export function isFailedRelease(buildState: string, runtimeState: string | null | undefined): boolean {

@@ -1,5 +1,5 @@
 /** C21: enforceable per-model quality floor and per-run cost budget, read from forge.policy.json. */
-export type Governance = { minQualityScore?: number | Record<string, number>; maxRunCostUsd?: number };
+export type Governance = { minQualityScore?: number | Record<string, number> | undefined; maxRunCostUsd?: number | undefined };
 
 /** Minimum score for a model: exact id, then a "*" default; undefined means no floor configured. */
 export function minScoreFor(gov: Governance | undefined, model: string): number | undefined {
