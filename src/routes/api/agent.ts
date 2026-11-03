@@ -1003,6 +1003,7 @@ export const Route = createFileRoute("/api/agent")({
                const externalContext = `\nConnected MCP servers: ${JSON.stringify(external.servers)}. Connection issues: ${JSON.stringify(external.issues)}. To browse a server, call tool_search with server set to its exact name and query set to an empty string. Do not repeatedly search keywords when a server is unavailable; report the connection issue. Framer website MCP edits Framer-hosted projects, not GitHub source files; Framer Motion/Motion and Three.js are separate libraries. Do not claim Framer MCP was used when it was not.`;
                const { data: actions } = await sb.from("mcp_action_requests").select("tool_name, state, result").eq("user_id", u.user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(10);
               let usedSteps = 0;
+              const liveChat: string[] = [];
               const parallelFirst = team.required && mustDispatch(message, { plan: !!plan }) && !!tools.delegate;
               const reasoning = reasoningOptions(cred.provider, s.model, profile);
               rec.event("discovery.classified", { taskClass, signals, profile, reasoning: reasoning.applied, team: team.reason, routing: routingSummary(routing) });
@@ -1027,9 +1028,14 @@ export const Route = createFileRoute("/api/agent")({
                 tools: brokerTools({ ...tools, ...savedSkillTools, ...external.tools }, ledger, brokerHooks),
                 stopWhen: [stepCountIs((plan ? 20 : pol.stepCap) + extraSteps - usedSteps), hasToolCall("ask_user"), hasToolCall("request_secret")],
                 ...(activeModel === s.model && reasoning.providerOptions ? { providerOptions: reasoning.providerOptions as never } : {}),
-                prepareStep: ({ stepNumber }) => {
+                prepareStep: async ({ stepNumber, messages: stepMessages }) => {
                   const toolChoice = dispatchToolChoice(stepNumber + usedSteps, delegated, parallelFirst);
-                  return toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : undefined;
+                  // Live chat: messages the user sent while this run works are folded in before every step.
+                  const { data: fresh } = await sb.rpc("consume_session_interjections", { _session: sessionId }).then((r) => r, () => ({ data: null }));
+                  for (const row of (fresh ?? []) as { content: string }[]) { liveChat.push(row.content); send({ t: "interjection", d: row.content }); }
+                  const extra = liveChat.length ? { messages: [...stepMessages, { role: "user" as const, content: `Messages the user sent while you were working (newest last). Read them now: answer questions briefly in your next reply and adjust the work if they change direction, then continue.\n${liveChat.map((m, i) => `${i + 1}. ${m}`).join("\n")}` }] } : {};
+                  const choice = toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : {};
+                  return { ...extra, ...choice };
                 },
                 maxRetries: 3,
                 abortSignal: runAbort.signal,
@@ -1078,7 +1084,7 @@ export const Route = createFileRoute("/api/agent")({
                   rec.mark("step");
                   // Save progress so a reopened tab can follow along, and honour Stop from any device.
                   const { data: st } = await sb.from("agent_sessions").update({
-                    messages: [...history, { role: "user", content: message }, { role: "assistant", content: text, tools: logs }],
+                    messages: [...history, { role: "user", content: message }, ...liveChat.map((content) => ({ role: "user", content })), { role: "assistant", content: text, tools: logs }],
                     pending, updated_at: new Date().toISOString(),
                   }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).select("stop_requested").single();
                   if (st?.stop_requested) runAbort.abort();
