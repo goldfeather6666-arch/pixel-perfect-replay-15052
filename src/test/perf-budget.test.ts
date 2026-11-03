@@ -72,3 +72,22 @@ describe("evaluateBudget", () => {
     expect(text).toContain("fetchpriority=high");
   });
 });
+
+describe("parseAssetListing", () => {
+  it("keeps real asset lines and ignores anything else", () => {
+    const files = parseAssetListing(
+      [
+        "dist/assets/app-abc.js 300000",
+        "dist/assets/style.css 51200",
+        "dist/assets/app-abc.js.map 900000",
+        "find: 'dist': No such file or directory",
+        "dist/index.html",
+        "",
+      ].join("\n"),
+    );
+    expect(files).toEqual([
+      { path: "dist/assets/app-abc.js", bytes: 300000 },
+      { path: "dist/assets/style.css", bytes: 51200 },
+    ]);
+  });
+});
