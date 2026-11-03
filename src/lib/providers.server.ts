@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { planLimitFetch } from "./provider-limits";
 import { googleQuotaFetch, isGoogleChatModel } from "./google-quota";
 import { modelOption, parseModelPrice, type ModelOption, type ModelPrice } from "./model-pricing";
 
@@ -34,7 +35,7 @@ export function createModel(provider: string, apiKey: string, baseUrl: string | 
       return createOpenAICompatible({ name: "openrouter", baseURL: "https://openrouter.ai/api/v1", apiKey })(modelId);
     case "compatible":
       if (!baseUrl) throw new Error("Base URL required");
-      return createOpenAICompatible({ name: "custom", baseURL: trimSlash(baseUrl), apiKey, ...(mergeBodyFetch(extraBody) ? { fetch: mergeBodyFetch(extraBody)! } : {}) })(modelId);
+      return createOpenAICompatible({ name: "custom", baseURL: trimSlash(baseUrl), apiKey, fetch: planLimitFetch(`${trimSlash(baseUrl)}|${apiKey.slice(-6)}`, mergeBodyFetch(extraBody) ?? fetch) })(modelId);
     default:
       throw new Error(`Unsupported provider: ${provider}`);
   }
