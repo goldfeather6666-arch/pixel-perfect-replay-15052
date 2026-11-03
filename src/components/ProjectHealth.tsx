@@ -2,8 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Circle, Link2, Loader2, Wand2, XCircle } from "lucide-react";
-import { autoFix, syncProject } from "@/lib/connect.functions";
+import { AlertTriangle, CheckCircle2, Circle, Link2, Loader2, XCircle } from "lucide-react";
+import { syncProject } from "@/lib/connect.functions";
 import type { SyncStep } from "@/lib/connect";
 import { Button } from "@/components/ui/button";
 
