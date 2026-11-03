@@ -72,7 +72,6 @@ async function killTree(box: import("./runner-box.server").Box, id: string, port
   await sh(box, `p=$(cat ${dir}/pid 2>/dev/null); [ -n "$p" ] && { kill -TERM -- -$p 2>/dev/null; pkill -TERM -P $p 2>/dev/null; kill $p 2>/dev/null; }; sleep 1; fuser -k ${port}/tcp 2>/dev/null; true`);
 }
 
-/** Gives the private dev server the task's database settings, kept outside the repo and never sent to the browser. The server-only key is included only when the user saved it in guided setup, mirroring Vercel's server env. */
 const shq = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
 
 /** Project secrets the user submitted for preview/development (e.g. Stripe test keys), decrypted server-side only. */
