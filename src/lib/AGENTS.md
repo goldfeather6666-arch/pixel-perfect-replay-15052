@@ -13,3 +13,4 @@
 - Prompt audit: every agent file write records the driving prompt in change_provenance; fileHistory/provenanceChain build the "why did this change" drill-down and count a change verified only when a passing qa.gate exists for that run. Why: trust and training without guessing intent.
 - Model comparison: model-stats aggregates only the owner's own agent_runs; a cancelled, awaiting or open run never counts as a failure, and a model with no decisive outcome shows no success rate. Why: honest per-model quality and cost.
 - Performance budget-as-code: perf-budget parses a committed budget.json, measures the real build output, blocks the QA gate on a breach with the fix suggestion, and reports unmeasured metrics as unmeasured. Why: budgets enforced, never silently passed.
+- Authorship tags compare current Git blob SHA with content-addressed change provenance; missing historical evidence stays unknown. Why: later human edits must never be mislabeled as agent output.

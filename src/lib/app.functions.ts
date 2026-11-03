@@ -405,9 +405,9 @@ export const getDiff = createServerFn({ method: "POST" })
     const diff = await (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
     const paths = diff.files.map((f) => f.filename);
     const { data: prov } = paths.length
-      ? await context.supabase.from("change_provenance").select("path").eq("session_id", s.id).in("path", paths.slice(0, 300))
-      : { data: [] as { path: string }[] };
-    return { ...diff, authorship: tagAuthorship(paths, ((prov ?? []) as { path: string }[]).map((p) => p.path)) };
+      ? await context.supabase.from("change_provenance").select("path, blob_sha").eq("session_id", s.id).in("path", paths.slice(0, 300))
+      : { data: [] as { path: string; blob_sha: string | null }[] };
+    return { ...diff, authorship: tagAuthorship(diff.files, (prov ?? []) as { path: string; blob_sha: string | null }[]) };
   });
 
 /** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,

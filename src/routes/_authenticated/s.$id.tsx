@@ -952,7 +952,7 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
   );
 }
 
-function DiffFile({ id, filename, status, patch, author }: { id: string; filename: string; status: string; patch: string; author?: "agent" | "human" }) {
+function DiffFile({ id, filename, status, patch, author }: { id: string; filename: string; status: string; patch: string; author?: "agent" | "human" | "unknown" }) {
   const [open, setOpen] = useState(true);
   const lines = patch.split("\n");
   const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
@@ -965,7 +965,7 @@ function DiffFile({ id, filename, status, patch, author }: { id: string; filenam
           <span className="truncate"><span className="mr-2 rounded border px-1 py-px text-[10px] uppercase text-muted-foreground">{status}</span>{filename}</span>
         </button>
         <span className="shrink-0 tabular-nums"><span className="text-success">+{add}</span> <span className="text-destructive">−{del}</span></span>
-        {author && <span className="shrink-0 rounded-full border px-1.5 py-px text-[10px] text-muted-foreground" title={author === "agent" ? "Written by the agent" : "Changed outside the agent"}>{author === "agent" ? "Agent" : "Human"}</span>}
+        {author && author !== "unknown" && <span className="shrink-0 rounded-full border px-1.5 py-px text-[10px] text-muted-foreground" title={author === "agent" ? "Exact content recorded from the agent" : "Content differs from recorded agent writes"}>{author === "agent" ? "Agent" : "Human edited"}</span>}
         <FileProvenance id={id} path={filename} />
       </div>
       {open && <PatchView patch={patch} />}

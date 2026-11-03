@@ -1,4 +1,5 @@
 import { repairToolInput } from "@/lib/engine/tool-repair";
+import { gitBlobSha } from "@/lib/authorship";
 import { contractFor, contractText } from "@/lib/engine/delegation";
 import { liveMemories, memoryLine, reviewMemory, MEMORY_TYPES } from "@/lib/engine/memory-types";
 import { assessRun } from "@/lib/engine/evaluation";
@@ -270,8 +271,8 @@ export const Route = createFileRoute("/api/agent")({
         const brokerHooks = { onAmbiguous: (e: { name: string; risk: string; state: string }, kind: string) => rec.event("tool.ambiguous", { tool: e.name, risk: e.risk, sideEffect: e.state, failure: kind }) };
         // Prompt audit: every file the agent changes keeps the user request that drove it, so any
         // diff can be traced back to its prompt, the run that made it and that run's evidence.
-        const remember = (path: string, toolName: string, action = "write") => {
-          void sb.from("change_provenance").insert({
+        const remember = async (path: string, toolName: string, action = "write", content?: string) => {
+          try { await sb.from("change_provenance").insert({
             user_id: u.user.id,
             session_id: sessionId,
             run_id: rec?.runId ?? null,
@@ -279,7 +280,8 @@ export const Route = createFileRoute("/api/agent")({
             tool: toolName,
             action,
             prompt: message.slice(0, 2000),
-          }).then(() => {}, () => {});
+            blob_sha: content === undefined ? null : await gitBlobSha(content),
+          }); } catch { rec.event("provenance.error", { path }); }
         };
         const tools = {
           list_files: tool({
@@ -389,13 +391,13 @@ export const Route = createFileRoute("/api/agent")({
                 const original = await readCurrent(path);
                 pending.push({ path, action: "write", content, original });
                 invalidateChecks();
-                remember(path, "write_file");
+                await remember(path, "write_file", "write", content);
                 return { staged: true, note: "Staged for user approval." };
               }
               const sha = await gh.putFile(repo, branch, path, content, commit_message);
               invalidateChecks();
               treeCache = null;
-              remember(path, "write_file");
+              await remember(path, "write_file", "write", content);
               return { committed: sha.slice(0, 7) };
             },
           }),
@@ -412,13 +414,13 @@ export const Route = createFileRoute("/api/agent")({
                 if (staged) staged.content = r.content;
                 else pending.push({ path, action: "write", content: r.content, original: current });
                 invalidateChecks();
-                remember(path, "edit_file");
+                await remember(path, "edit_file", "write", r.content);
                 return { staged: true, replaced: r.replaced, note: "Staged for user approval." };
               }
               const sha = await gh.putFile(repo, branch, path, r.content, commit_message);
               invalidateChecks();
               treeCache = null;
-              remember(path, "edit_file");
+              await remember(path, "edit_file", "write", r.content);
               return { committed: sha.slice(0, 7), replaced: r.replaced };
             },
           }),
@@ -436,9 +438,10 @@ export const Route = createFileRoute("/api/agent")({
                 } else direct.push(f);
               }
               invalidateChecks();
-              for (const f of files) remember(f.path, "write_files");
+              for (const f of files.filter((f) => !direct.includes(f))) await remember(f.path, "write_files", "write", f.content);
               if (!direct.length) return { staged, note: "Staged for user approval." };
               const sha = await gh.putFiles(repo, branch, direct, commit_message);
+              for (const f of direct) await remember(f.path, "write_files", "write", f.content);
               treeCache = null;
               return { committed: sha.slice(0, 7), files: direct.length, staged };
             },
