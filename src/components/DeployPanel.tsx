@@ -24,10 +24,8 @@ type AccountOption = { id: string; provider: string; label: string; last4: strin
 const NAME: Record<Svc, string> = { supabase: "database", vercel: "Vercel" };
 const REGIONS = ["us-east-1", "us-west-1", "eu-central-1", "eu-west-2", "ap-southeast-1", "ap-south-1", "ap-northeast-1", "sa-east-1"];
 const trig = "h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left";
-const TOKEN_URL: Record<Svc, string> = {
-  supabase: TOKEN_LINKS.supabase.url,
-  vercel: TOKEN_LINKS.vercel.url,
-};
+/** Services without one-click sign-in need a token page; the database connects by signing in with Supabase. */
+const TOKEN_URL: Partial<Record<Svc, string>> = { vercel: TOKEN_LINKS.vercel.url };
 
 /** Deploy tab: three steps — database, website, go live. */
 export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {

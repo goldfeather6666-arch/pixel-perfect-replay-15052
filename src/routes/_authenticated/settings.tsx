@@ -113,7 +113,6 @@ function SettingsPage() {
                 <SelectContent>
                   {tab === "ai" ? AI_PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>) : (<>
                     <SelectItem value="github">GitHub token</SelectItem>
-                    <SelectItem value="supabase">Database (Supabase) access token</SelectItem>
                     <SelectItem value="vercel">Vercel token</SelectItem>
                   </>)}
                 </SelectContent>
