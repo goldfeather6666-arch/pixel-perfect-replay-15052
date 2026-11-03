@@ -67,13 +67,7 @@ export function provenanceChain(
   return { steps: steps.sort((a, b) => byTime({ createdAt: a.latest }, { createdAt: b.latest })), criteria };
 }
 
-/** Plain-language status for one step of the chain. */
-export function stepStatus(s: ProvenanceStep): string {
-  if (s.verified) return "Verified by checks";
-  if (s.failed) return `Checks failed${typeof s.failedStepOf === "function" ? "" : ""}`;
-  return "No checks recorded";
-}
-
+/** Plain-language outcome for one step of the chain, with the check that decided it. */
 export function stepOutcome(s: ProvenanceStep): { label: string; ok: boolean | null } {
   if (s.verified) return { label: "Verified by checks", ok: true };
   if (s.failed) {

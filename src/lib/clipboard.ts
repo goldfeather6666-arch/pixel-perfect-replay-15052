@@ -35,10 +35,10 @@ export async function copyToClipboard(
   try {
     field = doc.createElement("textarea");
     field.value = text;
-    field.style.position = "fixed";
-    field.style.top = "0";
-    field.style.left = "0";
-    field.style.opacity = "0";
+    field.style["position"] = "fixed";
+    field.style["top"] = "0";
+    field.style["left"] = "0";
+    field.style["opacity"] = "0";
     doc.body.appendChild(field);
     field.focus();
     field.select();
