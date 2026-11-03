@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { syncDeployEnv } from "@/lib/integrations.functions";
+import { getDeployments, syncDeployEnv } from "@/lib/integrations.functions";
+import { autoFix } from "@/lib/connect.functions";
+import { autoHealLabel } from "@/lib/preview-repair";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -99,6 +101,11 @@ function Workspace() {
   const stop = useServerFn(stopSession);
   const deployNow = useServerFn(syncDeployEnv);
   const [deploying, setDeploying] = useState(false);
+  // Background deploy healing: watch the build after Publish; on failure send only the real blockers/build errors (max 3 rounds).
+  const [watchDeploy, setWatchDeploy] = useState<number | null>(null);
+  const deployHealTries = useRef(0);
+  const fetchDeploys = useServerFn(getDeployments);
+  const runAutoFix = useServerFn(autoFix);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const session = useQuery({
@@ -442,7 +449,7 @@ function Workspace() {
 
   const s = session.data;
   // Auto-fix runs in publish mode: once the fix lands the agent deploys and verifies it (up to 3 repair rounds).
-  const autoFixSend = (prompt: string) => { if (!desktop) setView("chat"); void send(prompt, false, true); };
+  const autoFixSend = (prompt: string) => { void send(prompt, false, true); };
   // Header Publish: starts the live build directly instead of asking the agent in chat.
   const publishNow = async () => {
     if (deploying) return;
@@ -451,11 +458,35 @@ function Workspace() {
     try {
       const r = await deployNow({ data: { id, redeploy: true } });
       toast.success(r.redeployed ? "Deployment started — your site is rebuilding with the latest version" : "Settings synced", { id: t });
+      if (r.redeployed) { deployHealTries.current = 0; setWatchDeploy(Date.now()); }
     } catch (e) {
       toast.error(`${(e as Error).message}. Finish setup in Publish.`, { id: t });
       setPublishOpen(true);
     } finally { setDeploying(false); }
   };
+  const agentBusyNow = running || bgRunning;
+  useEffect(() => {
+    if (!watchDeploy || agentBusyNow) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (Date.now() - watchDeploy > 15 * 60_000) { setWatchDeploy(null); return; }
+      try {
+        const d = await fetchDeploys({ data: { id } });
+        const latest = d.deployments[0];
+        if (cancelled || !latest || latest.created < watchDeploy - 60_000) return;
+        const failed = latest.state === "ERROR" || d.runtime?.state === "ERROR";
+        if (latest.state === "READY" && d.runtime?.state !== "ERROR") { setWatchDeploy(null); return; }
+        if (!failed) return;
+        setWatchDeploy(null);
+        if (deployHealTries.current >= 3) { toast.error("The live build still fails after 3 automatic fixes. Open Publish to see the remaining problem."); return; }
+        deployHealTries.current += 1;
+        const r = await runAutoFix({ data: { id } });
+        if (r.prompt) autoFixSend(r.prompt);
+      } catch { /* transient; next tick retries */ }
+    }, 15_000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchDeploy, agentBusyNow, id]);
   const renderPanel = (k: PanelKey) => {
     if (!s) return null;
     switch (k) {
@@ -464,7 +495,7 @@ function Workspace() {
       case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
       case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
       case "deploy": return <DeployPanel id={id} onSend={autoFixSend} />;
-      case "preview": return <PreviewPanel id={id} agentBusy={running || bgRunning || stopping} onSend={async (prompt) => { if (!desktop) setView("chat"); await send(prompt, false); }} />;
+      case "preview": return <PreviewPanel id={id} agentBusy={running || bgRunning || stopping} onSend={async (prompt) => { await send(prompt, false); }} />;
       case "terminal": return <TerminalDeck id={id} />;
       case "files": return <FileWorkbench id={id} />;
       case "changes": return (
@@ -770,6 +801,9 @@ function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVER
 
 function MessageView({ m: raw, live, sessionId, onOpenTimeline }: { m: ChatMessage; live: boolean; sessionId: string; onOpenTimeline: () => void }) {
   const m = raw.role === "assistant" ? { ...raw, content: raw.content.replace(RECOVERY_NOTE, "").trimEnd() } : raw;
+  const heal = m.role === "user" ? autoHealLabel(m.content) : null;
+  if (heal)
+    return <div className="flex justify-center"><span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-3 py-1 text-xs text-muted-foreground"><Wrench className="size-3" />{heal}</span></div>;
   if (m.role === "user")
     return <Message from="user"><MessageContent className="whitespace-pre-wrap break-words group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground">{m.content}</MessageContent></Message>;
   return (
