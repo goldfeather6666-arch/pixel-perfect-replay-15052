@@ -1124,15 +1124,22 @@ export const Route = createFileRoute("/api/agent")({
                   const base = compact.messages as typeof stepMessages;
                   const extra = liveChat.length ? { messages: [...base, { role: "user" as const, content: `Messages the user sent while you were working (newest last). Read them now: answer questions briefly in your next reply and adjust the work if they change direction, then continue.\n${liveChat.map((m, i) => `${i + 1}. ${m}`).join("\n")}` }] } : compact.compacted ? { messages: base } : {};
                   const choice = toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : {};
+                  waitingModelName = activeModel;
+                  life.awaitModel();
                   return { ...extra, ...choice };
                 },
                 maxRetries: 3,
                 abortSignal: runAbort.signal,
               });
               for await (const part of abortableStream(result.fullStream, runAbort.signal)) {
-                if (part.type === "text-delta") {
+                if (part.type === "reasoning-start" || part.type === "reasoning-delta" || part.type === "tool-input-start" || part.type === "tool-input-delta") {
+                  // Thinking and tool-argument streaming are real model activity: keep the run alive and show it.
+                  life.progress();
+                  if (Date.now() - lastThinkingNote > 3_000) { lastThinkingNote = Date.now(); sendQuiet({ t: "wait", d: part.type.startsWith("reasoning") ? `${activeModel} is thinking…` : `${activeModel} is preparing a tool call…` }); }
+                } else if (part.type === "text-delta") {
                   rec.metric("timeToFirstTokenMs", rec.since("firstToken"));
                   text += part.text;
+                  send({ t: "wait", d: null });
                   send({ t: "text", d: part.text });
                 } else if (part.type === "tool-call") {
                   responseToolCalls++;
