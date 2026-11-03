@@ -42,7 +42,7 @@ describe("secret submission ownership and consent", () => {
   it("exposes only request metadata to the browser and model", async () => {
     fake.replies = [{ data: session }, { data: [{ id: "request", name: "STRIPE_SECRET_KEY", state: "synced" }] }];
     await listProjectSecrets(ctx, "task");
-    expect(fake.selects.at(-1)).toBe("id,name,purpose,source_url,targets,state");
+    expect(fake.selects.at(-1)).toBe("id,name,purpose,source_url,targets,state,updated_at");
     expect(fake.selects.join(",")).not.toContain("ciphertext");
     expect(fake.project).not.toHaveBeenCalled();
   });
