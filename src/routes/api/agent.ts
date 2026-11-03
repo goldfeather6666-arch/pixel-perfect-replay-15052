@@ -603,6 +603,30 @@ export const Route = createFileRoute("/api/agent")({
               return row ? await m.stopPreview(sb, row) : { ok: true };
             },
           }),
+          list_databases: tool({
+            description: "List the database projects in the user's connected database account and show which one this task uses. Use when the preview log says the database was not provided.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              const m = await import("@/lib/preview-manager.server");
+              const { data: fresh } = await sb.from("agent_sessions").select("supabase_ref, accounts").eq("id", sessionId).single();
+              const projects = await m.listTaskDatabases(s.user_id, fresh?.accounts).catch(() => null);
+              if (!projects) return { error: "No database account connected. Ask the user to connect it in Settings → Accounts (one click)." };
+              return { linked: fresh?.supabase_ref ?? null, projects: projects.map((p) => ({ ref: p.ref, name: p.name, status: p.status })) };
+            },
+          }),
+          link_database: tool({
+            description: "Link one of the user's existing database projects to this task, then reload the preview and agent shell settings (URL, public key, project id). Pick the project matching this app; ask the user if unclear. Does not create projects or change data.",
+            inputSchema: z.object({ ref: z.string().min(6).max(64) }),
+            execute: async ({ ref }) => {
+              if (plan) return { error: "Plan mode cannot change task links." };
+              const m = await import("@/lib/preview-manager.server");
+              try { await m.linkTaskDatabase(s.user_id, sessionId, ref); } catch (e) { return { error: (e as Error).message }; }
+              const linked = { ...sbxSession, supabase_ref: ref, accounts: s.accounts };
+              const row = await m.latestPreview(sb, sessionId);
+              if (row) { await m.restartPreview(sb, row, linked); return { linked: ref, note: "Settings written; preview restarting. Call preview_status, then test sign-up/sign-in." }; }
+              return { linked: ref, note: "Linked. Call preview_start — the preview and shell receive the database settings." };
+            },
+          }),
           apply_migrations: tool({
             description: "Apply this task's new database migration files (supabase/migrations/*.sql on the work branch, in name order) to the user's linked Supabase project. Write each schema change as a NEW timestamped file (e.g. supabase/migrations/20260101120000_add_posts.sql); never edit applied files. Returns applied files or the SQL error to fix.",
             inputSchema: z.object({}),
