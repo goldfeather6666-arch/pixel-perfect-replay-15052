@@ -127,7 +127,15 @@ export class GitHub {
     });
   }
   async openPr(repo: string, base: string, head: string, title: string, body: string) {
-    const p = await this.req<any>(`repos/${repo}/pulls`, { method: "POST", body: JSON.stringify({ title, body, head, base }) });
-    return p.html_url as string;
+    try {
+      const p = await this.req<any>(`repos/${repo}/pulls`, { method: "POST", body: JSON.stringify({ title, body, head, base }) });
+      return p.html_url as string;
+    } catch (e) {
+      // Already open for this branch → reuse it instead of failing.
+      const owner = repo.split("/")[0];
+      const open = await this.req<any[]>(`repos/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${head}`)}`).catch(() => []);
+      if (open?.[0]?.html_url) return open[0].html_url as string;
+      throw e;
+    }
   }
 }
