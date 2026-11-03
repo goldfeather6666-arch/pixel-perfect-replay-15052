@@ -670,11 +670,16 @@ function Workspace() {
       )}
       <Sheet open={publishOpen} onOpenChange={setPublishOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-          <SheetHeader className="border-b p-4">
-            <SheetTitle>Publish</SheetTitle>
-            <p className="text-sm text-muted-foreground">Check your accounts, then send the current version live.</p>
-            <Button className="mt-2 w-full gap-2" disabled={running || bgRunning} onClick={() => { if (!confirm("Publish the current version to your live website?")) return; setPublishOpen(false); if (!desktop) setView("chat"); void send("Publish the current version.", false, true); }}>
-              <Rocket className="h-4 w-4" /> Publish current version
+          <SheetHeader className="space-y-3 border-b p-4">
+            <div className="flex items-center gap-3 pr-8">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary"><Rocket className="size-5" /></span>
+              <div className="min-w-0">
+                <SheetTitle className="text-base">Publish setup</SheetTitle>
+                <p className="truncate text-xs text-muted-foreground">Database, website, domain and keys for this project</p>
+              </div>
+            </div>
+            <Button className="h-10 w-full gap-2 rounded-xl" disabled={deploying} onClick={() => { setPublishOpen(false); void publishNow(); }}>
+              {deploying ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />} {deploying ? "Deploying…" : "Deploy now"}
             </Button>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">{publishOpen && s && <DeployPanel id={id} onSend={(p) => { setPublishOpen(false); autoFixSend(p); }} />}</div>
