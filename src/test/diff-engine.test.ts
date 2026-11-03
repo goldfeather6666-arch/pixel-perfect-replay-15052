@@ -87,10 +87,10 @@ describe("groupByIntent", () => {
   it("groups by top-level area, sorted by change size", () => {
     const files = parseUnifiedDiff(DIFF);
     const groups = groupByIntent(files);
-    expect(groups.map((g) => g.intent)).toContain("src/app.ts".split("/")[0] + "/util");
     const intents = groups.map((g) => g.intent);
+    expect(intents).toContain("src");
     expect(intents).toContain("src/util");
-    expect(intents[0]).toBe("src/util"); // 2 additions vs app.ts mixed
+    expect(intents[0]).toBe("src"); // app.ts has 4 changed lines vs util's 2
     const util = groups.find((g) => g.intent === "src/util")!;
     expect(util.additions).toBe(2);
   });
