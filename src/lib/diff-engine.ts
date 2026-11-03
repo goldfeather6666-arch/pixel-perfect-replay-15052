@@ -86,8 +86,59 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
   return files.filter((f) => f.hunks.length > 0 || f.isNew || f.isDeleted || f.isRename);
 }
 
+/** Line-level diff via LCS (bounded for very large files). */
+export function diffLines(a: string, b: string): DiffLine[] {
+  const x = a.split("\n"), y = b.split("\n");
+  if (x.length * y.length > 4_000_000) {
+    return [...x.map((l): DiffLine => ({ kind: "del", text: l })), ...y.map((l): DiffLine => ({ kind: "add", text: l }))];
+  }
+  const dp = Array.from({ length: x.length + 1 }, () => new Uint32Array(y.length + 1));
+  for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) dp[i]![j] = x[i] === y[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+  const out: DiffLine[] = [];
+  let i = 0, j = 0;
+  while (i < x.length && j < y.length) {
+    if (x[i] === y[j]) { out.push({ kind: "context", text: x[i]! }); i++; j++; }
+    else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) out.push({ kind: "del", text: x[i++]! });
+    else out.push({ kind: "add", text: y[j++]! });
+  }
+  while (i < x.length) out.push({ kind: "del", text: x[i++]! });
+  while (j < y.length) out.push({ kind: "add", text: y[j++]! });
+  return out;
+}
+
+/** Group a line diff into reviewable hunks with `context` lines of surrounding code. */
+export function hunksFromDiff(lines: DiffLine[], context = 3): Hunk[] {
+  const changes = lines.map((l, i) => (l.kind !== "context" ? i : -1)).filter((i) => i >= 0);
+  if (!changes.length) return [];
+  const clusters: Array<[number, number]> = [];
+  let s = changes[0]!, prev = changes[0]!;
+  for (const i of changes.slice(1)) {
+    if (i - prev > 2 * context) { clusters.push([s, prev]); s = i; }
+    prev = i;
+  }
+  clusters.push([s, prev]);
+  const hunks: Hunk[] = [];
+  let oldLine = 1, newLine = 1, ptr = 0;
+  for (const [cs, ce] of clusters) {
+    const start = Math.max(0, cs - context);
+    const end = Math.min(lines.length - 1, ce + context);
+    for (; ptr < start; ptr++) { if (lines[ptr]!.kind !== "add") oldLine++; if (lines[ptr]!.kind !== "del") newLine++; }
+    const hunkLines = lines.slice(start, end + 1);
+    let oldCount = 0, newCount = 0;
+    for (const l of hunkLines) { if (l.kind !== "add") oldCount++; if (l.kind !== "del") newCount++; }
+    hunks.push({ index: hunks.length, oldStart: oldLine, oldLines: oldCount, newStart: newLine, newLines: newCount, header: "", lines: hunkLines });
+    for (; ptr <= end; ptr++) { if (lines[ptr]!.kind !== "add") oldLine++; if (lines[ptr]!.kind !== "del") newLine++; }
+  }
+  return hunks;
+}
+
+/** Diff two file contents straight into hunks (convenience for review UI). */
+export function diffFile(oldText: string, newText: string, context = 3): Hunk[] {
+  return hunksFromDiff(diffLines(oldText, newText), context);
+}
+
 /** Apply a chosen subset of a file's hunks to its original content. */
-export function applyHunks(original: string, file: FileDiff, chosen: number[]): string {
+export function applyHunks(original: string, file: { hunks: Hunk[] }, chosen: number[]): string {
   const lines = original.split("\n");
   const picked = file.hunks.filter((h) => chosen.includes(h.index)).sort((a, b) => b.oldStart - a.oldStart);
   for (const h of picked) {
