@@ -57,6 +57,11 @@ export function openLicense(text: string): string | null {
   if (/Apache License[\s\S]*Version 2\.0[\s\S]*TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION/i.test(text)) return 'Apache-2.0';
   if (/Redistribution and use in source and binary forms[\s\S]*THIS SOFTWARE IS PROVIDED/i.test(text)) return /Neither the name/i.test(text) ? 'BSD-3-Clause' : 'BSD-2-Clause';
   if (/Permission to use, copy, modify, and\/or distribute this software for any purpose with or without fee/i.test(text)) return 'ISC';
+  // Free Creative Commons / public-domain terms (NC and ND variants are rejected above).
+  if (/Creative Commons[\s\S]*Attribution-ShareAlike 4\.0 International/i.test(text)) return 'CC-BY-SA-4.0';
+  if (/Creative Commons[\s\S]*Attribution 4\.0 International/i.test(text)) return 'CC-BY-4.0';
+  if (/CC0 1\.0 Universal/i.test(text)) return 'CC0-1.0';
+  if (/This is free and unencumbered software released into the public domain/i.test(text)) return 'Unlicense';
   return null; // Unknown/copyleft/mixed licenses need a tailored review, never assume permission.
 }
 export function skillUsable(skill: { source?: string | null; registry?: unknown; instructions: string }): boolean {
