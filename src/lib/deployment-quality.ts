@@ -88,7 +88,7 @@ if (PHASE === 'install') {
 }
 let failed = false;
 const scripts = pkg.scripts || {};
-for (const name of ['lint', 'typecheck', 'type-check', 'check-types', 'test', 'build']) {
+for (const name of ['lint', 'typecheck', 'type-check', 'check-types', 'test', 'build', 'test:e2e', 'e2e', 'test:a11y', 'lighthouse']) {
   if (!scripts[name]) { if (name === 'build') { console.error('Production build script missing; verification blocked.'); failed = true; } continue; }
   if (name === 'test' && (/--watch\b|vitest\s*$|jest\s*$/.test(scripts[name]))) {
     const args = /vitest/.test(scripts[name]) ? ['run','test','--','run'] : ['run','test','--','--watch=false'];

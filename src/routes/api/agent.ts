@@ -12,6 +12,8 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
+// Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
+const passedChecks = new Map<string, number>();
 import { checkFailure, deploymentSkill, previewDiagnosisSkill, productionInstructions, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
 import { agentRequest, attachmentPart, requestError } from "@/lib/agent-request";
 import { watchForStop } from "@/lib/agent-stop";
@@ -440,6 +442,12 @@ export const Route = createFileRoute("/api/agent")({
               }
               const before = await gh.headSha(repo, branch);
               const checkedRevision = revision;
+              const cacheKey = `${u.user.id}:${repo}@${before}:${root}`;
+              if (phase === "check" && revision === 0 && passedChecks.has(cacheKey)) {
+                quality.localPassed = true; quality.localIssue = undefined;
+                rec.event("qa.gate", { passed: true, cached: true });
+                return { exit_code: 0, cached: true, commit: before, gate: { passed: true, summary: "QA gate already passed for this exact commit; reused the result." } };
+              }
               const result = await sbxRun(command);
               const after = await gh.headSha(repo, branch);
               if (phase === "check") {
@@ -449,6 +457,8 @@ export const Route = createFileRoute("/api/agent")({
                   : checkFailure(result);
               }
               const gate = phase === "check" && "stdout" in result ? parseGateLog(String(result.stdout ?? ""), String(result.stderr ?? "")) : undefined;
+              if (gate?.passed && revision === 0 && before === after) { passedChecks.set(cacheKey, Date.now()); if (passedChecks.size > 200) passedChecks.delete(passedChecks.keys().next().value!); }
+              if (gate) rec.set("qaGateMs", gate.totalMs);
               if (gate) rec.event("qa.gate", { passed: gate.passed, totalMs: gate.totalMs, failedStep: gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
               return { ...result, ...(gate ? { gate: { passed: gate.passed, summary: gate.summary, steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(before !== after ? { error: "Branch changed during checks; run checks again on the current commit." } : {}) };
             },
@@ -1158,6 +1168,8 @@ export const Route = createFileRoute("/api/agent")({
                   rec.metric("timeToFirstTokenMs", rec.since("firstToken"));
                   rec.mark(`tool:${part.toolCallId}`);
                   if (part.toolName === "deployment_preflight" || part.toolName === "deploy_status") rec.to("VERIFYING", `Running ${part.toolName}`);
+                  if (/^(write_files?|edit_file|delete_file|apply_proposals)$/.test(part.toolName)) rec.metric("timeToFirstDiffMs", rec.since("firstToken"));
+                  if (part.toolName === "deployment_preflight" || part.toolName === "deploy_status") {}
                   else if (/^(write_files?|delete_file|apply_proposals)$/.test(part.toolName) && rec.stage === "VERIFYING") rec.to("REPAIRING", "Editing after verification");
                   rec.event("tool.execution.started", { id: part.toolCallId, tool: part.toolName });
                   life.toolStarted(part.toolCallId);
