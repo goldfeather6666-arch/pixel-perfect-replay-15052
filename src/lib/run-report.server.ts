@@ -1,6 +1,6 @@
 // Post-run report writer. Reads only what this run actually recorded (events, error logs,
-// provenance) and turns it into the failure-intelligence report, then appends it as a run event.
-// Runs on the server inside the agent stream; never blocks or fails the run.
+// provenance) and turns it into the failure-intelligence report. Runs on the server inside the
+// agent stream; a read failure simply yields no report and never breaks the run.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { postRunReport, type PostRunReport, type RunEvidence } from "./failure-intelligence";
 
@@ -26,7 +26,7 @@ export type ReportFacts = {
   priorContext: { repoMemory: boolean; typedMemories: number; projectDoc: boolean; history: number };
 };
 
-/** Build the report from recorded evidence only. Returns null when the run itself was never recorded. */
+/** Build the post-run report from recorded evidence only. Null when the run itself was never recorded. */
 export async function buildRunReport(sb: SupabaseClient, f: ReportFacts): Promise<PostRunReport | null> {
   if (!f.runId) return null;
   const [eventsRes, errorsRes, provRes] = await Promise.all([
@@ -62,7 +62,11 @@ export async function buildRunReport(sb: SupabaseClient, f: ReportFacts): Promis
     outcomeState: f.outcomeState,
     errorCategories: [...new Set(errors.map((e) => e.category))],
     gate: gate
-      ? { passed: gateP["passed"] === true, failureKind: typeof gateP["failureKind"] === "string" ? (gateP["failureKind"] as string) : null, failedStep: typeof gateP["failedStep"] === "string" ? (gateP["failedStep"] as string) : null }
+      ? {
+          passed: gateP["passed"] === true,
+          failureKind: typeof gateP["failureKind"] === "string" ? (gateP["failureKind"] as string) : null,
+          failedStep: typeof gateP["failedStep"] === "string" ? (gateP["failedStep"] as string) : null,
+        }
       : null,
     budgetOk: budget ? obj(budget.payload)["ok"] === true : null,
     policyOk: policy ? obj(policy.payload)["ok"] === true : null,
@@ -88,10 +92,4 @@ export async function buildRunReport(sb: SupabaseClient, f: ReportFacts): Promis
     priorContext: f.priorContext,
   };
   return postRunReport(evidence);
-}
-
-/** Append the report as a durable run event so every session carries its own post-run record. */
-export async function recordRunReport(sb: SupabaseClient, report: PostRunReport | null): Promise<void> {
-  if (!report || !report.mode) return;
-  await sb.rpc("engine_event", { _run: null, _type: "run.report", _payload: report as unknown as Record<string, unknown> }).then(() => {}, () => {});
 }
