@@ -51,7 +51,9 @@ export function selectSkills(request: string, skills: SkillMeta[], stats?: Map<s
   for (const s of skills) {
     if (s.activation === "always") { chosen.set(s.name, "marked always-on"); continue; }
     if (s.activation === "manual") { if (req.includes(s.name.toLowerCase())) chosen.set(s.name, "named in your request"); continue; }
-    const trig = s.triggers.find((t) => req.includes(t));
+    const stem = (w: string) => w.replace(/(ing|es|s|ed)$/, "");
+    const reqStems = new Set([...reqWords].map(stem));
+    const trig = s.triggers.find((t) => req.includes(t) || (!t.includes(" ") && t.length >= 4 && reqStems.has(stem(t))));
     if (trig) { chosen.set(s.name, `request mentions "${trig}"`); continue; }
     if (req.includes(s.name.toLowerCase())) { chosen.set(s.name, "named in your request"); continue; }
     const overlap = [...words(`${s.name.replace(/[-_]/g, " ")} ${s.description}`)].filter((w) => reqWords.has(w));
