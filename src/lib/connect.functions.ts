@@ -19,15 +19,3 @@ export const syncProject = createServerFn({ method: "POST" })
     return { steps: r.steps, overall: r.overall };
   });
 
-/** Auto-fix: sync first, then return a focused repair brief for the agent (null = nothing left to fix). */
-export const autoFix = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid() }))
-  .handler(async ({ data, context }) => {
-    const s = await owned(context, data.id);
-    if (s.running) throw new Error("The agent is already working on this task. Stop it first or wait.");
-    const { syncProject: run } = await import("./connect.server");
-    const { autoFixPrompt } = await import("./connect");
-    const r = await run(context.supabase, s, { applyMigrations: true });
-    return { steps: r.steps, overall: r.overall, prompt: autoFixPrompt(r.steps, r.buildErrors) };
-  });
