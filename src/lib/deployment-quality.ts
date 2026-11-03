@@ -76,9 +76,10 @@ const pm = declared || (locks.find(([, file]) => fs.existsSync(file)) || ['npm']
 if (!['npm','pnpm','yarn','bun'].includes(pm)) throw new Error('Unsupported package manager: ' + pm);
 const run = (args) => {
   console.log('\n[Forge check] ' + pm + ' ' + args.join(' '));
+  const started = Date.now();
   const result = cp.spawnSync(pm, args, { stdio:'inherit', env:{...process.env, CI:'true'}, timeout:210000 });
-  if (result.error) { console.error(result.error.message); return 1; }
-  console.log('[Forge exit] ' + result.status);
+  if (result.error) { console.error(result.error.message); console.log('[Forge exit] 1 ' + (Date.now() - started) + 'ms'); return 1; }
+  console.log('[Forge exit] ' + result.status + ' ' + (Date.now() - started) + 'ms');
   return result.status === 0 ? 0 : 1;
 };
 if (PHASE === 'install') {

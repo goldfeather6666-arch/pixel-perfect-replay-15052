@@ -22,7 +22,7 @@
 
 ## Phase 5 — One-command QA gate
 - [ ] Gate pipeline: typecheck → lint → unit → e2e → visual → axe → Lighthouse
-- [ ] Evidence-backed reports with measured numbers; failure taxonomy (flaky/regression/config)
+- [x] Evidence-backed reports with measured numbers; failure taxonomy (flaky/regression/config)
 
 ## Phase 6 — Approval UX + auto-PR
 - [ ] Guardrail transparency: why an action was blocked
