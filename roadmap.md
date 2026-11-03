@@ -26,7 +26,7 @@
 
 ## Phase 6 — Approval UX + auto-PR
 - [x] Guardrail transparency: why an action was blocked
-- [ ] One-click approve with full context; auto-PR with demo link
+- [x] One-click approve with full context; auto-PR with demo link
 
 ## Phase 7 — Multi-agent coordinator + merge resolver
 - [x] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
