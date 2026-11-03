@@ -27,6 +27,10 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [ ] Evidence rows in the UI still need a run that executes the QA gate or a route probe in this project; the builders are tested against recorded gate/budget/policy/route shapes.
 - [x] Reads survive a server restarting mid-request: aborted/500 responses retry up to three times with backoff, so approval, interaction and integration panels refill themselves instead of blanking until a manual refresh.
 
+- [x] Run survives a dropped browser connection: a dead client stream no longer aborts the agent run; the page refetches saved progress (5 retries with backoff), follows a background run at 3s intervals, and resyncs on reconnect/refocus/reopen.
+- [x] Mobile tab stays awake during a run: inaudible Web Audio loop + screen wake lock, re-acquired when the tab becomes visible again.
+- [ ] Completion/approval alert is page-local only (browser Notification while the tab still lives in the background). Real web push — service worker, VAPID keys, server-side send on run finish or pending approval — is not built, so an alert cannot arrive once the OS kills the tab.
+
 ## Remaining platform work
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.
 - [ ] Canary matrix, baseline/post benchmarks, full end-to-end customer project verification and final release documentation.
