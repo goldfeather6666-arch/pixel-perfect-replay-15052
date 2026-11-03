@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { resumeForcePlan } from "@/lib/approval-resume";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { syncDeployEnv } from "@/lib/integrations.functions";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
@@ -845,7 +845,7 @@ function FilesView({ id }: { id: string }) {
 function PendingApprovals({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining: PendingChange[]) => void }) {
   const resolve = useServerFn(resolvePending);
   const resolveM = useMutation({
-    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> }) => resolve({ data: { id, ...v } }),
+    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> | undefined }) => resolve({ data: { id, ...v } }),
     onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
