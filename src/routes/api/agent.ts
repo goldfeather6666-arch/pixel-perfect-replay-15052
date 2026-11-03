@@ -1157,9 +1157,11 @@ export const Route = createFileRoute("/api/agent")({
                   if (part.toolName === "deployment_preflight" || part.toolName === "deploy_status") rec.to("VERIFYING", `Running ${part.toolName}`);
                   else if (/^(write_files?|delete_file|apply_proposals)$/.test(part.toolName) && rec.stage === "VERIFYING") rec.to("REPAIRING", "Editing after verification");
                   rec.event("tool.execution.started", { id: part.toolCallId, tool: part.toolName });
+                  life.toolStarted(part.toolCallId);
                   logs.push({ id: part.toolCallId, name: part.toolName, input: part.input });
                   send({ t: "tool", id: part.toolCallId, name: part.toolName, input: part.input });
                 } else if (part.type === "tool-result" || part.type === "tool-error") {
+                  life.toolEnded(part.toolCallId);
                   const ok = part.type === "tool-result";
                   const raw = ok ? (part as any).output : (part as any).error;
                   const summary = (ok ? (typeof raw === "string" ? raw : JSON.stringify(raw ?? "")) : toolErrorText(raw) || "Tool failed without details").slice(0, 400);

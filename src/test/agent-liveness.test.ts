@@ -28,3 +28,16 @@ describe("agent liveness", () => {
     expect(life.stalled(130_000)).toBe(true);
   });
 });
+import { TOOL_RUNNING_MS } from "@/lib/agent-liveness";
+describe("running tools", () => {
+  it("keeps a run alive while a tool works silently, up to ten minutes", () => {
+    const life = agentLiveness(0);
+    life.toolStarted("a", 0);
+    expect(TOOL_RUNNING_MS).toBe(600_000);
+    expect(life.stalled(70_000)).toBe(false);
+    expect(life.stalled(600_000)).toBe(true);
+    life.toolEnded("a", 100_000);
+    expect(life.stalled(159_999)).toBe(false);
+    expect(life.stalled(160_000)).toBe(true);
+  });
+});
