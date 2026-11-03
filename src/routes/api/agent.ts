@@ -14,6 +14,7 @@ import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
 import { evaluateBudget, formatBudgetResult, parseAssetListing, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
 import { formatQualityScore, scorePage } from "@/lib/quality-score";
+import { extractStyle, formatStyleMemory, mergeStyleProfile, type StyleProfile } from "@/lib/style-memory";
 import { merge3 } from "@/lib/diff-engine";
 import { indexFile, isIndexable, lookupSymbol, type SymbolEntry } from "@/lib/engine/symbol-index";
 // Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
@@ -585,6 +586,27 @@ export const Route = createFileRoute("/api/agent")({
               if (error) return { error: error.message };
               memoryNotes = notes;
               return { saved: true, chars: notes.length };
+            },
+          }),
+          remember_style: tool({
+            description: "Record this project's design language (palette, typefaces, corner radii, theme tokens) from its actual stylesheets, so later tasks match it instead of inventing a new look. Call once after styling work — it reads the CSS files itself.",
+            inputSchema: z.object({
+              files: z.array(z.string()).max(12).default(["src/styles.css", "src/index.css", "src/app/globals.css", "index.css", "app/globals.css", "src/App.css"]),
+            }),
+            execute: async ({ files }) => {
+              let profile: StyleProfile = { colors: [], fonts: [], radii: [], tokens: {} };
+              const read: string[] = [];
+              for (const f of files) {
+                const c = await readCurrent(f);
+                if (c && c.length < 400_000) { profile = mergeStyleProfile(profile, extractStyle(c)); read.push(f); }
+              }
+              if (!profile.colors.length && !profile.fonts.length && !profile.radii.length && !Object.keys(profile.tokens).length) {
+                return { error: "No palette, typefaces or theme tokens found in those files — pass the stylesheet paths that define the look." };
+              }
+              const { error } = await sb.from("style_memory").upsert({ user_id: u.user.id, repo, profile, updated_at: new Date().toISOString() }, { onConflict: "user_id,repo" });
+              if (error) return { error: error.message };
+              rec.event("style.saved", { files: read.length, colors: profile.colors.length, fonts: profile.fonts.length });
+              return { saved: true, files: read, colors: profile.colors.length, fonts: profile.fonts.length, radii: profile.radii.length };
             },
           }),
           remember: tool({
@@ -1205,6 +1227,8 @@ export const Route = createFileRoute("/api/agent")({
               let autoSegments = 0;
               const fallbackModel = (s as { fallback_model?: string | null }).fallback_model?.trim() || null;
               let activeModel: string = s.model;
+              const styleRow = await sb.from("style_memory").select("profile").eq("user_id", u.user.id).eq("repo", repo).maybeSingle().then((r) => r.data as { profile?: StyleProfile } | null, () => null);
+              const styleMemoryText = formatStyleMemory(styleRow?.profile ?? null);
               for (let modelAttempt = 0; modelAttempt < 2; modelAttempt++) {
               try {
               for (let repairRound = 0; repairRound <= 3; repairRound++) {
