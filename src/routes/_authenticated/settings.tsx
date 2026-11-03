@@ -38,10 +38,14 @@ function SettingsPage() {
   const [models, setModels] = useState("");
   const [extra, setExtra] = useState("");
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"ai" | "accounts" | "tools">("ai");
+  const ACCOUNT = ["github", "supabase", "vercel"];
+  /** The Accounts tab always edits a real account service, never a leftover AI provider. */
+  const svc = tab === "accounts" && !ACCOUNT.includes(provider) ? ("github" as ProviderId) : provider;
 
   const saveM = useMutation({
     mutationFn: async () => {
-      const custom = provider === "compatible";
+      const custom = svc === "compatible";
       let extra_body: Record<string, unknown> | null = null;
       if (custom && extra.trim()) {
         try {
@@ -54,8 +58,8 @@ function SettingsPage() {
       }
       return save({
         data: {
-          provider,
-          label: label || providerName(provider),
+          provider: svc,
+          label: label || providerName(svc),
           key,
           base_url: custom ? baseUrl : null,
           custom_models: custom ? models.split(/[,\n]/).map((m) => m.trim()).filter(Boolean) : [],
@@ -75,9 +79,7 @@ function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const meta = AI_PROVIDERS.find((p) => p.id === provider);
-  const [tab, setTab] = useState<"ai" | "accounts" | "tools">("ai");
-  const ACCOUNT = ["github", "supabase", "vercel"];
+  const meta = AI_PROVIDERS.find((p) => p.id === svc);
   const pickTab = (t: "ai" | "accounts" | "tools") => { setTab(t); if (t === "ai" && ACCOUNT.includes(provider)) setProvider("openai"); if (t === "accounts" && !ACCOUNT.includes(provider)) setProvider("github" as ProviderId); };
   const shown = creds.data?.filter((c) => (tab === "accounts") === ACCOUNT.includes(c.provider)).filter((c) => `${c.label} ${providerName(c.provider)} ${c.base_url ?? ""} ${c.last4}`.toLowerCase().includes(search.trim().toLowerCase()));
 
@@ -108,7 +110,7 @@ function SettingsPage() {
           <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
             <div className="space-y-1.5">
               <Label>Service</Label>
-              <Select value={provider} onValueChange={(v) => setProvider(v as ProviderId)}>
+              <Select value={svc} onValueChange={(v) => setProvider(v as ProviderId)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {tab === "ai" ? AI_PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>) : (<>
@@ -141,19 +143,19 @@ function SettingsPage() {
             )}
             <div className="space-y-1.5">
               <Label>Name (optional)</Label>
-              <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={providerName(provider)} />
+              <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={providerName(svc)} />
             </div>
-            {hasTokenLink(provider) && (
+            {hasTokenLink(svc) && (
               <div className="space-y-2 rounded-lg border bg-muted/40 p-3 text-sm">
                 <Button asChild type="button" variant="outline" className="h-10 w-full sm:w-auto">
-                  <a href={TOKEN_LINKS[provider].url} target="_blank" rel="noreferrer"><ExternalLink /> Get {providerName(provider)} token</a>
+                  <a href={TOKEN_LINKS[svc].url} target="_blank" rel="noreferrer"><ExternalLink /> Get {providerName(svc)} token</a>
                 </Button>
-                <p className="text-xs text-muted-foreground">{TOKEN_LINKS[provider].steps}</p>
+                <p className="text-xs text-muted-foreground">{TOKEN_LINKS[svc].steps}</p>
               </div>
             )}
             <div className="space-y-1.5">
               <Label>Key</Label>
-              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "vercel" ? "Paste your Vercel token" : meta?.hint} />
+              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={svc === "github" ? "ghp_... or github_pat_..." : svc === "vercel" ? "Paste your Vercel token" : meta?.hint} />
             </div>
             <Button className="h-11 w-full sm:w-auto" disabled={saveM.isPending || !key.trim() || (provider === "compatible" && !baseUrl.trim())}>{saveM.isPending ? "Verifying connection…" : "Verify & save connection"}</Button>
           </form>
