@@ -277,6 +277,7 @@ function Workspace() {
     sendLockRef.current = true;
     setSendError(null);
     setStreamInterrupted(false);
+    setWaitNote(null);
     const sentImages = images;
     let accepted = false;
     setInput("");

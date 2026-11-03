@@ -1059,7 +1059,7 @@ export const Route = createFileRoute("/api/agent")({
               const since = life.awaitingSince();
               if (since === null) return;
               const secs = Math.round((Date.now() - since) / 1000);
-              if (secs >= 15) sendQuiet({ t: "wait", d: `Waiting for ${waitingModelName} to start replying · ${secs}s. This model's service is slow to begin; messages you send now are read as soon as it replies.` });
+              if (secs >= 15) sendQuiet({ t: "wait", d: `Waiting for ${waitingModelName} · ${secs}s — its service is slow to start replying` });
             }, 5_000);
             let lastThinkingNote = 0;
             const stalledNote = () => stalledWaitingModel
