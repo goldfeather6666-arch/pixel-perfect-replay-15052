@@ -845,8 +845,11 @@ function FilesView({ id }: { id: string }) {
 function PendingApprovals({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining: PendingChange[]) => void }) {
   const resolve = useServerFn(resolvePending);
   const resolveM = useMutation({
-    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> | undefined }) => resolve({ data: { id, ...v } }),
-    onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
+    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> | undefined; openPr?: boolean }) => resolve({ data: { id, ...v } }),
+    onSuccess: (r) => {
+      if ("prUrl" in r && r.prUrl) toast.success(`Committed ${r.committed.length} file(s) and opened a pull request`, { action: { label: "Open", onClick: () => window.open(r.prUrl as string, "_blank", "noopener") } });
+      else toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded");
+      onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
   if (!pending.length) return null;
@@ -857,6 +860,7 @@ function PendingApprovals({ id, pending, onResolved }: { id: string; pending: Pe
       <h3 className="flex-1 font-semibold">Changes awaiting approval · {pending.length}</h3>
       <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Reject all</Button>
       <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
+      <Button size="sm" variant="secondary" onClick={() => resolveM.mutate({ approve: true, openPr: true })} disabled={resolveM.isPending}><GitPullRequest /> Approve & open PR</Button>
     </div>
     {groupByIntent(pending.map((c) => ({ oldPath: c.path, newPath: c.path, isNew: c.original == null, isDeleted: c.action === "delete", isRename: false, hunks: [], additions: 0, deletions: 0 }))).map((g) => {
       const paths = g.files.map((f) => f.newPath);
