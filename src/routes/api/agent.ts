@@ -13,6 +13,7 @@ import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/prov
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
 import { evaluateBudget, formatBudgetResult, parseAssetListing, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
+import { formatQualityScore, scorePage } from "@/lib/quality-score";
 import { merge3 } from "@/lib/diff-engine";
 import { indexFile, isIndexable, lookupSymbol, type SymbolEntry } from "@/lib/engine/symbol-index";
 // Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
@@ -664,6 +665,24 @@ export const Route = createFileRoute("/api/agent")({
               const m = await import("@/lib/preview-manager.server");
               const row = await m.latestPreview(sb, sessionId);
               return row ? await m.checkRoute(row, path) : { error: "No preview started" };
+            },
+          }),
+          quality_score: tool({
+            description: "Creative-director review of the running preview: fetches the HTML a route actually serves and scores contrast, heading structure, input labels, image alt text, tap targets and document metadata (plus LCP/payload when you pass measured figures). Returns findings with fixes. Run it on the main routes before handoff and resolve blockers.",
+            inputSchema: z.object({
+              path: z.string().max(300).default("/"),
+              lcpMs: z.number().int().min(0).max(120000).optional(),
+              totalKb: z.number().int().min(0).max(100000).optional(),
+            }),
+            execute: async ({ path, lcpMs, totalKb }) => {
+              const m = await import("@/lib/preview-manager.server");
+              const row = await m.latestPreview(sb, sessionId);
+              if (!row) return { error: "No preview started" };
+              const page = await m.pageHtml(row, path);
+              if (!page.html.trim()) return { status: page.status, error: "Preview returned no HTML to score" };
+              const q = scorePage(page.html, { lcpMs: lcpMs ?? null, totalKb: totalKb ?? null });
+              rec.event("quality.score", { path, score: q.score, findings: q.findings.length, blockers: q.findings.filter((f) => f.severity === "blocker").length });
+              return { path, status: page.status, score: q.score, grades: q.grades, findings: q.findings, measured: q.measured, summary: formatQualityScore(q) };
             },
           }),
           preview_restart: tool({
