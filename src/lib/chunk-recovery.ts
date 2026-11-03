@@ -19,8 +19,14 @@ export function isStaleServerFunctionError(error: unknown) {
   return /Invalid server function ID|Server function (?:info )?not found|^\s*<!doctype html[\s\S]*This page didn.t load/i.test(message);
 }
 
+/** An open tab can hold a stale module that imports an export the freshly served module no longer has. */
+export function isStaleModuleExportError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /does not provide an export named/i.test(message);
+}
+
 export function isRecoverableModuleError(error: unknown) {
-  return isChunkLoadError(error) || isStaleReactModuleError(error) || isStaleServerFunctionError(error);
+  return isChunkLoadError(error) || isStaleReactModuleError(error) || isStaleServerFunctionError(error) || isStaleModuleExportError(error);
 }
 
 /** Replace a stale manifest with a cache-busted document, with bounded retries. */
