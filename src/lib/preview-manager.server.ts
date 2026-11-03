@@ -332,3 +332,19 @@ export async function checkRoute(row: PreviewRow, path: string) {
   const status = Number(codeLine) || 0;
   return { ok: status >= 200 && status < 400, status, path: clean, snippet: body.join("\n").slice(0, 600) };
 }
+
+/** Fetch the full HTML a preview route serves (capped), for scoring rather than a snippet glance. */
+export async function pageHtml(row: PreviewRow, path: string, maxBytes = 120_000) {
+  const box = await connect(row.sandbox_id);
+  if (!box) return { ok: false, status: 0, html: "", note: "Sandbox expired" };
+  const clean = ("/" + path.replace(/^\/+/, "")).replace(/[^A-Za-z0-9/_\-.?=&%]/g, "");
+  const prefix = row.framework === "vite" || row.framework === "astro" ? row.preview_url.replace(/\/$/, "") : "";
+  const r = await sh(
+    box,
+    `code=$(curl -s -L -m 20 -o /tmp/page.html -w '%{http_code}' "http://127.0.0.1:${row.port}${prefix}${clean}"); printf '%s\\n' "$code"; head -c ${maxBytes} /tmp/page.html | base64 -w0`,
+  );
+  const [codeLine = "", ...rest] = String(r.out ?? "").split("\n");
+  const status = Number(codeLine) || 0;
+  const html = Buffer.from(rest.join(""), "base64").toString("utf8");
+  return { ok: status >= 200 && status < 400, status, path: clean, html };
+}
