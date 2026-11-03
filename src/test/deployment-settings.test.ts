@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadDatabaseSettings, syncTaskDatabase } from "@/lib/deployment-settings.server";
+import { appUrlFor, loadDatabaseSettings, syncTaskDatabase } from "@/lib/deployment-settings.server";
 
 const fake = vi.hoisted(() => ({ eq: vi.fn(), read: vi.fn(), decrypt: vi.fn(), key: vi.fn(), env: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => {
@@ -11,7 +11,7 @@ vi.mock("@/lib/customer-auth.server", () => ({ syncDeploymentAuth: vi.fn().mockR
 vi.mock("@/lib/project-setup.server", () => ({ selectedCustomDomain: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/integrations.server", () => ({
   SupabaseMgmt: class { anonKey = fake.key; },
-  Vercel: class { setEnv = fake.env; },
+  Vercel: class { setEnv = fake.env; domains = async () => ["my-app.vercel.app", "my-app-git-x.vercel.app"]; },
 }));
 beforeEach(() => { vi.clearAllMocks(); fake.env.mockResolvedValue(undefined); });
 describe("encrypted task deployment settings", () => {
@@ -34,5 +34,14 @@ describe("encrypted task deployment settings", () => {
     fake.key.mockResolvedValue("sb_secret_test");
     await expect(syncTaskDatabase("owner", "task", "ref", "website", "database-test", "vercel-test")).rejects.toThrow("public key validation failed");
     expect(fake.env).not.toHaveBeenCalled();
+  });
+  it("sets production APP_URL to the Vercel-assigned address", async () => {
+    fake.read.mockResolvedValue({ data: { ciphertext: "encrypted", iv: "iv" }, error: null });
+    fake.decrypt.mockResolvedValue(JSON.stringify({ url: "https://ref.supabase.co", publicKey: "sb_publishable_test" }));
+    await syncTaskDatabase("owner", "task", "ref", "website", "database-test", "vercel-test");
+    expect(fake.env.mock.calls).toContainEqual(["website", { APP_URL: "https://my-app.vercel.app" }, ["production"]]);
+  });
+  it("prefers a verified custom domain for APP_URL", () => {
+    expect(appUrlFor(["my-app.vercel.app", "shop.example.com"], "shop.example.com")).toBe("https://shop.example.com");
   });
 });
