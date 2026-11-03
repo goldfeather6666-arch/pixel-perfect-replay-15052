@@ -402,6 +402,55 @@ export const getDiff = createServerFn({ method: "POST" })
     return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
   });
 
+/** Prompt audit: the requests that drove each change to one file, with that run's verification evidence. */
+export const fileHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), path: z.string().min(1).max(500) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: rows } = await context.supabase
+      .from("change_provenance")
+      .select("run_id, tool, action, prompt, created_at")
+      .eq("session_id", s.id)
+      .eq("path", data.path)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    const changes = (rows ?? []) as { run_id: string | null; tool: string; action: string; prompt: string; created_at: string }[];
+    const runIds = [...new Set(changes.map((r) => r.run_id).filter((x): x is string => !!x))];
+    const { data: gates } = runIds.length
+      ? await context.supabase
+          .from("agent_events")
+          .select("run_id, payload, created_at")
+          .eq("session_id", s.id)
+          .in("run_id", runIds)
+          .eq("type", "qa.gate")
+          .order("created_at", { ascending: false })
+          .limit(40)
+      : { data: [] as { run_id: string; payload: Record<string, unknown>; created_at: string }[] };
+    const { data: spec } = await context.supabase
+      .from("task_specifications")
+      .select("spec")
+      .eq("session_id", s.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const criteria = ((spec?.spec as { acceptance_criteria?: string[] } | null)?.acceptance_criteria ?? []).slice(0, 12);
+    return {
+      path: data.path,
+      changes,
+      evidence: ((gates ?? []) as { run_id: string; payload: Record<string, unknown>; created_at: string }[]).map((g) => ({
+        runId: g.run_id,
+        passed: g.payload?.passed ?? null,
+        cached: g.payload?.cached ?? false,
+        failedStep: g.payload?.failedStep ?? null,
+        failureKind: g.payload?.failureKind ?? null,
+        totalMs: g.payload?.totalMs ?? null,
+        createdAt: g.created_at,
+      })),
+      criteria,
+    };
+  });
+
 export const resolvePending = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), message: z.string().max(200).optional(), paths: z.array(z.string()).max(500).optional(), edits: z.record(z.string(), z.string().max(2_000_000)).optional(), openPr: z.boolean().optional() }))
