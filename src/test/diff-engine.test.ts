@@ -123,3 +123,54 @@ describe("checkpoints", () => {
     expect(diff.removed).toEqual(["b.ts"]);
   });
 });
+
+describe("diffLines + hunksFromDiff", () => {
+  const before = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl";
+  const after = "a\nB\nc\nd\ne\nf\ng\nh\nI\nj\nk\nl\nm";
+
+  it("produces separate hunks for distant changes", () => {
+    const hunks = diffFile(before, after);
+    expect(hunks).toHaveLength(2);
+    expect(hunks[0].oldStart).toBe(1);
+    expect(hunks[1].lines.some((l) => l.text === "m" && l.kind === "add")).toBe(true);
+  });
+
+  it("applying all hunks reproduces the new content exactly", () => {
+    const hunks = diffFile(before, after);
+    const out = applyHunks(before, { hunks }, hunks.map((h) => h.index));
+    expect(out).toBe(after);
+  });
+
+  it("applying a subset keeps the rest of the original", () => {
+    const hunks = diffFile(before, after);
+    const out = applyHunks(before, { hunks }, [0]);
+    expect(out).toContain("\nB\n");
+    expect(out).toContain("\ni\n"); // second change rejected
+    expect(out.endsWith("\nl")).toBe(true); // trailing add rejected
+  });
+
+  it("returns no hunks for identical content", () => {
+    expect(diffFile("same\nfile", "same\nfile")).toHaveLength(0);
+  });
+
+  it("handles create-from-empty and delete-to-empty", () => {
+    const created = diffFile("", "x\ny");
+    expect(applyHunks("", { hunks: created }, [0])).toBe("x\ny");
+    const deleted = diffFile("x\ny", "");
+    expect(applyHunks("x\ny", { hunks: deleted }, [0])).toBe("");
+    expect(applyHunks("x\ny", { hunks: deleted }, [])).toBe("x\ny"); // reject keeps original
+  });
+
+  it("diffLines falls back to whole-file replace for huge inputs", () => {
+    const big = Array.from({ length: 2100 }, (_, i) => `line${i}`).join("\n");
+    const lines = diffLines(big, big + "\nextra");
+    expect(lines.length).toBeGreaterThan(0);
+  });
+
+  it("hunksFromDiff merges nearby changes into one hunk", () => {
+    const hunks = hunksFromDiff(diffLines("a\nb\nc", "A\nb\nC"), 3);
+    expect(hunks).toHaveLength(1);
+    expect(hunks[0].oldLines).toBe(3);
+    expect(hunks[0].newLines).toBe(3);
+  });
+});
