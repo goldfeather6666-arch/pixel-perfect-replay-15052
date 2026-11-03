@@ -13,7 +13,6 @@ import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { RunTimeline } from "@/components/RunTimeline";
 import { StreamTimeline } from "@/components/StreamTimeline";
-import { ListTree } from "lucide-react";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
 import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
@@ -59,7 +58,7 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
 type PanelKey = "timeline" | "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
 // Studio layout: the canvas shows the product (preview, code, changes); power tools live in a
 // collapsible drawer beneath it; going live lives behind the header Publish button.
-const MAIN = [["preview", "Preview", Globe], ["timeline", "Timeline", ListTree], ["files", "Code", FolderTree], ["changes", "Changes", GitCompare]] as const;
+const MAIN = [["preview", "Preview", Globe], ["files", "Code", FolderTree], ["changes", "Changes", GitCompare]] as const;
 const MORE = [
   ["terminal", "Terminal", TerminalSquare], ["swarm", "Agents", Network],
   ["run", "Activity", Activity], ["knowledge", "Knowledge", BookOpen],
@@ -579,7 +578,7 @@ function Workspace() {
                 </div>
               )}
               {messages.map((m, i) => (
-                isRecoveryMessage(m) ? null : <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
+                isRecoveryMessage(m) ? null : <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} onOpenTimeline={() => (desktop ? setRight("timeline") : setView("timeline"))} />
               ))}
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
               <McpActionApprovals sessionId={id} chat busy={running || bgRunning || stopping} onResume={(m) => void send(m, false)} />
@@ -754,14 +753,14 @@ const RECOVERY_USER = /^(continue the previous command from saved progress|conti
 const RECOVERY_NOTE = /\s*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)/g;
 function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVERY_USER.test(m.content.trim()); }
 
-function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
+function MessageView({ m: raw, live, sessionId, onOpenTimeline }: { m: ChatMessage; live: boolean; sessionId: string; onOpenTimeline: () => void }) {
   const m = raw.role === "assistant" ? { ...raw, content: raw.content.replace(RECOVERY_NOTE, "").trimEnd() } : raw;
   if (m.role === "user")
     return <Message from="user"><MessageContent className="whitespace-pre-wrap break-words group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground">{m.content}</MessageContent></Message>;
   return (
     <Message from="assistant" className="max-w-full space-y-2 text-sm">
       <div className="flex items-center gap-1.5 text-xs font-semibold"><img src={forgeMark} alt="" width={24} height={24} className="size-6 object-contain" />Forge</div>
-      {!!m.tools?.length && <ActivityView tools={m.tools} live={live} />}
+      {!!m.tools?.length && <ActivityView tools={m.tools} live={live} onOpen={onOpenTimeline} />}
       {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
       {!live && m.content.trim() && (
         <div className="-mt-1 flex items-center gap-1">
@@ -776,28 +775,35 @@ function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolea
   );
 }
 
-function ActivityView({ tools, live }: { tools: ToolLog[]; live: boolean }) {
-  const busy = live && tools.some((t) => t.ok === undefined);
-  const failed = tools.filter((t) => t.ok === false).length;
-  const current = [...tools].reverse().find((t) => t.ok === undefined);
-  const workers = live ? tools.filter((t) => t.name === "worker" && t.ok === undefined).length : 0;
+// Lovable-style compact timeline card: the latest steps fade upward while live; clicking opens the Timeline page.
+function ActivityView({ tools, live, onOpen }: { tools: ToolLog[]; live: boolean; onOpen: () => void }) {
+  const steps = tools.filter((t) => t.name !== "note");
+  const busy = live && steps.some((t) => t.ok === undefined);
+  const failed = steps.filter((t) => t.ok === false).length;
+  const recent = steps.slice(-3);
+  const label = (t: ToolLog) => {
+    const arg = (t.input as { path?: string; query?: string; command?: string }) ?? {};
+    const what = arg.path ?? arg.query ?? arg.command ?? "";
+    return `${t.name === "worker" ? "Helper" : t.name.replace(/_/g, " ")}${what ? ` · ${what}` : ""}`;
+  };
   return (
-    <Tool defaultOpen={false} className="bg-card text-xs">
-      <ToolHeader type="dynamic-tool" toolName="activity" state={busy ? "input-available" : failed ? "output-error" : "output-available"} title={busy ? (workers > 0 ? `${workers} helpers working` : `Working${current ? ` · ${current.name}` : ""}`) : `${tools.filter((t) => t.name !== "note").length} completed steps`} className="flex-wrap gap-2 p-2.5" />
-      <ToolContent className="space-y-2 border-t p-2">{tools.map((t) => <ToolView key={t.id} t={t} />)}</ToolContent>
-    </Tool>
-  );
-}
-
-function ToolView({ t }: { t: ToolLog }) {
-  if (t.name === "note") return <p className="px-1 py-0.5 text-xs italic text-muted-foreground">{t.summary}</p>;
-  const arg = (t.input as { path?: string; prefix?: string; query?: string }) ?? {};
-  const label = arg.path ?? arg.query ?? (arg.prefix || "/");
-  return (
-    <Tool defaultOpen={false} className="text-xs">
-      <ToolHeader type="dynamic-tool" toolName={t.name} state={t.ok === undefined ? "input-available" : t.ok ? "output-available" : "output-error"} title={`${t.name === "worker" ? "Helper" : t.name} · ${label}`} className="flex-wrap gap-2 p-2 [&_span]:break-all" />
-      <ToolContent className="max-h-72 overflow-auto border-t p-3"><ToolInput input={t.input} /><ToolOutput output={t.ok === false ? undefined : t.summary ?? "Running…"} errorText={t.ok === false ? t.summary ?? "Step failed" : undefined} /></ToolContent>
-    </Tool>
+    <button type="button" onClick={onOpen} className="group w-full rounded-xl border bg-card p-2.5 text-left text-xs transition-colors hover:border-primary/40">
+      <div className="flex items-center gap-2">
+        {busy ? <span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" /><span className="relative inline-flex size-2 rounded-full bg-primary" /></span>
+          : failed ? <X className="size-3.5 text-destructive" /> : <Check className="size-3.5 text-primary" />}
+        <span className="font-medium">{busy ? "Working…" : `${steps.length} steps${failed ? ` · ${failed} failed` : ""}`}</span>
+        <span className="ml-auto flex items-center gap-0.5 text-muted-foreground group-hover:text-primary">Timeline<ChevronRight className="size-3.5" /></span>
+      </div>
+      {busy && recent.length > 0 && (
+        <ul className="mt-2 space-y-1 border-l pl-3">
+          {recent.map((t, i) => (
+            <li key={t.id} style={{ opacity: (i + 1) / recent.length }} className="truncate text-muted-foreground transition-opacity">
+              {t.ok === undefined ? <Loader2 className="mr-1 inline size-3 animate-spin text-primary" /> : null}{label(t)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </button>
   );
 }
 
