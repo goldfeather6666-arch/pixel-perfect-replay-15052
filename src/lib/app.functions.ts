@@ -417,12 +417,12 @@ export const getVerificationHistory = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
     const { data: events, error } = await context.supabase.from("agent_events")
-      .select("id, run_id, type, payload, created_at")
+      .select("seq, run_id, type, payload, created_at")
       .eq("session_id", s.id).eq("user_id", context.userId)
       .in("type", ["budget.check", "policy.check"])
       .order("created_at", { ascending: false }).limit(50);
     if (error) throw new Error("Could not read verification history.");
-    return verificationHistory((events ?? []) as VerificationEvent[]);
+    return verificationHistory((events ?? []).map((event) => ({ ...event, id: `${event.run_id}:${event.seq}` })) as VerificationEvent[]);
   });
 
 /** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,
