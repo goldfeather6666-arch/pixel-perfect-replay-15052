@@ -1149,7 +1149,7 @@ export const Route = createFileRoute("/api/agent")({
                 if (!rec.to(fin.stage, fin.reason) && fin.stage !== "FAILED") rec.to("FAILED", `Could not record ${fin.stage}`);
                 const costBreakdown = Object.entries(usageByModel).map(([model, tokens]) => ({ model, input: tokens.input, output: tokens.output, costUsd: costUsd(modelCaps(model), tokens) }));
                 const totalCostUsd = costBreakdown.reduce((total, item) => total + (item.costUsd ?? 0), 0);
-                const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: quality.changed && !plan, checksAttempted: quality.localAttempted, checksPassed: quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
+                const outcome = assessRun({ stage: rec.stage as Stage, changedFiles: !!quality.changed && !plan, checksAttempted: quality.localAttempted, checksPassed: quality.localPassed, previewVerified: previewReady, ambiguousWrites: ledger.ambiguous().length, failedTools: 0 });
                 rec.event("outcome.assessed", outcome);
                 await rec.finish({ outcome, steps: stepsDone, usage, usageByModel, costBreakdown, costUsd: totalCostUsd, model: s.model, pending: pending.length });
                 send({ t: "stage", stage: rec.stage, runId: rec.runId });
