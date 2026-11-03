@@ -73,32 +73,60 @@ async function killTree(box: import("./runner-box.server").Box, id: string, port
 }
 
 /** Gives the private dev server the task's database settings, kept outside the repo and never sent to the browser. The server-only key is included only when the user saved it in guided setup, mirroring Vercel's server env. */
-async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }): Promise<string> {
-  if (!session.supabase_ref) return "not provided — no database is linked to this task (Publish → Database)";
+const shq = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
+
+/** Project secrets the user submitted for preview/development (e.g. Stripe test keys), decrypted server-side only. */
+async function projectSecretLines(session: Session): Promise<string[]> {
+  try {
+    const { data } = await (await admin()).from("task_secret_requests").select("name,targets,ciphertext,iv").eq("task_id", session.id).eq("user_id", session.user_id).eq("state", "synced");
+    const { decryptSecret } = await import("./crypto.server");
+    const out: string[] = [];
+    for (const r of (data ?? []) as { name: string; targets: string[] | null; ciphertext: string | null; iv: string | null }[]) {
+      if (!r.ciphertext || !r.iv || !/^[A-Z_][A-Z0-9_]*$/.test(r.name)) continue;
+      const t = r.targets ?? [];
+      if (t.length && !t.includes("preview") && !t.includes("development")) continue;
+      out.push(`export ${r.name}=${shq(await decryptSecret(r.ciphertext, r.iv))}`);
+    }
+    return out;
+  } catch { return []; }
+}
+
+/** Database lines, or a reason why they could not be supplied. */
+async function databaseLines(session: Session & { supabase_ref?: string | null }): Promise<string[] | string> {
+  if (!session.supabase_ref) return "no database is linked to this task (Publish → Database)";
   try {
     const { loadDatabaseSettings } = await import("./deployment-settings.server");
     const { deploymentEnv, isPublicDatabaseKey } = await import("./deployment-env");
     const saved = await loadDatabaseSettings(session.user_id, session.id, session.supabase_ref);
     let publicKey = saved?.publicKey ?? "";
     if (!publicKey) {
-      // Fall back to the linked project's public key via the user's saved database token.
       const { accountRow } = await import("./accounts.server");
       const row = await accountRow(await admin(), session.user_id, "supabase", (session as { accounts?: unknown }).accounts);
-      const cred = row ? [row] : [];
-      if (cred.length) {
+      if (row) {
         const { decryptSecret } = await import("./crypto.server");
         const { SupabaseMgmt } = await import("./integrations.server");
-        publicKey = (await new SupabaseMgmt(await decryptSecret(cred[0]!.ciphertext, cred[0]!.iv)).anonKey(session.supabase_ref)) ?? "";
+        publicKey = (await new SupabaseMgmt(await decryptSecret(row.ciphertext, row.iv)).anonKey(session.supabase_ref)) ?? "";
       }
     }
-    if (!publicKey || !isPublicDatabaseKey(publicKey)) return "not provided — the linked database's public key could not be read; reconnect the database account";
+    if (!publicKey || !isPublicDatabaseKey(publicKey)) return "the linked database's public key could not be read; reconnect the database account";
     const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey, saved?.serviceRoleKey, session.supabase_ref) as Record<string, string>;
-    const lines = Object.entries(env).filter(([k, v]) => !!v && (k === "SUPABASE_SERVICE_ROLE_KEY" || !/SERVICE|SECRET/i.test(k))).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
+    return Object.entries(env).filter(([k, v]) => !!v && (k === "SUPABASE_SERVICE_ROLE_KEY" || !/SERVICE|SECRET/i.test(k))).map(([k, v]) => `export ${k}=${shq(String(v))}`);
+  } catch { return "loading the database settings failed"; }
+}
+
+/** Gives the private dev server and agent shell the task's database settings and submitted project secrets, kept outside the repo (mode 600) and never sent to the browser. Returns a names-only status. */
+async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }): Promise<string> {
+  const db = await databaseLines(session);
+  const secrets = await projectSecretLines(session);
+  const lines = [...(Array.isArray(db) ? db : []), ...secrets];
+  const names = (ls: string[]) => ls.map((l) => l.slice(7, l.indexOf("="))).join(", ");
+  try {
     await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
     await box.files.write(TASK_ENV, lines.join("\n") + "\n");
     await sh(box, `chmod 600 ${dirOf(id)}/env ${TASK_ENV}`);
-    return `provided (${Object.keys(env).filter((k) => lines.some((l) => l.startsWith(`export ${k}=`))).join(", ")})`;
-  } catch { return "not provided — loading the database settings failed"; /* preview still starts */ }
+  } catch { return "not provided — writing the settings file failed"; }
+  const dbPart = Array.isArray(db) ? `database provided (${names(db)})` : `database not provided — ${db}`;
+  return `${dbPart}; project secrets: ${secrets.length ? names(secrets) : "none"}`;
 }
 
 /** Starts (or returns the existing) preview for a task. Never starts a duplicate server for an active preview. */
