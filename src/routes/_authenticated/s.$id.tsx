@@ -298,7 +298,7 @@ function Workspace() {
         if (done) break;
       }
       // A clean EOF is not proof the agent finished: the API emits an explicit done event.
-      if (!receivedDoneEvent && !receivedErrorEvent) {
+      if (!receivedDoneEvent && !receivedErrorEvent && !(await followIfStillRunning())) {
         const detail = "The agent stream ended before completion was confirmed. Your saved progress is preserved; continue from the latest state.";
         setSendError(detail);
         setStreamInterrupted(true);
@@ -307,15 +307,17 @@ function Workspace() {
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         const detail = (err as Error).message;
-        setSendError(detail);
-        toast.error(detail);
         if (!accepted) {
+          setSendError(detail);
+          toast.error(detail);
           setInput(text);
           setImages(sentImages);
           setMessages((ms) => ms.slice(0, -2));
-        } else {
+        } else if (!(await followIfStillRunning())) {
           // Server-side actions may have completed before the stream disconnected.
           // Do not replay the original prompt automatically; offer a safe continuation.
+          setSendError(detail);
+          toast.error(detail);
           setStreamInterrupted(true);
         }
       }
