@@ -207,10 +207,17 @@ export async function listSkillCandidates(
       if (adjacent.length) findings.push("Additional bundled resources require manual source audit");
       const networkCalls = [...new Set(f.content.match(/https?:\/\/[^\s<>\])"']+/g) ?? [])];
       if (/\b(api[_ -]?key|access[_ -]?token|oauth|pip install|npm install|npx |uv run)\b/i.test(f.content)) findings.push("External service or executable dependency needs quota/compatibility review");
-      if (f.content.length > MAX_INSTRUCTIONS || parsed.instructions.length > MAX_INSTRUCTIONS) findings.push("Oversized instructions would lose audit context");
+      // Advisory notes: scripts/resources are never installed and long instructions are trimmed, so they don't block import.
+      const advisory = new Set(["Bundled scripts/dependencies require manual source audit; not installed", "Additional bundled resources require manual source audit", "External service or executable dependency needs quota/compatibility review"]);
+      if (parsed.instructions.length > MAX_INSTRUCTIONS) {
+        parsed.instructions = parsed.instructions.slice(0, MAX_INSTRUCTIONS - 40).trimEnd() + "\n\n[Trimmed to fit Forge's limit]";
+        findings.push("Instructions trimmed to fit the size limit");
+        advisory.add("Instructions trimmed to fit the size limit");
+      }
+      const blocking = findings.filter((x) => !advisory.has(x));
       const registry: SkillRegistry = { category: "Imported", repository: src.repo, version, license: license ?? "unverified", licensePath,
-        securityStatus: findings.length ? "review-required" : "instructions-only", verificationStatus: findings.length ? "blocked" : "verified",
-        compatibility: findings.length ? "unverified" : "Forge instructions-only", dependencies, networkCalls, findings, lastUpdate: info.pushed_at };
+        securityStatus: blocking.length ? "review-required" : "instructions-only", verificationStatus: blocking.length ? "blocked" : "verified",
+        compatibility: blocking.length ? "unverified" : "Forge instructions-only", dependencies, networkCalls, findings, lastUpdate: info.pushed_at };
       return { path, name: parsed.name, description: parsed.description, instructions: parsed.instructions, chars: parsed.instructions.length, registry } satisfies SkillCandidate;
     }),
   );
