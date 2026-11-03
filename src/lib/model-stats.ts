@@ -45,7 +45,7 @@ export function aggregateModelStats(rows: RunRow[]): ModelStat[] {
   }
   const stats: ModelStat[] = [];
   for (const [key, list] of groups) {
-    const [provider, model] = key.split("::");
+    const [provider = "unknown", model = "unknown"] = key.split("::");
     const completed = list.filter((r) => r.outcome === "completed").length;
     const failed = list.filter((r) => r.outcome === "failed").length;
     const cancelled = list.filter((r) => r.outcome === "cancelled").length;

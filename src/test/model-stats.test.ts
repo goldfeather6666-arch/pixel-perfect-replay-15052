@@ -17,7 +17,7 @@ describe("aggregateModelStats", () => {
       run({ outcome: null }),
     ]);
     expect(stats.length).toBe(1);
-    const s = stats[0];
+    const s = stats[0]!;
     expect(s.runs).toBe(5);
     expect(s.completed).toBe(1);
     expect(s.failed).toBe(1);
