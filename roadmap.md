@@ -18,7 +18,7 @@
 - [x] Pure diff engine: unified-diff parse, per-hunk select/apply, grouping, checkpoints/revert (src/lib/diff-engine.ts)
 - [x] Per-hunk accept/reject in the approvals view; partial accepts commit only chosen hunks (resolvePending edits)
 - [x] Checkpoint rewind to any task commit or base (restoreCheckpoint, already in Changes tab)
-- [ ] Intent-grouped multi-file review layout (groupByIntent surfaced in UI)
+- [x] Intent-grouped multi-file review layout (groupByIntent surfaced in UI)
 
 ## Phase 5 — One-command QA gate
 - [ ] Gate pipeline: typecheck → lint → unit → e2e → visual → axe → Lighthouse
