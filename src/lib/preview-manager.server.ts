@@ -7,6 +7,7 @@ import { encryptSecret } from "./crypto.server";
 import { detectFramework, detectPackageManager, devCommand, gatewayBase, installCommand, isHealthy, nextMajor, parseListening, pickPort, type Framework } from "./preview-detect";
 
 const REPO_DIR = "/home/user/repo";
+export const TASK_ENV = "/tmp/forge-task.env";
 const TTL_MS = 15 * 60_000;
 const MAX_AUTO_RESTARTS = 3;
 const RUN_ENV = "NODE_OPTIONS=--max-old-space-size=2560 npm_config_audit=false npm_config_fund=false NEXT_TELEMETRY_DISABLED=1 BROWSER=none __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.e2b.app";
@@ -91,10 +92,11 @@ async function writePublicEnv(box: import("./runner-box.server").Box, id: string
       }
     }
     if (!publicKey || !isPublicDatabaseKey(publicKey)) return;
-    const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey, saved?.serviceRoleKey) as Record<string, string>;
+    const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey, saved?.serviceRoleKey, session.supabase_ref) as Record<string, string>;
     const lines = Object.entries(env).filter(([k, v]) => !!v && (k === "SUPABASE_SERVICE_ROLE_KEY" || !/SERVICE|SECRET/i.test(k))).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
     await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
-    await sh(box, `chmod 600 ${dirOf(id)}/env`);
+    await box.files.write(TASK_ENV, lines.join("\n") + "\n");
+    await sh(box, `chmod 600 ${dirOf(id)}/env ${TASK_ENV}`);
   } catch { /* preview still starts; app may show its own missing-config error */ }
 }
 
