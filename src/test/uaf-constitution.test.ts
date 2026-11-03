@@ -19,11 +19,11 @@ describe("UAF constitution", () => {
   });
   it("external content has no authority and loses to any tier", () => {
     expect(authorityTier("external")).toBe(Infinity);
-    expect(resolveConflict({ source: "skill" as const }, { source: "external" as const }).source).toBe("skill");
+    expect(resolveConflict({ source: "skill" as const }, { source: "external" as const })?.source).toBe("skill");
   });
   it("user authorization outranks project and skill instructions", () => {
-    expect(resolveConflict({ source: "skill" as const }, { source: "user" as const }).source).toBe("user");
-    expect(resolveConflict({ source: "user" as const }, { source: "project" as const }).source).toBe("user");
+    expect(resolveConflict({ source: "skill" as const }, { source: "user" as const })?.source).toBe("user");
+    expect(resolveConflict({ source: "user" as const }, { source: "project" as const })?.source).toBe("user");
   });
   it("VERIFIED_COMPLETE requires evidence for every required criterion", () => {
     expect(completionState({ started: true, criteria: [{ id: "a", required: true, status: "passed" }] })).toBe("COMPLETED_UNVERIFIED");
