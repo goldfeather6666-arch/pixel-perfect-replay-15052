@@ -7,7 +7,7 @@ export type AgentMode = "chat" | "plan" | "build";
 /** Resume only once nothing is still waiting, and at least one action actually ran. */
 export function shouldResumeAfterApproval(states: ActionState[]): boolean {
   if (!states.length) return false;
-  if (states.some((s) => s === "pending" || s === "running")) return false;
+  if (states.some((s) => s === "pending" || s === "running" || s === "executing")) return false;
   return states.some((s) => s === "succeeded" || s === "failed");
 }
 
@@ -24,4 +24,4 @@ export function resumeForcePlan(mode: AgentMode): boolean | undefined {
   return mode === "plan" ? true : mode === "build" ? false : undefined;
 }
 
-export const isResolvedAction = (s: ActionState) => s !== "pending" && s !== "running";
+export const isResolvedAction = (s: ActionState) => s !== "pending" && s !== "running" && s !== "executing";
