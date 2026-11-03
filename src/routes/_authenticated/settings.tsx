@@ -5,7 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { toast } from "sonner";
-import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink, Cpu, Link2, Wrench, User, CheckCircle2 } from "lucide-react";
+import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink, Cpu, Link2, Wrench, User, CheckCircle2, BarChart3 } from "lucide-react";
+import { ModelPerformance } from "@/components/ModelPerformance";
 import { SetupOverview } from "@/components/SetupOverview";
 import { TOKEN_LINKS, hasTokenLink } from "@/lib/token-links";
 import { AppHeader } from "@/components/AppHeader";
@@ -20,11 +21,11 @@ import { OwnServerCard } from "@/components/OwnServerCard";
 import { OneClickConnect } from "@/components/OneClickConnect";
 import { pageMeta } from "@/lib/page-meta";
 
-type Tab = "profile" | "ai" | "accounts" | "tools";
+type Tab = "profile" | "ai" | "accounts" | "tools" | "performance";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: pageMeta("Settings — Forge", "Manage your profile, password, AI provider keys, accounts and tool connections.") }),
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["profile", "ai", "accounts", "tools"].includes(String(s["tab"])) ? { tab: s["tab"] as Tab } : {}),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["profile", "ai", "accounts", "tools", "performance"].includes(String(s["tab"])) ? { tab: s["tab"] as Tab } : {}),
   component: SettingsPage,
 });
 
@@ -95,11 +96,11 @@ function SettingsPage() {
       <main className="mx-auto max-w-4xl space-y-5 p-3 sm:space-y-7 sm:p-6 lg:p-8">
         <SetupOverview creds={creds.data} onPick={pickTab} />
         <div className="sticky top-14 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border bg-card/90 p-1 text-sm shadow-sm backdrop-blur" role="tablist">
-          {([["ai", "AI models", Cpu], ["accounts", "Accounts", Link2], ["tools", "Tools & skills", Wrench], ["profile", "Profile", User]] as const).map(([k, label, Icon]) => (
+          {([["ai", "AI models", Cpu], ["performance", "Performance", BarChart3], ["accounts", "Accounts", Link2], ["tools", "Tools & skills", Wrench], ["profile", "Profile", User]] as const).map(([k, label, Icon]) => (
             <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => pickTab(k)} className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 font-medium transition-colors ${tab === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}><Icon className="size-3.5" />{label}</button>
           ))}
         </div>
-        {tab === "profile" ? <ProfileSettings /> : tab === "tools" ? (
+        {tab === "profile" ? <ProfileSettings /> : tab === "performance" ? <ModelPerformance /> : tab === "tools" ? (
           <>
             <section className="rounded-lg border bg-card p-5">
               <h2 className="font-semibold">Skills</h2>

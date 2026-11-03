@@ -5,6 +5,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { Credential, ChatMessage, PendingChange } from "./providers";
 import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
+import { aggregateModelStats } from "./model-stats";
+import { buildReproBundle } from "./repro-bundle";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -400,6 +402,131 @@ export const getDiff = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
     return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
+  });
+
+/** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,
+ * what changed, a minimal reproduction and a replay prompt the owner can send. */
+export const bugAutopsy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: runs } = await context.supabase
+      .from("agent_runs")
+      .select("id, provider, model, autonomy, stage, objective, outcome, metrics, started_at, ended_at")
+      .eq("session_id", s.id)
+      .order("started_at", { ascending: false })
+      .limit(1);
+    const run = (runs ?? [])[0] as
+      | { id: string; provider: string; model: string; autonomy: string; stage: string; objective: string; outcome: string | null; metrics: Record<string, unknown> | null; started_at: string; ended_at: string | null }
+      | undefined;
+    if (!run) return null;
+    const { data: events } = await context.supabase
+      .from("agent_events")
+      .select("type, payload, created_at")
+      .eq("run_id", run.id)
+      .in("type", ["qa.gate", "budget.check"])
+      .order("created_at", { ascending: false })
+      .limit(6);
+    const { data: prov } = await context.supabase
+      .from("change_provenance")
+      .select("path, action")
+      .eq("run_id", run.id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    const rows = (events ?? []) as { type: string; payload: Record<string, unknown>; created_at: string }[];
+    const gate = rows.find((e) => e.type === "qa.gate");
+    const logs: string[] = [];
+    for (const step of ((gate?.payload?.["steps"] as { name: string; exit: number | null; ms: number | null }[] | undefined) ?? [])) {
+      if (step.exit !== 0) logs.push(`${step.name} exited ${step.exit ?? "?"}${step.ms != null ? ` after ${step.ms}ms` : ""}`);
+    }
+    const budget = rows.find((e) => e.type === "budget.check");
+    if (budget && budget.payload?.["ok"] === false) logs.push(`performance budget breached: ${JSON.stringify(budget.payload?.["violations"] ?? [])}`);
+    return buildReproBundle({
+      objective: run.objective ?? "",
+      provider: run.provider,
+      model: run.model,
+      autonomy: run.autonomy,
+      stage: run.stage,
+      branch: s.work_branch,
+      commit: String(run.metrics?.["commit"] ?? ""),
+      root: String(run.metrics?.["root"] ?? "."),
+      outcome: run.outcome,
+      failedStep: (gate?.payload?.["failedStep"] as string | undefined) ?? null,
+      failureKind: (gate?.payload?.["failureKind"] as string | undefined) ?? null,
+      logs,
+      changed: ((prov ?? []) as { path: string; action: string }[]).map((p) => ({ path: p.path, action: p.action })),
+      startedAt: run.started_at,
+      endedAt: run.ended_at,
+    });
+  });
+
+/** Model comparison: quality and cost per model from this owner's own run records. */
+export const modelComparison = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ days: z.number().int().min(1).max(180).default(30) }))
+  .handler(async ({ data, context }) => {
+    const userId = context.userId;
+    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    const { data: rows } = await context.supabase
+      .from("agent_runs")
+      .select("provider, model, outcome, stage, metrics, started_at")
+      .eq("user_id", userId)
+      .gte("started_at", since)
+      .limit(2000);
+    return aggregateModelStats(
+      ((rows ?? []) as { provider: string; model: string; outcome: string | null; stage: string; metrics: Record<string, unknown> | null; started_at: string }[])
+        .map((r) => ({ provider: r.provider, model: r.model, outcome: r.outcome, stage: r.stage, metrics: r.metrics, startedAt: r.started_at })),
+    );
+  });
+
+/** Prompt audit: the requests that drove each change to one file, with that run's verification evidence. */
+export const fileHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), path: z.string().min(1).max(500) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: rows } = await context.supabase
+      .from("change_provenance")
+      .select("run_id, tool, action, prompt, created_at")
+      .eq("session_id", s.id)
+      .eq("path", data.path)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    const changes = (rows ?? []) as { run_id: string | null; tool: string; action: string; prompt: string; created_at: string }[];
+    const runIds = [...new Set(changes.map((r) => r.run_id).filter((x): x is string => !!x))];
+    const { data: gates } = runIds.length
+      ? await context.supabase
+          .from("agent_events")
+          .select("run_id, payload, created_at")
+          .eq("session_id", s.id)
+          .in("run_id", runIds)
+          .eq("type", "qa.gate")
+          .order("created_at", { ascending: false })
+          .limit(40)
+      : { data: [] as { run_id: string; payload: Record<string, unknown>; created_at: string }[] };
+    const { data: spec } = await context.supabase
+      .from("task_specifications")
+      .select("spec")
+      .eq("session_id", s.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const criteria = ((spec?.spec as { acceptance_criteria?: string[] } | null)?.acceptance_criteria ?? []).slice(0, 12);
+    return {
+      path: data.path,
+      changes,
+      evidence: ((gates ?? []) as { run_id: string; payload: Record<string, unknown>; created_at: string }[]).map((g) => ({
+        runId: g.run_id,
+        passed: g.payload?.["passed"] ?? null,
+        cached: g.payload?.["cached"] ?? false,
+        failedStep: g.payload?.["failedStep"] ?? null,
+        failureKind: g.payload?.["failureKind"] ?? null,
+        totalMs: g.payload?.["totalMs"] ?? null,
+        createdAt: g.created_at,
+      })),
+      criteria,
+    };
   });
 
 export const resolvePending = createServerFn({ method: "POST" })
