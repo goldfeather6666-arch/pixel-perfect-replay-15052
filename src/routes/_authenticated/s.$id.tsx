@@ -547,7 +547,7 @@ function Workspace() {
                 </div>
               )}
               {messages.map((m, i) => (
-                <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
+                isRecoveryMessage(m) ? null : <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
               <McpActionApprovals sessionId={id} chat busy={running || bgRunning || stopping} onResume={(m) => void send(m, false)} />
@@ -720,7 +720,7 @@ function Workspace() {
 // Recovery is automatic and invisible: hide internal resume prompts and stall notes from the transcript.
 const RECOVERY_USER = /^(continue the previous command from saved progress|continue \(the previous run was cut off|Continue from the latest saved progress\.)/i;
 const RECOVERY_NOTE = /\s*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)/g;
-export function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVERY_USER.test(m.content.trim()); }
+function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVERY_USER.test(m.content.trim()); }
 
 function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
   const m = raw.role === "assistant" ? { ...raw, content: raw.content.replace(RECOVERY_NOTE, "").trimEnd() } : raw;
