@@ -47,11 +47,14 @@ export function checkPassed(c: CheckRun | undefined): boolean {
  * conservative: an unmatched criterion stays unverified instead of borrowing an unrelated pass.
  */
 export function criteriaToItems(criteria: { text: string; required?: boolean }[], checks: CheckRun[]): EvidenceItem[] {
-  return criteria.map((c) => ({
-    item: c.text.slice(0, 160),
-    criteria: c.required === false ? "optional" : "required",
-    check: matchCheck(c.text, checks),
-  }));
+  return criteria.map((c) => {
+    const check = matchCheck(c.text, checks);
+    return {
+      item: c.text.slice(0, 160),
+      criteria: c.required === false ? "optional" : "required",
+      ...(check ? { check } : {}),
+    };
+  });
 }
 
 const SYNENTS: Record<string, string[]> = {

@@ -57,10 +57,10 @@ export async function buildRunSummary(sb: SupabaseClient, f: ReportFacts): Promi
   for (const e of events) {
     if (e.type !== "tool.execution.completed") continue;
     const p = obj(e.payload);
-    if (typeof p.tool !== "string") continue;
-    const outcomes = toolResults.get(p.tool) ?? new Set<string>();
-    outcomes.add(p.ok === false ? "failed" : "ok");
-    toolResults.set(p.tool, outcomes);
+    if (typeof p["tool"] !== "string") continue;
+    const outcomes = toolResults.get(p["tool"]) ?? new Set<string>();
+    outcomes.add(p["ok"] === false ? "failed" : "ok");
+    toolResults.set(p["tool"], outcomes);
   }
   const writes = provenance.filter((p) => p.action !== "delete");
   const paths = new Set(writes.map((p) => p.path));

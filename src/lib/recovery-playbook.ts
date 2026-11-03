@@ -42,23 +42,23 @@ export function recoveryFacts(state: RecoveryState, events: RecoveryEvent[]): Re
 
   for (const e of events) {
     const p = obj(e.payload);
-    if (e.type === "tool.execution.completed" && typeof p.tool === "string") {
-      const cur = done.get(p.tool) ?? { ok: 0, failed: 0 };
-      if (p.ok === false) cur.failed++;
+    if (e.type === "tool.execution.completed" && typeof p["tool"] === "string") {
+      const cur = done.get(p["tool"]) ?? { ok: 0, failed: 0 };
+      if (p["ok"] === false) cur.failed++;
       else cur.ok++;
-      done.set(p.tool, cur);
-    } else if (e.type === "agent.completed" && typeof p.label === "string") {
-      agents.set(p.label, p.ok === true);
+      done.set(p["tool"], cur);
+    } else if (e.type === "agent.completed" && typeof p["label"] === "string") {
+      agents.set(p["label"], p["ok"] === true);
     } else if (e.type === "memory.saved") memories++;
     else if (e.type === "spec.updated") specs++;
     else if (e.type === "qa.gate") {
-      if (p.passed === true) checksPassed = true;
-      else if (typeof p.failedStep === "string") checksFailed = p.failedStep;
+      if (p["passed"] === true) checksPassed = true;
+      else if (typeof p["failedStep"] === "string") checksFailed = p["failedStep"];
     } else if (e.type === "merge.conflict" || e.type === "tool.ambiguous") {
-      const name = str(p.path) || str(p.tool) || "an action";
+      const name = str(p["path"]) || str(p["tool"]) || "an action";
       externals.set(name, "uncertain");
     } else if (e.type === "deployment.attempt" || e.type === "mcp.action.staged") {
-      const name = str(p.tool) || str(p.commit) || "an external action";
+      const name = str(p["tool"]) || str(p["commit"]) || "an external action";
       externals.set(name, externals.get(name) === "confirmed" ? "confirmed" : "uncertain");
     }
   }
