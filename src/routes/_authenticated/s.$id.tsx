@@ -462,6 +462,29 @@ function Workspace() {
       setPublishOpen(true);
     } finally { setDeploying(false); }
   };
+  const agentBusyNow = running || bgRunning;
+  useEffect(() => {
+    if (!watchDeploy || agentBusyNow) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (Date.now() - watchDeploy > 15 * 60_000) { setWatchDeploy(null); return; }
+      try {
+        const d = await fetchDeploys({ data: { id } });
+        const latest = d.deployments[0];
+        if (cancelled || !latest || Date.parse(String(latest.created ?? 0)) < watchDeploy - 60_000) return;
+        const failed = latest.state === "ERROR" || d.runtime?.state === "ERROR";
+        if (latest.state === "READY" && d.runtime?.state !== "ERROR") { setWatchDeploy(null); return; }
+        if (!failed) return;
+        setWatchDeploy(null);
+        if (deployHealTries.current >= 3) { toast.error("The live build still fails after 3 automatic fixes. Open Publish to see the remaining problem."); return; }
+        deployHealTries.current += 1;
+        const r = await runAutoFix({ data: { id } });
+        if (r.prompt) autoFixSend(r.prompt);
+      } catch { /* transient; next tick retries */ }
+    }, 15_000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchDeploy, agentBusyNow, id]);
   const renderPanel = (k: PanelKey) => {
     if (!s) return null;
     switch (k) {
