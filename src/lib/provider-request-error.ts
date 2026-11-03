@@ -53,7 +53,5 @@ export function providerRequestError(error: unknown): string {
   if (e?.statusCode === 503 || e?.statusCode === 529 || /high demand|overloaded|temporarily unavailable|unavailable/i.test(reason)) {
     return `The AI provider is overloaded right now${reason ? `: “${reason}”` : ""}. Forge retried automatically. Wait a minute and resend, or pick another model.`;
   }
-  return reason
-    ? `The AI provider returned an error: “${reason}”. Your prompt is saved; fix the issue or pick another model, then resend.`
-    : "The agent request failed. Check the provider connection and try again after resolving the issue.";
+  return "The agent request failed. Check the provider connection and try again after resolving the issue.";
 }
