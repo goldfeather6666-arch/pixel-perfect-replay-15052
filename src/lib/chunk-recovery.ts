@@ -35,9 +35,10 @@ export function isTransientServerError(error: unknown) {
   return /aborted|returned 500|Internal Server Error|Failed to fetch|NetworkError|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up/i.test(message);
 }
 
-/** react-query options: retry only what a restarting server can still serve, and stop after three tries. */
+/** react-query options: retry only what a restarting server can still serve, and stop after three tries.
+ * Typed against the default `Error` so spreading it never widens a query's own inferred types. */
 export const transientRetry = {
-  retry: (failureCount: number, error: unknown) => isTransientServerError(error) && failureCount < 3,
+  retry: (failureCount: number, error: Error) => isTransientServerError(error) && failureCount < 3,
   retryDelay: (attempt: number) => Math.min(400 * (attempt + 1), 2000),
 };
 
