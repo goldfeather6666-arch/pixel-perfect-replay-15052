@@ -260,6 +260,13 @@
       "when": 1793731614533,
       "tag": "0036_change_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793732288745,
+      "tag": "0037_style_memory",
+      "breakpoints": true
     }
   ]
 }

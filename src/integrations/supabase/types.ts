@@ -1124,6 +1124,30 @@ export type Database = {
         }
         Relationships: []
       }
+      style_memory: {
+        Row: {
+          id: string
+          profile: Json
+          repo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          profile?: Json
+          repo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          profile?: Json
+          repo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_deployment_settings: {
         Row: {
           ciphertext: string
