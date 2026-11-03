@@ -4,3 +4,8 @@
 - [x] Step 3: Tool broker (risk classes, side-effect state, idempotency)
 - [x] Step 4: Delegation contracts and 6-tier memory
 - [x] Step 5: Evaluation suite, hard gates, chat outcome badges
+
+# Env sync + agent deploy
+- [x] Sync DB settings, APP_URL and project secrets to Vercel on every sync
+- [x] Seed env into every task sandbox (.env.local + /tmp/forge-task.env), never committed
+- [x] Agent can deploy and review live Vercel build when the user asks
