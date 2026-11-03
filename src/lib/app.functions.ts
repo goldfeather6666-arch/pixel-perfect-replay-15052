@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Credential, ChatMessage, PendingChange } from "./providers";
 import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
 import { aggregateModelStats } from "./model-stats";
+import { buildReproBundle } from "./repro-bundle";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -401,6 +402,63 @@ export const getDiff = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
     return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
+  });
+
+/** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,
+ * what changed, a minimal reproduction and a replay prompt the owner can send. */
+export const bugAutopsy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: runs } = await context.supabase
+      .from("agent_runs")
+      .select("id, provider, model, autonomy, stage, objective, outcome, metrics, started_at, ended_at")
+      .eq("session_id", s.id)
+      .order("started_at", { ascending: false })
+      .limit(1);
+    const run = (runs ?? [])[0] as
+      | { id: string; provider: string; model: string; autonomy: string; stage: string; objective: string; outcome: string | null; metrics: Record<string, unknown> | null; started_at: string; ended_at: string | null }
+      | undefined;
+    if (!run) return null;
+    const { data: events } = await context.supabase
+      .from("agent_events")
+      .select("type, payload, created_at")
+      .eq("run_id", run.id)
+      .in("type", ["qa.gate", "budget.check"])
+      .order("created_at", { ascending: false })
+      .limit(6);
+    const { data: prov } = await context.supabase
+      .from("change_provenance")
+      .select("path, action")
+      .eq("run_id", run.id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    const rows = (events ?? []) as { type: string; payload: Record<string, unknown>; created_at: string }[];
+    const gate = rows.find((e) => e.type === "qa.gate");
+    const logs: string[] = [];
+    for (const step of ((gate?.payload?.["steps"] as { name: string; exit: number | null; ms: number | null }[] | undefined) ?? [])) {
+      if (step.exit !== 0) logs.push(`${step.name} exited ${step.exit ?? "?"}${step.ms != null ? ` after ${step.ms}ms` : ""}`);
+    }
+    const budget = rows.find((e) => e.type === "budget.check");
+    if (budget && budget.payload?.["ok"] === false) logs.push(`performance budget breached: ${JSON.stringify(budget.payload?.["violations"] ?? [])}`);
+    return buildReproBundle({
+      objective: run.objective ?? "",
+      provider: run.provider,
+      model: run.model,
+      autonomy: run.autonomy,
+      stage: run.stage,
+      branch: s.work_branch,
+      commit: String(run.metrics?.["commit"] ?? ""),
+      root: String(run.metrics?.["root"] ?? "."),
+      outcome: run.outcome,
+      failedStep: (gate?.payload?.["failedStep"] as string | undefined) ?? null,
+      failureKind: (gate?.payload?.["failureKind"] as string | undefined) ?? null,
+      logs,
+      changed: ((prov ?? []) as { path: string; action: string }[]).map((p) => ({ path: p.path, action: p.action })),
+      startedAt: run.started_at,
+      endedAt: run.ended_at,
+    });
   });
 
 /** Model comparison: quality and cost per model from this owner's own run records. */
