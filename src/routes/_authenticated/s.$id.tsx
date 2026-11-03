@@ -515,19 +515,7 @@ function Workspace() {
             </ConversationContent>
             <ConversationScrollButton />
           </Conversation>
-          <div className="border-t bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
-            <div className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 overflow-x-auto text-xs">
-              <div role="radiogroup" aria-label="Agent mode" className="flex shrink-0 rounded-md border bg-muted p-0.5">
-                {(["chat", "plan", "build"] as const).map((m) => (
-                  <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
-                    className={`rounded px-2.5 py-0.5 text-xs capitalize ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>{m}</button>
-                ))}
-              </div>
-              {["/test", "/review", "/explain", "/plan"].map((c) => (
-                <Button key={c} type="button" size="sm" variant="ghost" onClick={() => { setInput((v) => (v.startsWith("/") ? v.replace(/^\/\w+\s*/, "") : v) ? `${c} ${v.replace(/^\/\w+\s*/, "")}` : `${c} `); taRef.current?.focus(); }}
-                  className="h-7 shrink-0 text-xs text-muted-foreground">{c}</Button>
-              ))}
-            </div>
+          <div className="bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 sm:px-4 sm:pb-4">
             {(running || bgRunning) && (
               <RunStatus
                 start={running ? runStart.current : null}
@@ -556,7 +544,7 @@ function Workspace() {
             )}
             <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={stopping} />
             <MentionPicker sessionId={id} text={input} caret={caret} onPick={(t, c) => { setInput(t); setCaret(c); requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(c, c); }); }} />
-            <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
+            <PromptInput className="mx-auto max-w-3xl [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--workspace-shadow)]" onSubmit={() => { void send(); }}>
               <PromptInputTextarea
                 ref={taRef}
                 aria-label="Task prompt"
@@ -566,19 +554,38 @@ function Workspace() {
                 onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
                 onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
                                 placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
-                className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
+                className="max-h-48 min-h-14 px-4 pt-3.5 text-base leading-relaxed md:text-sm"
                 rows={2}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-              <PromptInputFooter className="px-3 pb-3">
-                <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
-                {(running || bgRunning) && <Button type="button" size="icon" variant="outline" className="ml-auto size-10" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>}
-                <PromptInputSubmit className="size-10" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
+              <PromptInputFooter className="gap-1 px-2.5 pb-2.5">
+                <Button type="button" size="icon" variant="ghost" className="size-8 rounded-full text-muted-foreground" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" size="icon" variant="ghost" className="size-8 rounded-full font-mono text-sm text-muted-foreground" aria-label="Quick commands" title="Quick commands">/</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    {([["/test", "Run and fix checks"], ["/review", "Review for bugs"], ["/explain", "Explain the code"], ["/plan", "Plan before building"]] as const).map(([c, hint]) => (
+                      <DropdownMenuItem key={c} onSelect={() => { setInput((v) => `${c} ${v.replace(/^\/\w+\s*/, "")}`); requestAnimationFrame(() => taRef.current?.focus()); }}>
+                        <span className="font-mono text-xs">{c}</span><span className="ml-auto text-xs text-muted-foreground">{hint}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div role="radiogroup" aria-label="Agent mode" className="ml-1 flex shrink-0 rounded-full bg-secondary p-0.5">
+                  {(["chat", "plan", "build"] as const).map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={chatMode === m} onClick={() => setChatMode(m)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize transition ${chatMode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{m}</button>
+                  ))}
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  {s && <span className="hidden max-w-36 sm:block lg:hidden"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>}
+                  <PromptInputSubmit className="size-8 rounded-full" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
+                </div>
               </PromptInputFooter>
             </PromptInput>
-            <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
-              <span className="tabular-nums">{capacity.used.toLocaleString("en-US")} / {MAX_PROMPT_CHARS.toLocaleString("en-US")} characters</span>
-              <span role={capacity.nearLimit || capacity.overLimit ? "status" : undefined} className="tabular-nums">{capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.remaining.toLocaleString("en-US")} remaining${capacity.nearLimit ? " — nearing limit" : ""}`}</span>
+            <div id="prompt-capacity" aria-live="polite" className={`mx-auto mt-1.5 flex max-w-3xl justify-end px-1 text-[11px] tabular-nums ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground/80"} ${capacity.used ? "" : "sr-only"}`}>
+              {capacity.overLimit ? `${Math.abs(capacity.remaining).toLocaleString("en-US")} over limit — shorten before sending` : `${capacity.used.toLocaleString("en-US")} / ${MAX_PROMPT_CHARS.toLocaleString("en-US")} · ${capacity.remaining.toLocaleString("en-US")} left${capacity.nearLimit ? " — nearing limit" : ""}`}
             </div>
           </div>
         </section>
