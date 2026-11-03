@@ -32,3 +32,14 @@ d2("refused keys", () => {
     e2(m).toContain("API key is paused");
   });
 });
+describe("provider outages and retired models", () => {
+  it("unwraps retry errors and reports overload instead of a vague failure", () => {
+    const err = { message: "Failed after 3 attempts. Last error: busy", lastError: { statusCode: 503, message: "This model is currently experiencing high demand." } };
+    expect(providerRequestError(err)).toContain("overloaded");
+  });
+  it("tells the user a retired model must be replaced", () => {
+    const text = providerRequestError({ statusCode: 400, message: "x" } as never);
+    expect(text).toContain("400");
+    expect(providerRequestError({ statusCode: 404, message: "This model models/gemini-2.5-flash is no longer available to new users." })).toContain("Pick another model");
+  });
+});
