@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { resumeForcePlan } from "@/lib/approval-resume";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { syncDeployEnv } from "@/lib/integrations.functions";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
@@ -24,6 +24,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { SwarmMatrix } from "@/components/SwarmMatrix";
 import { KnowledgeDirector } from "@/components/KnowledgeDirector";
 import { FileWorkbench } from "@/components/FileWorkbench";
+import { applyHunks, diffFile, type Hunk } from "@/lib/diff-engine";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
@@ -844,18 +845,20 @@ function FilesView({ id }: { id: string }) {
 function PendingApprovals({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining: PendingChange[]) => void }) {
   const resolve = useServerFn(resolvePending);
   const resolveM = useMutation({
-    mutationFn: (v: { approve: boolean; paths?: string[] }) => resolve({ data: { id, ...v } }),
+    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> | undefined }) => resolve({ data: { id, ...v } }),
     onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
   if (!pending.length) return null;
+  const acceptOne = (c: PendingChange, edited?: string) =>
+    resolveM.mutate({ approve: true, paths: [c.path], edits: edited === undefined ? undefined : { [c.path]: edited } });
   return <section className="space-y-2" aria-label="File and data change approvals" aria-live="polite">
     <div className="flex flex-wrap items-center gap-2">
       <h3 className="flex-1 font-semibold">Changes awaiting approval · {pending.length}</h3>
       <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Reject all</Button>
       <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
     </div>
-    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={() => resolveM.mutate({ approve: true, paths: [c.path] })} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
   </section>;
 }
 
@@ -961,34 +964,61 @@ function PatchView({ patch }: { patch: string }) {
   );
 }
 
-function simpleDiff(a: string, b: string) {
-  // Line-level diff via LCS (bounded for large files).
-  const x = a.split("\n"), y = b.split("\n");
-  if (x.length * y.length > 4_000_000) return [...x.map((l) => "-" + l), ...y.map((l) => "+" + l)].join("\n");
-  const dp = Array.from({ length: x.length + 1 }, () => new Uint32Array(y.length + 1));
-  for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) dp[i]![j] = x[i] === y[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
-  const out: string[] = [];
-  let i = 0, j = 0;
-  while (i < x.length && j < y.length) {
-    if (x[i] === y[j]) { out.push(" " + x[i]); i++; j++; }
-    else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) out.push("-" + x[i++]);
-    else out.push("+" + y[j++]);
-  }
-  while (i < x.length) out.push("-" + x[i++]);
-  while (j < y.length) out.push("+" + y[j++]);
-  return out.join("\n");
+function HunkView({ hunk }: { hunk: Hunk }) {
+  let o = hunk.oldStart, n = hunk.newStart;
+  return (
+    <pre className="max-h-72 overflow-auto font-mono text-xs leading-5">
+      <div className="bg-muted/50 px-3 text-primary/80">@@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@</div>
+      {hunk.lines.map((l, i) => {
+        const a = l.kind !== "add" ? String(o++) : "";
+        const b = l.kind !== "del" ? String(n++) : "";
+        return (
+          <div key={i} className={`grid grid-cols-[2.5rem_2.5rem_minmax(0,1fr)] ${l.kind === "add" ? "bg-added" : l.kind === "del" ? "bg-removed" : ""}`}>
+            <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{a}</span>
+            <span className="select-none border-r pr-1 text-right text-muted-foreground/60">{b}</span>
+            <span className="whitespace-pre px-3">{l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}{l.text || " "}</span>
+          </div>
+        );
+      })}
+    </pre>
+  );
 }
 
-function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: boolean; onAccept: () => void; onReject: () => void }) {
-  const patch = c.action === "delete" ? simpleDiff(c.original ?? "", "") : simpleDiff(c.original ?? "", c.content ?? "");
+function PendingView({ c, busy, onAccept, onReject }: { c: PendingChange; busy: boolean; onAccept: (edited?: string) => void; onReject: () => void }) {
+  const original = c.original ?? "";
+  const target = c.action === "delete" ? "" : (c.content ?? "");
+  const hunks = useMemo(() => diffFile(original, target), [original, target]);
+  const [rejected, setRejected] = useState<Set<number>>(new Set());
+  const toggle = (i: number) => setRejected((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  const adds = hunks.reduce((n, h) => n + h.lines.filter((l) => l.kind === "add").length, 0);
+  const dels = hunks.reduce((n, h) => n + h.lines.filter((l) => l.kind === "del").length, 0);
+  const accept = () => {
+    if (!rejected.size) return onAccept(); // whole file accepted as-is
+    const chosen = hunks.map((h) => h.index).filter((i) => !rejected.has(i));
+    onAccept(applyHunks(original, { hunks }, chosen));
+  };
   return (
     <div className="border-b last:border-0">
       <div className="flex items-center gap-1 px-3 py-1.5 font-mono text-xs text-muted-foreground">
-        <span className="flex-1 truncate">{c.action === "delete" ? "delete" : c.original == null ? "create" : "modify"} · {c.path}</span>
+        <span className="flex-1 truncate">
+          {c.action === "delete" ? "delete" : c.original == null ? "create" : "modify"} · {c.path}
+          <span className="ml-2 tabular-nums"><span className="text-success">+{adds}</span> <span className="text-destructive">−{dels}</span></span>
+          {rejected.size > 0 && <span className="ml-2 text-warning">{rejected.size} hunk(s) excluded</span>}
+        </span>
         <Button size="sm" variant="ghost" disabled={busy} onClick={onReject} aria-label={`Reject ${c.path}`}><X /></Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={onAccept} aria-label={`Accept ${c.path}`}><Check /></Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={accept} aria-label={`Accept ${c.path}`}><Check /></Button>
       </div>
-      <PatchView patch={c.original == null && c.action === "write" ? (c.content ?? "").split("\n").map((l) => "+" + l).join("\n") : patch} />
+      <div className="divide-y">
+        {hunks.map((h) => (
+          <div key={h.index} className="relative">
+            <label className="absolute right-2 top-1.5 z-10 flex cursor-pointer items-center gap-1 rounded border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <input type="checkbox" className="accent-primary" checked={!rejected.has(h.index)} onChange={() => toggle(h.index)} aria-label={`Include change ${h.index + 1} in ${c.path}`} />
+              {rejected.has(h.index) ? "excluded" : "included"}
+            </label>
+            <div className={rejected.has(h.index) ? "opacity-40" : ""}><HunkView hunk={h} /></div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
