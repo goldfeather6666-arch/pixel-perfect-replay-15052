@@ -199,6 +199,16 @@ function Dashboard() {
                       <SelectContent className="max-w-[calc(100vw-2rem)]">{repos.data?.map((r) => <SelectItem key={r.full_name} value={r.full_name}>{r.full_name}</SelectItem>)}</SelectContent>
                     </Select>
                   )}
+                  {repo && !showNew && (
+                    <div className="space-y-1.5 rounded-lg border bg-background/50 p-3">
+                      <Label className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5" /> Which branch should we work from?</Label>
+                      <Select value={branch} onValueChange={setBranch}>
+                        <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder={branches.isLoading ? "Loading branches…" : "Choose a branch"} /></SelectTrigger>
+                        <SelectContent className="max-w-[calc(100vw-2rem)]">{branches.data?.map((b) => <SelectItem className="break-all" key={b} value={b}>{b}{b === repos.data?.find((x) => x.full_name === repo)?.default_branch ? " (main)" : ""}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Pick another branch if your latest work isn't merged into the main branch yet.</p>
+                    </div>
+                  )}
                   {repos.error && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive"><span className="min-w-0 flex-1">{(repos.error as Error).message}</span><Button type="button" size="sm" variant="outline" onClick={() => void repos.refetch()} disabled={repos.isFetching}>Retry</Button></div>}
                   {!showNew && repos.data?.length === 0 && !repos.isLoading && !repos.error && <p className="text-xs text-muted-foreground">No repositories found. Create a project above or check GitHub account access.</p>}
                   {repo && branches.error && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive"><span className="min-w-0 flex-1">Branches could not be loaded: {(branches.error as Error).message}</span><Button type="button" size="sm" variant="outline" onClick={() => void branches.refetch()} disabled={branches.isFetching}>Retry</Button></div>}
@@ -209,15 +219,6 @@ function Dashboard() {
                 </p>
                 {advanced && (
                   <div className="min-w-0 space-y-4 overflow-hidden rounded-lg border bg-background/50 p-3">
-                    {repo && (
-                      <div className="space-y-1.5">
-                        <Label>Start from branch</Label>
-                        <Select value={branch} onValueChange={setBranch}>
-                          <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue /></SelectTrigger>
-                          <SelectContent className="max-w-[calc(100vw-2rem)]">{branches.data?.map((b) => <SelectItem className="break-all" key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    )}
                     {models.error && <div role="alert" className="rounded-md border border-destructive/40 p-2 text-xs text-destructive">Could not load models for this AI key. Retry or enter a compatible model ID manually below. <Button type="button" size="sm" variant="outline" className="ml-2" onClick={() => void models.refetch()} disabled={models.isFetching}>Retry</Button></div>}
                     <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="min-w-0 space-y-1.5">
