@@ -52,7 +52,7 @@ export function chatBranchContext(b: BranchState): string {
   const staged = b.staged.slice(0, 30);
   const lines = [
     `\n<task_branch base="${b.base}" head="${b.head}" commits_ahead="${b.aheadBy}">`,
-    commits.length ? `Commits: ${commits.map((c) => `${c.sha.slice(0, 7)} ${c.message.split("\n")[0].slice(0, 90)}`).join(" | ")}` : "Commits: none ahead of the base branch.",
+    commits.length ? `Commits: ${commits.map((c) => `${c.sha.slice(0, 7)} ${(c.message.split("\n")[0] ?? "").slice(0, 90)}`).join(" | ")}` : "Commits: none ahead of the base branch.",
     files.length ? `Files changed vs base: ${files.map((f) => `${f.status} ${f.filename}`).join(" | ")}` : "Files changed vs base: none.",
     staged.length ? `Uncommitted changes awaiting approval: ${staged.map((s) => `${s.action} ${s.path}`).join(" | ")}` : "Uncommitted changes awaiting approval: none.",
     "</task_branch>",

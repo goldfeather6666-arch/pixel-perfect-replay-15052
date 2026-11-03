@@ -326,7 +326,7 @@ export const Route = createFileRoute("/api/agent")({
               const c = await gh.compare(repo, base, branch).catch(() => null);
               if (!c) return { error: "Could not compare the task branch with its base branch." };
               const staged = pending.map((p) => ({ path: p.path, action: p.action }));
-              const commits = c.commits.map((x) => x.message.split("\n")[0].slice(0, 120));
+              const commits = c.commits.map((x) => (x.message.split("\n")[0] ?? "").slice(0, 120));
               if (detail === "patches") return { base, head: branch, ahead_by: c.ahead_by, commits, files: c.files.map((f) => ({ filename: f.filename, status: f.status, patch: f.patch.slice(0, 4000) })), staged };
               return { base, head: branch, ahead_by: c.ahead_by, commits, files: c.files.map((f) => ({ filename: f.filename, status: f.status })), staged };
             },
