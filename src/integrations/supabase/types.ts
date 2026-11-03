@@ -878,6 +878,41 @@ export type Database = {
           },
         ]
       }
+      session_interjections: {
+        Row: {
+          consumed_at: string | null
+          content: string
+          created_at: string
+          id: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          session_id: string
+          user_id?: string
+        }
+        Update: {
+          consumed_at?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_interjections_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skill_executions: {
         Row: {
           created_at: string
