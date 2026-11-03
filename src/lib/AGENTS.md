@@ -14,3 +14,4 @@
 - Model comparison: model-stats aggregates only the owner's own agent_runs; a cancelled, awaiting or open run never counts as a failure, and a model with no decisive outcome shows no success rate. Why: honest per-model quality and cost.
 - Performance budget-as-code: perf-budget parses a committed budget.json, measures the real build output, blocks the QA gate on a breach with the fix suggestion, and reports unmeasured metrics as unmeasured. Why: budgets enforced, never silently passed.
 - Authorship tags compare current Git blob SHA with content-addressed change provenance; missing historical evidence stays unknown. Why: later human edits must never be mislabeled as agent output.
+- Maintenance uses opt-in owner-scoped read-only bounded GitHub inspection, never shell/model calls or repo writes; fixes enter live chat for normal approval. Why: idle suggestions cannot create hidden external effects.

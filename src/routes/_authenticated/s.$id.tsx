@@ -39,6 +39,7 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { FileProvenance } from "@/components/FileProvenance";
 import { BugAutopsy } from "@/components/BugAutopsy";
+import { MaintenancePanel } from "@/components/MaintenancePanel";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
@@ -449,6 +450,7 @@ function Workspace() {
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
           <MemoryView repo={s.repo} />
           <BugAutopsy id={id} onReplay={(text) => void send(text)} />
+          <MaintenancePanel id={id} running={running || bgRunning || stopping} onRequest={(text) => { if (!desktop) setView("chat"); void send(text); }} />
           <div className="px-3 pb-8">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
               if (!confirm("Delete this task from Forge? The GitHub branch and commits will remain untouched.")) return;

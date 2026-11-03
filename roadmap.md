@@ -5,10 +5,10 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 
 ## Add-ons (authorized scope)
 - [x] 1 Creative Director — `quality_score` tool scores the served HTML (contrast, headings, labels, alt, targets, metadata, measured LCP/payload) with blocker/major caps; `remember_style` tool + `style_memory` table record the project's palette/typefaces/radii/tokens and inject them into later tasks.
-- [x] 1b Auto-tag changed files as agent-authored vs human-edited from recorded agent writes; shown in Changes.
+- [x] 1b Auto-tag changed files from exact Git blob evidence; later human edits are distinguished, historical missing evidence stays unknown.
 - [ ] 2 Public share links + demo gallery — explicit owner-selected verified builds only; read-only expiring/revocable tokens, private by default.
 - [x] 3 Prompt audit — `change_provenance` records prompt→path→run; "Why" dialog shows prompt, QA evidence and acceptance criteria per file.
-- [ ] 4 Ambient idle mode — opt-in maintenance (dep audit, dead code, security scan) producing reviewable recommended patches.
+- [ ] 4 Ambient idle mode — opt-in daily bounded source inspection is wired to Changes; recommendations can be dismissed or sent for agent review. Full advisory/dependency graph audits, durable background scheduling and concrete precomputed patches remain.
 - [ ] 5 Review badges + role approvals + Slack/Teams notices — needs a Slack app or incoming webhook from the user to activate.
 - [x] 6 Budget-as-code — `budget.json` validated, payloads measured in the QA gate, breaches block handoff with fixes.
 - [x] 7 Bug autopsy — repro artifact card (environment, redacted evidence, changed files, minimal repro, copy/replay).
