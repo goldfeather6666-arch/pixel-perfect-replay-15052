@@ -103,7 +103,6 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
         const log = await v.buildLog(d.id).catch(() => null);
         const { vercelBuildFindings } = await import("./vercel-build-review");
         const issues = log === null ? [] : vercelBuildFindings(log);
-        buildErrors.push(...issues.map((issue) => issue.evidence));
         steps.push({ key: "build-review", label: "Vercel build issues", state: log === null || issues.length ? "warn" : "ok", note: log === null ? "Build log unavailable; issue review is unverified" : issues.length ? `${issues.length} issue(s) to review: ${issues[0]?.evidence}` : "No warnings found in available build logs" });
         const { checkDeploymentRuntime } = await import("./deployment-runtime.server");
         const r = await checkDeploymentRuntime(d.url);
@@ -112,5 +111,5 @@ export async function syncProject(sb: any, s: Session, opts: { applyMigrations?:
     } catch (e) { steps.push({ key: "build", label: "Latest build", state: "warn", note: safe(e) }); }
   }
 
-  return { steps, overall: overall(steps), buildErrors };
+  return { steps, overall: overall(steps) };
 }
