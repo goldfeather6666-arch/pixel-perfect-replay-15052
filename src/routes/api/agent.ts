@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
+import { merge3 } from "@/lib/diff-engine";
 import { indexFile, isIndexable, lookupSymbol, type SymbolEntry } from "@/lib/engine/symbol-index";
 // Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
 const passedChecks = new Map<string, number>();
@@ -776,8 +777,16 @@ export const Route = createFileRoute("/api/agent")({
                 runAbort.signal.throwIfAborted();
                 const proposal = proposals.get(id);
                 if (!proposal) { results.push({ id, error: "Proposal not found" }); break; }
-                const error = proposalConflict(proposal, await readCurrent(proposal.path, true));
-                if (error) { results.push({ id, error }); break; }
+                const current = await readCurrent(proposal.path, true);
+                const error = proposalConflict(proposal, current);
+                let merged = false;
+                if (error) {
+                  // Auto-resolve when the helper's edits and the newer edits touch different lines.
+                  const m = proposal.original != null && current != null ? merge3(proposal.original, current, proposal.content) : null;
+                  if (m == null) { rec.event("merge.conflict", { path: proposal.path }); results.push({ id, error, guardrail: "Blocked to protect newer work: both versions changed the same lines. Reassign with the current file." }); break; }
+                  proposal.content = m; proposal.original = current; merged = true;
+                  rec.event("merge.resolved", { path: proposal.path });
+                }
                 let result: { staged: boolean } | { committed: string };
                 if (writeNeedsApproval(autonomy, { path: proposal.path, action: "write", content: proposal.content, original: proposal.original })) {
                   pending.push({ path: proposal.path, action: "write", content: proposal.content, original: proposal.original });
@@ -790,7 +799,7 @@ export const Route = createFileRoute("/api/agent")({
                 }
                 invalidateChecks();
                 proposals.delete(id);
-                results.push({ id, path: proposal.path, result });
+                results.push({ id, path: proposal.path, result, ...(merged ? { autoMerged: true } : {}) });
               }
               return { results };
             },

@@ -38,3 +38,4 @@
 - Long sessions: edit_file/propose_edit, compaction (engine/long-session.ts), class-scaled auto-continue and phased delivery for large builds. Why: big apps without truncation or context overflow.
 - QA gate: deployment_preflight check output is parsed by qa-gate.ts into timed steps + failure kind (regression/flaky/config) and recorded as a qa.gate event. Why: measured evidence and the right repair path.
 - Symbol index: read_file upserts per-file symbols/imports (symbol-index.ts) into owner-scoped repo_symbol_index; find_symbol answers definitions/importers before search_files. Why: later runs skip re-reading files.
+- Merges: apply_proposals auto-resolves stale helper proposals with diff-engine merge3 when edits touch disjoint lines; overlapping edits stay blocked with a guardrail reason. Blocked broker results carry {rule, risk, why}. Why: parallel work lands without overwriting newer code.
