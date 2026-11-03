@@ -20,6 +20,12 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [x] Prevent successful QA cache entries from bypassing a failed budget.
 - [x] Expose per-commit measured budget history in Changes, preserving unknown/stale evidence and blocking unmeasured required metrics.
 
+## Recovery, verification-first and failure intelligence (authorized)
+- [x] Recovery / replay: an interrupted run resumes with a brief of provably done vs unverified work, actions whose outcome is unknown, and the failing check to reproduce first — never a restart.
+- [x] Verification-first: acceptance criteria first, cheapest-first ladder (typecheck → lint → unit → build → preview route → e2e) in the shared production rules, and a per-run evidence table (item | criteria | test run | result) built only from checks that really ran; a check that never ran is unverified.
+- [x] Failure intelligence: every finished run records a post-run report (time, steps, rework ratio, human interventions, failure mode with evidence) and Settings → Performance aggregates top failure modes, rework, interventions and the prior-context rate per project from the owner's own runs.
+- [ ] Evidence rows in the UI still need a run that executes the QA gate or a route probe in this project; the builders are tested against recorded gate/budget/policy/route shapes.
+
 ## Remaining platform work
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.
 - [ ] Canary matrix, baseline/post benchmarks, full end-to-end customer project verification and final release documentation.
