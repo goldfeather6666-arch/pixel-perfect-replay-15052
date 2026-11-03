@@ -12,13 +12,13 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [ ] 5 Review badges + role approvals + Slack/Teams notices — needs a Slack app or incoming webhook from the user to activate.
 - [x] 6 Budget-as-code — `budget.json` validated, payloads measured in the QA gate, breaches block handoff with fixes.
 - [x] 7 Bug autopsy — repro artifact card (environment, redacted evidence, changed files, minimal repro, copy/replay).
-- [ ] 8 Governance — policy-as-code checks + retention/region controls on top of the existing immutable audit log.
+- [ ] 8 Governance — required-check policy-as-code now blocks missing/failed checks in preflight, with owner-scoped verification history; retention/region controls remain on top of the existing immutable audit log.
 - [ ] 9 Local authoring companion — implement internal protocol and sideloadable extension; a publisher account is required only for marketplace publication.
 - [x] 10 Model-agnostic gateway + comparison — per-task BYOK model/credential (existing) plus a Performance tab comparing quality/cost per model from real run records.
 
 ## Current verification hardening
 - [x] Prevent successful QA cache entries from bypassing a failed budget.
-- [ ] Expose per-commit measured budget history.
+- [x] Expose per-commit measured budget history in Changes, preserving unknown/stale evidence and blocking unmeasured required metrics.
 
 ## Remaining platform work
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.

@@ -29,6 +29,7 @@
 - accounts.ts pins task GitHub/database/Vercel IDs; missing inherits latest repo links, null means none, account switches clear links atomically only while idle; tokens label/dedupe real account identities. Why: truthful multi-account tasks.
 - Connect & sync is the single wiring path for env sync, auth allow-list merge (never remove links), migrations and build/live probe; Auto-fix syncs then sends real blockers to agents. Why: one repair path.
 - Workspace is a studio: chat left; canvas tabs Preview/Code/Changes right; Terminal/Agents/Activity/Knowledge in a collapsible drawer; Deploy lives in the header Publish sheet. Why: one clear layout without hiding power tools.
+- Verification history derives from owner-scoped milestone events; committed QA policies only tighten preflight evidence, never grant external-action permission. Why: durable governance without a second consent system.
 
 ## Customer-owned infrastructure
 - Resolve resources only from owner-scoped task-pinned accounts, never operator/other customer fallbacks; missing/null links block setup. Inspect identity before remote effects; reuse selected projects and ask before creating/changing them. Why: ownership and consent.

@@ -14,6 +14,7 @@ import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/prov
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
 import { evaluateBudget, formatBudgetResult, parseAssetListing, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
+import { evaluateQaPolicy, parseQaPolicy } from "@/lib/qa-policy";
 import { formatQualityScore, scorePage } from "@/lib/quality-score";
 import { extractStyle, formatStyleMemory, mergeStyleProfile, type StyleProfile } from "@/lib/style-memory";
 import { merge3 } from "@/lib/diff-engine";
@@ -487,7 +488,7 @@ export const Route = createFileRoute("/api/agent")({
               const cacheKey = `${u.user.id}:${repo}@${before}:${root}`;
               if (phase === "check" && revision === 0 && passedChecks.has(cacheKey)) {
                 quality.localPassed = true; quality.localIssue = undefined;
-                rec.event("qa.gate", { passed: true, cached: true });
+                rec.event("qa.gate", { passed: true, cached: true, commit: before, root });
                 return { exit_code: 0, cached: true, commit: before, gate: { passed: true, summary: "QA gate already passed for this exact commit; reused the result." } };
               }
               const result = await sbxRun(command);
@@ -504,29 +505,52 @@ export const Route = createFileRoute("/api/agent")({
               // output; a breach blocks the gate with the fix suggestion attached, and anything that
               // could not be measured is reported as unmeasured rather than passed.
               let budget: { ok: boolean; summary: string } | undefined;
+              let policy: { ok: boolean; summary: string } | undefined;
+              if (phase === "check") {
+                const pf = await gh.getFile(repo, branch, "forge.policy.json").catch((error: unknown) => {
+                  if (/\b404\b|not found/i.test(errorText(error))) return null;
+                  throw error;
+                });
+                if (pf?.content) {
+                  const parsed = parseQaPolicy(pf.content);
+                  policy = parsed.policy ? evaluateQaPolicy(parsed.policy, gate?.steps ?? []) : { ok: false, summary: parsed.error ?? "Invalid required-check policy." };
+                  rec.event("policy.check", { commit: before, root, ok: policy.ok, valid: before === after && revision === checkedRevision, required: parsed.policy?.requiredChecks ?? [], missing: "missing" in policy ? policy.missing : [], invalid: !parsed.policy });
+                  if (!policy.ok) { quality.localPassed = false; quality.localIssue = policy.summary; }
+                }
+              }
               if (phase === "check" && gate?.passed) {
-                const bf = await gh.getFile(repo, branch, "budget.json").catch(() => null);
+                const bf = await gh.getFile(repo, branch, "budget.json").catch((error: unknown) => {
+                  if (/\b404\b|not found/i.test(errorText(error))) return null;
+                  throw error;
+                });
                 if (bf?.content) {
                   const parsed = parsePerfBudget(bf.content);
-                  if (parsed.error) budget = { ok: false, summary: parsed.error };
+                  if (parsed.error) {
+                    budget = { ok: false, summary: parsed.error };
+                    rec.event("budget.check", { commit: before, root, ok: false, invalid: true });
+                  }
                   else {
                     const appRoot = /^[A-Za-z0-9._/-]{1,200}$/.test(root) ? root.replace(/\/+$/, "") || "." : ".";
                     const listing = await sbxRun(`find ${appRoot}/dist ${appRoot}/build ${appRoot}/.next/static -type f \\( -name '*.js' -o -name '*.mjs' -o -name '*.css' \\) ! -name '*.map' -printf '%p %s\\n' 2>/dev/null | head -400`);
-                    const measured = payloadKb(parseAssetListing("stdout" in listing ? String(listing.stdout ?? "") : ""));
+                    const assets = parseAssetListing("stdout" in listing ? String(listing.stdout ?? "") : "");
+                    const measured = assets.length ? payloadKb(assets) : {};
                     const res = evaluateBudget(parsed.budget, measured);
                     budget = { ok: res.ok, summary: formatBudgetResult(res) };
-                    rec.event("budget.check", { ok: res.ok, violations: res.violations.map((v) => ({ metric: v.metric, limit: v.limit, actual: v.actual })), unmeasured: res.unmeasured });
+                    const measuredHead = await gh.headSha(repo, branch);
+                    const valid = measuredHead === before && revision === checkedRevision;
+                    if (!valid) budget = { ok: false, summary: "The branch changed during budget measurement; rerun checks on the current commit." };
+                    rec.event("budget.check", { commit: before, root, valid, ok: budget.ok, limits: parsed.budget, measured, violations: res.violations.map((v) => ({ metric: v.metric, limit: v.limit, actual: v.actual })), unmeasured: res.unmeasured });
                   }
                   if (budget && !budget.ok) { quality.localPassed = false; quality.localIssue = budget.summary; }
                 }
               }
               const branchChanged = before !== after;
-              if (gate) rec.event("qa.gate", { passed: gate.passed && quality.localPassed && (budget?.ok ?? true), commit: before, totalMs: gate.totalMs, failedStep: budget && !budget.ok ? "budget" : gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
+              if (gate) rec.event("qa.gate", { passed: gate.passed && quality.localPassed && (budget?.ok ?? true) && (policy?.ok ?? true), commit: before, root, totalMs: gate.totalMs, failedStep: policy && !policy.ok ? "policy" : budget && !budget.ok ? "budget" : gate.failedStep, failureKind: policy && !policy.ok ? "config" : gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
               // Cache only a fully passing gate, including any committed budget, so a reused result never skips a budget.
               if (gate?.passed && quality.localPassed && (budget?.ok ?? true) && revision === 0 && !branchChanged) { passedChecks.set(cacheKey, Date.now()); const oldest = passedChecks.keys().next().value; if (passedChecks.size > 200 && oldest) passedChecks.delete(oldest); }
-              const breach = budget && !budget.ok ? budget.summary : undefined;
+              const breach = [budget && !budget.ok ? budget.summary : undefined, policy && !policy.ok ? policy.summary : undefined].filter(Boolean).join(" ");
               const problem = [branchChanged ? "Branch changed during checks; run checks again on the current commit." : undefined, breach].filter(Boolean).join(" ");
-              return { ...result, ...(gate ? { gate: { passed: gate.passed && (budget?.ok ?? true), summary: [gate.summary, budget?.summary].filter(Boolean).join(" "), steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(problem ? { error: problem } : {}) };
+              return { ...result, ...(gate ? { gate: { passed: gate.passed && quality.localPassed && (budget?.ok ?? true) && (policy?.ok ?? true), summary: [gate.summary, budget?.summary, policy?.summary].filter(Boolean).join(" "), steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(problem ? { error: problem } : {}) };
             },
           }),
           share_file: tool({
