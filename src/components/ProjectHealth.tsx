@@ -28,7 +28,7 @@ export function HealthList({ steps }: { steps: SyncStep[] }) {
 }
 
 /** "Connect & sync" card for the Deploy tab: one tap wires everything and shows a checklist. */
-export function ConnectSyncCard({ id, onSend }: { id: string; onSend?: (prompt: string) => void }) {
+export function ConnectSyncCard({ id }: { id: string }) {
   const [steps, setSteps] = useState<SyncStep[] | null>(null);
   const sync = useServerFn(syncProject);
   const m = useMutation({
@@ -43,32 +43,9 @@ export function ConnectSyncCard({ id, onSend }: { id: string; onSend?: (prompt: 
           <h2 className="font-semibold">Connect & sync</h2>
           <p className="text-xs text-muted-foreground">Links GitHub, database and Vercel, fixes sign-in links, applies database changes and checks the live site.</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => m.mutate()} disabled={m.isPending}>{m.isPending ? <Loader2 className="animate-spin" /> : <Link2 />} Sync now</Button>
-          {onSend && <AutoFixButton id={id} onSend={onSend} onSteps={setSteps} />}
-        </div>
+        <Button size="sm" variant="secondary" onClick={() => m.mutate()} disabled={m.isPending}>{m.isPending ? <Loader2 className="animate-spin" /> : <Link2 />} Sync now</Button>
       </div>
       {steps && <div className="mt-3"><HealthList steps={steps} /></div>}
     </section>
-  );
-}
-
-/** One-click repair: sync, then hand the agent only the real blockers. */
-export function AutoFixButton({ id, onSend, onSteps, compact, disabled }: { id: string; onSend: (prompt: string) => void; onSteps?: (s: SyncStep[]) => void; compact?: boolean; disabled?: boolean }) {
-  const fix = useServerFn(autoFix);
-  const m = useMutation({
-    mutationFn: () => fix({ data: { id } }),
-    onSuccess: (r) => {
-      onSteps?.(r.steps);
-      if (!r.prompt) { toast.success("Nothing to fix — connections are in sync and the site is healthy"); return; }
-      toast.success("Synced. The agent is fixing the remaining problems");
-      onSend(r.prompt);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  return (
-    <Button size="sm" variant="outline" className="h-7 shrink-0 gap-1 text-xs" onClick={() => m.mutate()} disabled={disabled || m.isPending} title="Sync everything and fix build, deploy and sign-in problems">
-      {m.isPending ? <Loader2 className="animate-spin" /> : <Wand2 />}{compact ? null : " Auto-fix"}
-    </Button>
   );
 }
