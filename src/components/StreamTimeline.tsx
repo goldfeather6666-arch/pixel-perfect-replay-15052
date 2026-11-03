@@ -8,7 +8,7 @@ import {
 import { getRunEvents, getRunOverview } from "@/lib/engine.functions";
 
 type Ev = { seq: number; type: string; payload: Record<string, unknown>; created_at: string };
-type Item = { key: string; icon: typeof Brain; title: string; detail?: string | undefined; tone: "ok" | "bad" | "warn" | "info"; at: string; group: string };
+type Item = { key: string; icon: typeof Brain; title: string; detail?: string | undefined; targets?: string[]; ms?: number; tone: "ok" | "bad" | "warn" | "info"; at: string; group: string };
 
 const STAGE: Record<string, string> = {
   RECEIVED: "Got your request", DISCOVERING: "Reading the project", PLANNING: "Planning the work", EXECUTING: "Building",
@@ -41,7 +41,8 @@ export function toItem(e: Ev): Item | null {
     case "tool.execution.completed": {
       const tool = String(p["tool"] ?? "tool");
       const t = toolInfo(tool);
-      return { ...base, icon: p["ok"] ? t.icon : XCircle, title: p["ok"] ? t.verb : `${pretty(tool)} failed`, detail: p["summary"] ? String(p["summary"]) : pretty(tool), tone: p["ok"] ? "info" : "bad", group: p["ok"] ? `tool:${t.verb}` : base.key };
+      const target = p["target"] ? String(p["target"]) : undefined;
+      return { ...base, icon: p["ok"] ? t.icon : XCircle, title: p["ok"] ? t.verb : `${pretty(tool)} failed`, detail: p["summary"] ? String(p["summary"]) : pretty(tool), targets: target ? [target] : [], ms: Number(p["ms"] ?? 0), tone: p["ok"] ? "info" : "bad", group: p["ok"] ? `tool:${t.verb}` : base.key };
     }
     case "skills.discovery.completed": return { ...base, icon: Sparkles, title: "Loaded skills", detail: `${(p["loaded"] as unknown[] | undefined)?.length ?? 0} of ${p["total"]}`, tone: "info", group: base.key };
     case "agents.dispatched": return { ...base, icon: Users, title: `Started ${(p["jobs"] as unknown[]).length} helper agents`, detail: `${p["waves"]} wave(s)`, tone: "info", group: base.key };
@@ -60,7 +61,7 @@ export function groupItems(items: Item[]): (Item & { count: number })[] {
   const out: (Item & { count: number })[] = [];
   for (const it of items) {
     const last = out[out.length - 1];
-    if (last && it.group.startsWith("tool:") && last.group === it.group) { last.count++; last.detail = it.detail; last.at = it.at; continue; }
+    if (last && it.group.startsWith("tool:") && last.group === it.group) { last.count++; last.detail = it.detail; last.at = it.at; last.targets = [...(last.targets ?? []), ...(it.targets ?? [])]; last.ms = (last.ms ?? 0) + (it.ms ?? 0); continue; }
     out.push({ ...it, count: 1 });
   }
   return out;
@@ -131,7 +132,8 @@ export function StreamTimeline({ sessionId, running }: { sessionId: string; runn
                   {it.count > 1 && <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground">×{it.count}</span>}
                   <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground">{new Date(it.at).toLocaleTimeString()}</span>
                 </div>
-                {it.detail && <p className="break-words text-xs text-muted-foreground">{it.detail}</p>}
+                {it.detail && !it.targets?.length && <p className="break-words text-xs text-muted-foreground">{it.detail}</p>}
+                {!!it.targets?.length && <Targets targets={it.targets} ms={it.ms} />}
               </div>
             </li>
           );
@@ -144,6 +146,20 @@ export function StreamTimeline({ sessionId, running }: { sessionId: string; runn
         )}
       </ol>
       <div ref={bottom} />
+    </div>
+  );
+}
+
+/** Lovable-style brief detail: first few files/commands as chips, rest behind "+N more". */
+function Targets({ targets, ms }: { targets: string[]; ms?: number | undefined }) {
+  const [open, setOpen] = useState(false);
+  const uniq = [...new Set(targets)];
+  const shown = open ? uniq : uniq.slice(0, 3);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {shown.map((t) => <code key={t} className="max-w-full truncate rounded-md border bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{t}</code>)}
+      {uniq.length > 3 && <button type="button" onClick={() => setOpen(!open)} className="text-[11px] text-primary hover:underline">{open ? "Show less" : `+${uniq.length - 3} more`}</button>}
+      {!!ms && ms > 1000 && <span className="text-[11px] text-muted-foreground">· {(ms / 1000).toFixed(1)}s</span>}
     </div>
   );
 }
