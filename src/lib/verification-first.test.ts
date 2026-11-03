@@ -63,7 +63,7 @@ describe("handoff gate", () => {
   it("is verified only when every required row passed", () => {
     const good = evidenceRows(criteriaToItems([{ text: "unit tests pass", required: true }], checks));
     expect(allRequiredPassed(good)).toBe(true);
-    const withGap = [...good, ...evidenceRows(criteriaToItems([{ text: "sign-in works", required: true }], checks))];
+    const withGap = [...good, ...evidenceRows(criteriaToItems([{ text: "Password reset email arrives", required: true }], checks))];
     expect(allRequiredPassed(withGap)).toBe(false);
   });
 
