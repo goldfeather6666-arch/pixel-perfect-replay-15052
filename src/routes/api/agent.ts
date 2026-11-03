@@ -1042,14 +1042,26 @@ export const Route = createFileRoute("/api/agent")({
             let open = true;
             const life = agentLiveness();
             let stalled = false;
-            const send = (e: AgentEvent) => { life.progress(); if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
+            // Status-only events never count as progress, so they cannot hide a dead model.
+            const sendQuiet = (e: AgentEvent) => { if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
+            const send = (e: AgentEvent) => { life.progress(); sendQuiet(e); };
             closeStream = () => { open = false; };
             emit = send;
+            let waitingModelName = s.model as string;
+            let stalledWaitingModel = false;
             // Do not let a timer falsely prove life while the model/tool is stuck.
             const beat = setInterval(() => {
-              if (life.stalled()) { stalled = true; runAbort.abort(); return; }
+              if (life.stalled()) { stalled = true; stalledWaitingModel = life.awaitingSince() !== null; runAbort.abort(); return; }
               void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).eq("stop_requested", false);
             }, 30_000);
+            // Tell the user when the model service is slow to start replying, instead of a silent spinner.
+            const waitNotice = setInterval(() => {
+              const since = life.awaitingSince();
+              if (since === null) return;
+              const secs = Math.round((Date.now() - since) / 1000);
+              if (secs >= 15) sendQuiet({ t: "wait", d: `Waiting for ${waitingModelName} to start replying · ${secs}s. This model's service is slow to begin; messages you send now are read as soon as it replies.` });
+            }, 5_000);
+            let lastThinkingNote = 0;
             const stopWatching = watchForStop(async () => {
               const { data } = await sb.from("agent_sessions").select("stop_requested, execution_id").eq("id", sessionId).eq("user_id", u.user.id).single();
               return data?.stop_requested === true || (!!data && data.execution_id !== executionId);
