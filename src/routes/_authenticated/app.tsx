@@ -201,7 +201,7 @@ function Dashboard() {
                   <button type="button" className="text-primary underline" onClick={() => setAdvanced((v) => !v)}>{advanced ? "Hide options" : "Change"}</button>
                 </p>
                 {advanced && (
-                  <div className="space-y-4 rounded-lg border bg-background/50 p-3">
+                  <div className="min-w-0 space-y-4 overflow-hidden rounded-lg border bg-background/50 p-3">
                     {repo && (
                       <div className="space-y-1.5">
                         <Label>Start from branch</Label>
@@ -212,15 +212,15 @@ function Dashboard() {
                       </div>
                     )}
                     {models.error && <div role="alert" className="rounded-md border border-destructive/40 p-2 text-xs text-destructive">Could not load models for this AI key. Retry or enter a compatible model ID manually below. <Button type="button" size="sm" variant="outline" className="ml-2" onClick={() => void models.refetch()} disabled={models.isFetching}>Retry</Button></div>}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
+                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="min-w-0 space-y-1.5">
                         <Label>AI key</Label>
                         <Select value={credId} onValueChange={(v) => { setCredId(v); setModel(""); }}>
                           <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue /></SelectTrigger>
-                          <SelectContent className="max-w-[calc(100vw-2rem)]">{aiCreds.map((c) => <SelectItem className="break-all" key={c.id} value={c.id}>{c.label} · {providerName(c.provider)}</SelectItem>)}</SelectContent>
+                          <SelectContent className="max-w-[calc(100vw-2rem)]">{aiCreds.map((c) => <SelectItem className="break-all" key={c.id} value={c.id}>{c.label === providerName(c.provider) ? c.label : `${c.label} · ${providerName(c.provider)}`}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="min-w-0 space-y-1.5">
                         <Label>Model</Label>
                         <ModelSelect models={models.data ?? []} value={model} onChange={setModel} ariaLabel="Model" placeholder={models.isLoading ? "Loading…" : "Choose model"} />
                       </div>
