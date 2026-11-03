@@ -154,6 +154,7 @@ function Workspace() {
     }
   }, [id, input]);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [waitNote, setWaitNote] = useState<string | null>(null);
   const [streamInterrupted, setStreamInterrupted] = useState(false);
   const capacity = promptCapacity(input);
   const [chatMode, setChatMode] = useState<"chat" | "plan" | "build">("build");
@@ -276,6 +277,7 @@ function Workspace() {
     sendLockRef.current = true;
     setSendError(null);
     setStreamInterrupted(false);
+    setWaitNote(null);
     const sentImages = images;
     let accepted = false;
     setInput("");
@@ -323,6 +325,8 @@ function Workspace() {
         const { done, value } = await reader.read();
         const events = done ? decoder.finish() : decoder.push(value!);
         for (const e of events) {
+          if (e.t === "wait") { setWaitNote(e.d); continue; }
+          if (e.t === "text" || e.t === "tool" || e.t === "error" || e.t === "done") setWaitNote(null);
           if (e.t === "text") patchLast((m) => ({ ...m, content: m.content + e.d }));
           else if (e.t === "tool")
             patchLast((m) => ({
@@ -547,6 +551,7 @@ function Workspace() {
                 background={bgRunning}
                 cloud={taskRunStatus(sd ?? {}) === "cloud"}
                 stopping={stopping}
+                note={running ? waitNote : null}
                 onStop={stopWork}
               />
             )}
@@ -1000,7 +1005,7 @@ function mmss(ms: number) {
 }
 
 /** Real timings only: elapsed time, finished steps and their measured average. No invented ETA. */
-function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stopping, onStop }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean; cloud: boolean; stopping: boolean; onStop: () => void }) {
+function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stopping, note, onStop }: { start: number | null; lastUpdate: string | null; steps: number; limit: number; background: boolean; cloud: boolean; stopping: boolean; note?: string | null; onStop: () => void }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const elapsed = start ? now - start : 0;
@@ -1008,8 +1013,8 @@ function RunStatus({ start, lastUpdate, steps, limit, background, cloud, stoppin
   return (
     <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2.5 rounded-full border bg-card py-1 pl-3 pr-1 text-xs text-muted-foreground shadow-sm">
       <span className="relative flex size-2 shrink-0"><span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" /><span className="relative inline-flex size-2 rounded-full bg-primary" /></span>
-      <span className="min-w-0 flex-1 truncate">
-        {stopping ? "Stopping — saving progress" : background
+      <span className="min-w-0 flex-1 truncate" title={note ?? undefined}>
+        {stopping ? "Stopping — saving progress" : note ? note : background
           ? `${cloud ? "Working in the cloud" : "Working"} · ${steps} steps · updated ${lastUpdate ? `${mmss(now - new Date(lastUpdate).getTime())} ago` : "just now"}`
           : `Working · ${mmss(elapsed)} · ${steps} step${steps === 1 ? "" : "s"}${avg > 0 ? ` · ≤${Math.ceil(((limit - steps) * avg) / 60000)} min left` : ""}`}
       </span>

@@ -1042,14 +1042,29 @@ export const Route = createFileRoute("/api/agent")({
             let open = true;
             const life = agentLiveness();
             let stalled = false;
-            const send = (e: AgentEvent) => { life.progress(); if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
+            // Status-only events never count as progress, so they cannot hide a dead model.
+            const sendQuiet = (e: AgentEvent) => { if (!open) return; try { controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")); } catch { open = false; } };
+            const send = (e: AgentEvent) => { life.progress(); sendQuiet(e); };
             closeStream = () => { open = false; };
             emit = send;
+            let waitingModelName = s.model as string;
+            let stalledWaitingModel = false;
             // Do not let a timer falsely prove life while the model/tool is stuck.
             const beat = setInterval(() => {
-              if (life.stalled()) { stalled = true; runAbort.abort(); return; }
+              if (life.stalled()) { stalled = true; stalledWaitingModel = life.awaitingSince() !== null; runAbort.abort(); return; }
               void sb.from("agent_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).eq("stop_requested", false);
             }, 30_000);
+            // Tell the user when the model service is slow to start replying, instead of a silent spinner.
+            const waitNotice = setInterval(() => {
+              const since = life.awaitingSince();
+              if (since === null) return;
+              const secs = Math.round((Date.now() - since) / 1000);
+              if (secs >= 15) sendQuiet({ t: "wait", d: `Waiting for ${waitingModelName} · ${secs}s — its service is slow to start replying` });
+            }, 5_000);
+            let lastThinkingNote = 0;
+            const stalledNote = () => stalledWaitingModel
+              ? `\n\n${waitingModelName} did not start replying within 4 minutes, so this attempt was stopped. Its service is overloaded or too slow for Forge's instructions. Progress saved; automatic recovery is queued — or pick a faster model and send again.`
+              : "\n\nNo signs of life detected. Progress saved; automatic recovery is queued.";
             const stopWatching = watchForStop(async () => {
               const { data } = await sb.from("agent_sessions").select("stop_requested, execution_id").eq("id", sessionId).eq("user_id", u.user.id).single();
               return data?.stop_requested === true || (!!data && data.execution_id !== executionId);
@@ -1112,13 +1127,19 @@ export const Route = createFileRoute("/api/agent")({
                   const base = compact.messages as typeof stepMessages;
                   const extra = liveChat.length ? { messages: [...base, { role: "user" as const, content: `Messages the user sent while you were working (newest last). Read them now: answer questions briefly in your next reply and adjust the work if they change direction, then continue.\n${liveChat.map((m, i) => `${i + 1}. ${m}`).join("\n")}` }] } : compact.compacted ? { messages: base } : {};
                   const choice = toolChoice ? { toolChoice } : requireAction && stepNumber === 0 ? { toolChoice: "required" as const } : {};
+                  waitingModelName = activeModel;
+                  life.awaitModel();
                   return { ...extra, ...choice };
                 },
                 maxRetries: 3,
                 abortSignal: runAbort.signal,
               });
               for await (const part of abortableStream(result.fullStream, runAbort.signal)) {
-                if (part.type === "text-delta") {
+                if (part.type === "reasoning-start" || part.type === "reasoning-delta" || part.type === "tool-input-start" || part.type === "tool-input-delta") {
+                  // Thinking and tool-argument streaming are real model activity: keep the run alive and show it.
+                  life.progress();
+                  if (Date.now() - lastThinkingNote > 3_000) { lastThinkingNote = Date.now(); sendQuiet({ t: "wait", d: part.type.startsWith("reasoning") ? `${activeModel} is thinking…` : `${activeModel} is preparing a tool call…` }); }
+                } else if (part.type === "text-delta") {
                   rec.metric("timeToFirstTokenMs", rec.since("firstToken"));
                   text += part.text;
                   send({ t: "text", d: part.text });
@@ -1241,7 +1262,7 @@ export const Route = createFileRoute("/api/agent")({
             } catch (e: any) {
               errored = true;
               rec.error("provider", errorText(e));
-              if (runAbort.signal.aborted) text += stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_"; else {
+              if (runAbort.signal.aborted) text += stalled ? stalledNote() : "\n\n_(stopped)_"; else {
                 const detail = providerRequestError(e);
                 text += `\n\n${detail}`;
                 send({ t: "error", m: detail });
@@ -1249,8 +1270,9 @@ export const Route = createFileRoute("/api/agent")({
             } finally {
               stopWatching();
               clearInterval(beat);
+              clearInterval(waitNotice);
               if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
-              if (runAbort.signal.aborted) send({ t: "text", d: stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_" });
+              if (runAbort.signal.aborted) send({ t: "text", d: stalled ? stalledNote() : "\n\n_(stopped)_" });
               const next: ChatMessage[] = [
                 ...history,
                 { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
