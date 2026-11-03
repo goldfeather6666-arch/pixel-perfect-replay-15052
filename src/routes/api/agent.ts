@@ -500,7 +500,6 @@ export const Route = createFileRoute("/api/agent")({
               }
               const gate = phase === "check" && "stdout" in result ? parseGateLog(String(result.stdout ?? ""), String(result.stderr ?? "")) : undefined;
               if (gate) rec.set("qaGateMs", gate.totalMs);
-              if (gate) rec.event("qa.gate", { passed: gate.passed, totalMs: gate.totalMs, failedStep: gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
               // Performance budget-as-code: a committed budget.json is measured against the real build
               // output; a breach blocks the gate with the fix suggestion attached, and anything that
               // could not be measured is reported as unmeasured rather than passed.
@@ -522,8 +521,9 @@ export const Route = createFileRoute("/api/agent")({
                 }
               }
               const branchChanged = before !== after;
+              if (gate) rec.event("qa.gate", { passed: gate.passed && quality.localPassed && (budget?.ok ?? true), commit: before, totalMs: gate.totalMs, failedStep: budget && !budget.ok ? "budget" : gate.failedStep, failureKind: gate.failureKind, steps: gate.steps.map((s) => ({ name: s.name, exit: s.exit, ms: s.durationMs })) });
               // Cache only a fully passing gate, including any committed budget, so a reused result never skips a budget.
-              if (gate?.passed && (budget?.ok ?? true) && revision === 0 && !branchChanged) { passedChecks.set(cacheKey, Date.now()); if (passedChecks.size > 200) passedChecks.delete(passedChecks.keys().next().value!); }
+              if (gate?.passed && quality.localPassed && (budget?.ok ?? true) && revision === 0 && !branchChanged) { passedChecks.set(cacheKey, Date.now()); const oldest = passedChecks.keys().next().value; if (passedChecks.size > 200 && oldest) passedChecks.delete(oldest); }
               const breach = budget && !budget.ok ? budget.summary : undefined;
               const problem = [branchChanged ? "Branch changed during checks; run checks again on the current commit." : undefined, breach].filter(Boolean).join(" ");
               return { ...result, ...(gate ? { gate: { passed: gate.passed && (budget?.ok ?? true), summary: [gate.summary, budget?.summary].filter(Boolean).join(" "), steps: gate.steps, failureKind: gate.failureKind } } : {}), commit: before, ...(problem ? { error: problem } : {}) };
