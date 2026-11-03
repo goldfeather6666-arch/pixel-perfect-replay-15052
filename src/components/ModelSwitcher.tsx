@@ -48,8 +48,8 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile 
     <>
       <Button variant="outline" type="button" disabled={disabled} title={disabled ? "Stop the current run to switch model" : "AI team settings"}
         onClick={() => setOpen(true)}
-        className="flex h-auto min-w-0 max-w-[9rem] shrink items-center gap-1 rounded px-2 py-0.5 font-mono">
-        <Cpu className="h-3 w-3 shrink-0" /><span className="truncate">{model || "model"}</span>
+        className="flex h-8 min-w-0 max-w-[7.5rem] shrink items-center gap-1.5 rounded-full px-2.5 font-mono text-[11px] sm:max-w-[9rem] sm:text-xs">
+        <Cpu className="h-3 w-3 shrink-0 text-primary" /><span className="truncate">{model || "model"}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90dvh] max-w-md overflow-y-auto">

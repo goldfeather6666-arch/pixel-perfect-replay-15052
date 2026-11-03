@@ -438,7 +438,7 @@ function Workspace() {
     <div className="flex h-dvh flex-col">
       <AppHeader actions={s ? (
         <>
-          <span className="hidden lg:block"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>
+          <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
           <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" disabled={deploying} onClick={() => { void publishNow(); }}><Rocket className="h-3.5 w-3.5" /> {deploying ? "Deploying…" : "Publish"}</Button>
           <Button type="button" size="sm" variant="ghost" className="h-8 rounded-full px-2 text-xs" aria-label="Publish settings" onClick={() => setPublishOpen(true)}>Setup</Button>
         </>
@@ -598,7 +598,6 @@ function Workspace() {
                   ))}
                 </div>
                 <div className="ml-auto flex items-center gap-1.5">
-                  {s && <span className="hidden max-w-36 sm:block lg:hidden"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>}
                   <PromptInputSubmit className="size-8 rounded-full" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
                 </div>
               </PromptInputFooter>
