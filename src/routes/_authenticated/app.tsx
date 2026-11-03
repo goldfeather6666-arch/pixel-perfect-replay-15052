@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ModelSelect } from "@/components/ModelPicker";
 import { createRepo, createSession, listBranches, listCredentials, listModels, listRepos, listSessions } from "@/lib/app.functions";
 import { isAiProvider, providerName } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
@@ -116,7 +117,7 @@ function Dashboard() {
   const [filter, setFilter] = useState<"all" | "running" | "needs" | "done">("all");
   const [q, setQ] = useState("");
   // Pick the first model automatically so the simple path is: describe → choose repo → start.
-  useEffect(() => { if (!model && !manualModel && models.data?.[0]) setModel(models.data[0]); }, [models.data, model, manualModel]);
+  useEffect(() => { if (!model && !manualModel && models.data?.[0]) setModel(models.data[0].id); }, [models.data, model, manualModel]);
   useEffect(() => { setTeamPrompt(goal.trim() ? goal : null); }, [goal]);
   const tasks = useMemo(() => (sessions.data ?? []).map((s) => {
     const st = taskRunStatus(s);
@@ -221,10 +222,7 @@ function Dashboard() {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Model</Label>
-                        <Select value={model} onValueChange={setModel}>
-                          <SelectTrigger className="h-11 w-full min-w-0 [&>span]:truncate [&>span]:text-left"><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"} /></SelectTrigger>
-                          <SelectContent className="max-w-[calc(100vw-2rem)]">{models.data?.map((m) => <SelectItem className="break-all" key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <ModelSelect models={models.data ?? []} value={model} onChange={setModel} ariaLabel="Model" placeholder={models.isLoading ? "Loading…" : "Choose model"} />
                       </div>
                     </div>
                     {(models.error || models.data?.length === 0) && <Input className="h-11 text-base sm:text-sm" value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="…or type a model ID" aria-label="Model ID" />}

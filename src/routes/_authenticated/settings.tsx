@@ -62,8 +62,8 @@ function SettingsPage() {
         },
       });
     },
-    onSuccess: () => {
-      toast.success("Key verified and saved");
+    onSuccess: (r) => {
+      toast.success(r.totalModels ? `Key verified and saved · ${r.freeModels} of ${r.totalModels} models free` : "Key verified and saved");
       setKey("");
       setLabel("");
       setBaseUrl("");
@@ -129,7 +129,7 @@ function SettingsPage() {
               <div className="space-y-1.5">
                 <Label>Model names (optional)</Label>
                 <Input placeholder="mercury-3, mercury-coder" value={models} onChange={(e) => setModels(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Comma-separated. Shown in the model picker even if the service doesn't list them.</p>
+                <p className="text-xs text-muted-foreground">Comma-separated. Shown in the model picker even if the service doesn't list them. Models you host yourself are marked Free.</p>
               </div>
             )}
             {provider === "compatible" && (

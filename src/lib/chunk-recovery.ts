@@ -31,35 +31,84 @@ export function isRecoverableModuleError(error: unknown) {
 
 /** Replace a stale manifest with a cache-busted document, with bounded retries. */
 const RELOAD_INTERVAL = 15_000;
+/** Consecutive reloads allowed before the tab stops chasing a server that keeps changing under it. */
+const MAX_RECOVERIES = 3;
+const RECOVERY_WINDOW = 90_000;
+/** A load that never finishes must not hold recovery open forever. */
+const LOAD_SETTLE_LIMIT = 4_000;
 let pendingReload: number | null = null;
 
-export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number) {
+/** True once the tab has reloaded too many times in a row: chasing a server that keeps changing only blanks the screen. */
+export function recoveryExhausted(now: number, attempts: number, windowStart: number) {
+  return attempts >= MAX_RECOVERIES && now - windowStart < RECOVERY_WINDOW;
+}
+
+/**
+ * Build the cache-busted document URL, or null when a reload is not allowed.
+ * `attempts` counts reloads already made inside the current `windowStart` budget.
+ */
+export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number, attempts = 0, windowStart = 0) {
   const url = new URL(href);
   const previous = Math.max(lastAttempt || 0, Number(url.searchParams.get("_forge_refresh")) || 0);
   if (now - previous < RELOAD_INTERVAL) return null; // bounded: at most one reload per 15s, so back-to-back preview restarts still recover
+  if (recoveryExhausted(now, attempts, windowStart)) return null; // budget spent: stop reloading forever
   url.searchParams.set("_forge_refresh", String(now));
   return url.href;
 }
 
+/** True while a document is still arriving: replacing now would abort the load in flight. */
+export function documentIsLoading() {
+  return typeof document !== "undefined" && document.readyState !== "complete";
+}
+
 export function recoverChunkLoad() {
-  let previous = 0;
-  try { previous = Number(window.sessionStorage.getItem("forge-chunk-reload")) || 0; } catch { /* storage may be blocked */ }
+  if (typeof window === "undefined") return false;
+  let previous = 0, attempts = 0, windowStart = 0;
+  try {
+    previous = Number(window.sessionStorage.getItem("forge-chunk-reload")) || 0;
+    attempts = Number(window.sessionStorage.getItem("forge-chunk-reload-tries")) || 0;
+    windowStart = Number(window.sessionStorage.getItem("forge-chunk-reload-window")) || 0;
+  } catch { /* storage may be blocked */ }
   const now = Date.now();
-  const target = chunkRecoveryUrl(window.location.href, now, previous);
-  if (target) {
-    try { window.sessionStorage.setItem("forge-chunk-reload", String(now)); } catch { /* URL also bounds retries */ }
-    window.location.replace(target);
+  if (windowStart && now - windowStart > RECOVERY_WINDOW) { attempts = 0; windowStart = 0; } // budget refilled
+  if (recoveryExhausted(now, attempts, windowStart)) return false; // stop the reload loop and let the page show its own error
+  const target = chunkRecoveryUrl(window.location.href, now, previous, attempts, windowStart);
+  if (!target) {
+    // Inside the throttle window: don't leave the tab calling dead function IDs — come back for the fresh manifest when it expires.
+    if (pendingReload == null && attempts < MAX_RECOVERIES) {
+      const wait = Math.max(0, previous + RELOAD_INTERVAL - now) + 250;
+      pendingReload = window.setTimeout(() => {
+        pendingReload = null;
+        const later = Date.now();
+        try {
+          window.sessionStorage.removeItem("forge-chunk-reload");
+          window.sessionStorage.setItem("forge-chunk-reload-tries", String(attempts + 1));
+          window.sessionStorage.setItem("forge-chunk-reload-window", String(windowStart || later));
+        } catch { /* storage may be blocked */ }
+        const next = chunkRecoveryUrl(window.location.href, later, 0, attempts + 1, windowStart || later) || window.location.href;
+        window.location.replace(next);
+      }, wait);
+    }
     return true;
   }
-  // Inside the throttle window: don't leave the tab calling dead function IDs — come back for the fresh manifest when it expires.
-  if (pendingReload == null) {
-    const wait = Math.max(0, previous + RELOAD_INTERVAL - now) + 250;
-    pendingReload = window.setTimeout(() => {
-      pendingReload = null;
-      try { window.sessionStorage.removeItem("forge-chunk-reload"); } catch { /* storage may be blocked */ }
-      const next = chunkRecoveryUrl(window.location.href, Date.now(), 0) || window.location.href;
-      window.location.replace(next);
-    }, wait);
+  const spent = attempts + 1;
+  try {
+    window.sessionStorage.setItem("forge-chunk-reload", String(now));
+    window.sessionStorage.setItem("forge-chunk-reload-tries", String(spent));
+    window.sessionStorage.setItem("forge-chunk-reload-window", String(windowStart || now));
+  } catch { /* URL also bounds retries */ }
+  let done = false;
+  const replace = () => {
+    if (done) return;
+    done = true;
+    window.location.replace(target);
+  };
+  // Never abort a document that is still arriving: wait for it, then swap the stale manifest.
+  if (documentIsLoading() && typeof window.addEventListener === "function") {
+    window.addEventListener("load", replace, { once: true });
+    window.setTimeout(replace, LOAD_SETTLE_LIMIT);
+  } else {
+    replace();
   }
   return true;
 }

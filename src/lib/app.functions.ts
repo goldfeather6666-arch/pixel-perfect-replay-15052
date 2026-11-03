@@ -65,6 +65,7 @@ export const saveCredential = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // Validate with a real provider request before storing.
     let label = data.label;
+    let costs = { totalModels: 0, freeModels: 0 };
     if (data.provider === "github") {
       const { GitHub } = await import("./github.server");
       await new GitHub(data.key).user();
@@ -79,8 +80,10 @@ export const saveCredential = createServerFn({ method: "POST" })
     } else {
       const { listProviderModels } = await import("./providers.server");
       const { pingChat } = await import("./providers.server");
+      const { freeCount } = await import("./model-pricing");
       try {
-        await listProviderModels(data.provider, data.key, data.base_url);
+        const listed = await listProviderModels(data.provider, data.key, data.base_url);
+        costs = { totalModels: listed.length, freeModels: freeCount(listed) };
       } catch (e) {
         // Some compatible endpoints have no /models list: verify with a tiny chat call instead.
         if (data.provider !== "compatible" || !data.base_url || !data.custom_models[0]) throw e;
@@ -101,7 +104,7 @@ export const saveCredential = createServerFn({ method: "POST" })
       user_id: context.userId,
     }).select("id").single();
     if (error) throw new Error(error.message);
-    return { ok: true, id: saved.id as string };
+    return { ok: true, id: saved.id as string, ...costs };
   });
 
 export const deleteCredential = createServerFn({ method: "POST" })

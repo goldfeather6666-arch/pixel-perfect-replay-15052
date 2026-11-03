@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { modelOption, parseModelPrice, type ModelOption, type ModelPrice } from "./model-pricing";
 
 function trimSlash(u: string) {
   return u.replace(/\/+$/, "");
@@ -45,41 +46,47 @@ async function getJson(url: string, headers: Record<string, string>) {
   return JSON.parse(text);
 }
 
-/** Lists models; doubles as credential validation. */
-export async function listProviderModels(provider: string, apiKey: string, baseUrl: string | null, customModels: string[] = []): Promise<string[]> {
-  let ids: string[] = [];
+/** Lists models with cost labels; doubles as credential validation. */
+export async function listProviderModels(provider: string, apiKey: string, baseUrl: string | null, customModels: string[] = []): Promise<ModelOption[]> {
+  let rows: { id: string; price: ModelPrice | null }[] = [];
   if (provider === "openai") {
     const j = await getJson("https://api.openai.com/v1/models", { Authorization: `Bearer ${apiKey}` });
-    ids = j.data.map((m: { id: string }) => m.id).filter((id: string) => /^(gpt|o\d|chatgpt|codex)/.test(id));
+    rows = j.data.map((m: { id: string }) => ({ id: m.id, price: null })).filter((r: { id: string }) => /^(gpt|o\d|chatgpt|codex)/.test(r.id));
   } else if (provider === "anthropic") {
     const j = await getJson("https://api.anthropic.com/v1/models?limit=100", {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     });
-    ids = j.data.map((m: { id: string }) => m.id);
+    rows = j.data.map((m: { id: string }) => ({ id: m.id, price: null }));
   } else if (provider === "google") {
     const j = await getJson(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`, {});
-    ids = j.models
+    rows = j.models
       .filter((m: { supportedGenerationMethods?: string[] }) => m.supportedGenerationMethods?.includes("generateContent"))
-      .map((m: { name: string }) => m.name.replace(/^models\//, ""));
+      .map((m: { name: string }) => ({ id: m.name.replace(/^models\//, ""), price: null }));
   } else if (provider === "openrouter") {
     await getJson("https://openrouter.ai/api/v1/key", { Authorization: `Bearer ${apiKey}` });
     const j = await getJson("https://openrouter.ai/api/v1/models", {});
-    ids = j.data.map((m: { id: string }) => m.id);
+    rows = j.data.map((m: { id: string; pricing?: unknown }) => ({ id: m.id, price: parseModelPrice(m.pricing) }));
   } else if (provider === "compatible") {
     if (!baseUrl) throw new Error("Base URL required");
     await assertPublicEndpoint(baseUrl);
     try {
       const j = await getJson(`${trimSlash(baseUrl)}/models`, { Authorization: `Bearer ${apiKey}` });
-      ids = (j.data ?? j.models ?? []).map((m: { id?: string; name?: string }) => m.id ?? m.name);
+      rows = (j.data ?? j.models ?? []).map((m: { id?: string; name?: string; pricing?: unknown; price?: unknown }) => ({ id: m.id ?? m.name, price: parseModelPrice(m.pricing ?? m.price) }));
     } catch (e) {
       if (customModels.length === 0) throw e;
     }
-    ids = [...new Set([...customModels, ...ids])];
+    // Hand-typed model IDs carry no price, so they stay "Cost unknown" rather than being guessed.
+    const byId = new Map<string, { id: string; price: ModelPrice | null }>();
+    for (const r of [...customModels.map((id) => ({ id, price: null })), ...rows]) if (r.id && !byId.has(r.id)) byId.set(r.id, r);
+    rows = [...byId.values()];
   } else {
     throw new Error("Unknown provider");
   }
-  return ids.sort();
+  return rows
+    .filter((r) => r.id)
+    .map((r) => modelOption(provider, r.id, r.price, baseUrl))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /** Sends a one-token chat request; used to verify endpoints without a /models list. */
