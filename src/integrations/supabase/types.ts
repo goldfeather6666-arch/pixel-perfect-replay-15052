@@ -301,6 +301,36 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          detail: Json
+          id: string
+          session_id: string | null
+          target: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          session_id?: string | null
+          target?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          session_id?: string | null
+          target?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       deploy_oauth_states: {
         Row: {
           created_at: string
