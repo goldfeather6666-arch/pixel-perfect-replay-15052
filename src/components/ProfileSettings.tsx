@@ -1,3 +1,4 @@
+import { ActivityLog } from "@/components/ActivityLog";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
@@ -73,6 +74,7 @@ export function ProfileSettings() {
           <Button disabled={savingPw || !user}>{savingPw ? "Updating…" : "Update password"}</Button>
         </form>
       </section>
+      <ActivityLog />
     </>
   );
 }
