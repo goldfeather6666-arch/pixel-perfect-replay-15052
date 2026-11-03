@@ -414,7 +414,7 @@ export const modelComparison = createServerFn({ method: "POST" })
     const { data: rows } = await context.supabase
       .from("agent_runs")
       .select("provider, model, outcome, stage, metrics, started_at")
-      .eq("user_id", u.user.id)
+      .eq("user_id", u.data.user.id)
       .gte("started_at", since)
       .limit(2000);
     return aggregateModelStats(
