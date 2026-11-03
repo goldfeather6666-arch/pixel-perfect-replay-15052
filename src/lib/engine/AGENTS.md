@@ -37,3 +37,4 @@
 - Evaluation: engine/evaluation.ts owns weighted scoring, 15 critical release cases and assessRun(); every run stores metrics.outcome from executed facts (checks, preview, ambiguous writes). Why: outcome labels never come from model claims.
 - Long sessions: edit_file/propose_edit, compaction (engine/long-session.ts), class-scaled auto-continue and phased delivery for large builds. Why: big apps without truncation or context overflow.
 - QA gate: deployment_preflight check output is parsed by qa-gate.ts into timed steps + failure kind (regression/flaky/config) and recorded as a qa.gate event. Why: measured evidence and the right repair path.
+- Symbol index: read_file upserts per-file symbols/imports (symbol-index.ts) into owner-scoped repo_symbol_index; find_symbol answers definitions/importers before search_files. Why: later runs skip re-reading files.

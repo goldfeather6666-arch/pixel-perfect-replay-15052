@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
+import { indexFile, isIndexable, lookupSymbol, type SymbolEntry } from "@/lib/engine/symbol-index";
 // Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
 const passedChecks = new Map<string, number>();
 import { checkFailure, deploymentSkill, previewDiagnosisSkill, productionInstructions, preflightCommand, qualityBlocker, type QualityState } from "@/lib/deployment-quality";
@@ -292,7 +293,21 @@ export const Route = createFileRoute("/api/agent")({
             execute: async ({ path }) => {
               const c = await readCurrent(path);
               if (c === null) return { error: `${path} not found` };
+              if (isIndexable(path) && c.length < 400_000) {
+                const fi = indexFile(path, c);
+                void sb.from("repo_symbol_index").upsert({ user_id: u.user.id, repo, path, content_hash: fi.hash, symbols: fi.symbols, imports: fi.imports, updated_at: new Date().toISOString() }, { onConflict: "user_id,repo,path" }).then(() => {}, () => {});
+              }
               return { path, content: c.length > 60000 ? c.slice(0, 60000) + "\n...[truncated]" : c };
+            },
+          }),
+          find_symbol: tool({
+            description: "Look up where a function/class/type/variable is defined and which files import it, from the saved repo symbol index (built from files read in this and earlier tasks). Use before search_files to avoid re-reading files. Empty results mean not indexed yet — fall back to search_files.",
+            inputSchema: z.object({ name: z.string().min(2).max(120) }),
+            execute: async ({ name }) => {
+              const { data, error } = await sb.from("repo_symbol_index").select("path, content_hash, symbols, imports").eq("user_id", u.user.id).eq("repo", repo).limit(5000);
+              if (error) return { error: error.message };
+              const files = (data ?? []).map((r) => ({ path: r.path, hash: r.content_hash, symbols: r.symbols as unknown as SymbolEntry[], imports: r.imports as unknown as string[] }));
+              return { indexedFiles: files.length, ...lookupSymbol(files, name), note: "Index may lag the branch; verify with read_file before editing." };
             },
           }),
           search_files: tool({
