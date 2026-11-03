@@ -402,6 +402,26 @@ export const getDiff = createServerFn({ method: "POST" })
     return (await github(context, s.accounts)).compare(s.repo, s.base_branch, s.work_branch);
   });
 
+/** Model comparison: quality and cost per model from this owner's own run records. */
+export const modelComparison = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ days: z.number().int().min(1).max(180).default(30) }))
+  .handler(async ({ data, context }) => {
+    const u = context.supabase.auth.getUser().data;
+    if (!u?.user) throw new Error("Not signed in");
+    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    const { data: rows } = await context.supabase
+      .from("agent_runs")
+      .select("provider, model, outcome, stage, metrics, started_at")
+      .eq("user_id", u.user.id)
+      .gte("started_at", since)
+      .limit(2000);
+    return aggregateModelStats(
+      ((rows ?? []) as { provider: string; model: string; outcome: string | null; stage: string; metrics: Record<string, unknown> | null; started_at: string }[])
+        .map((r) => ({ provider: r.provider, model: r.model, outcome: r.outcome, stage: r.stage, metrics: r.metrics, startedAt: r.started_at })),
+    );
+  });
+
 /** Prompt audit: the requests that drove each change to one file, with that run's verification evidence. */
 export const fileHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
