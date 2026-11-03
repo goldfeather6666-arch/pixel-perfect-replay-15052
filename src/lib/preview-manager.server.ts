@@ -5,6 +5,7 @@ import type { PendingChange } from "./providers";
 import { openTaskBox } from "./sandbox.server";
 import { encryptSecret } from "./crypto.server";
 import { detectFramework, detectPackageManager, devCommand, gatewayBase, installCommand, isHealthy, nextMajor, parseListening, pickPort, type Framework } from "./preview-detect";
+import { isWorkspaceRoot, pickAppDir } from "./project-layout";
 
 const REPO_DIR = "/home/user/repo";
 export const TASK_ENV = "/tmp/forge-task.env";
@@ -49,13 +50,14 @@ export async function latestPreview(sb: any, projectId: string): Promise<Preview
   return (data?.[0] as PreviewRow) ?? null;
 }
 
-async function launch(box: import("./runner-box.server").Box, row: { id: string; port: number }, framework: Framework, install: string, command: string) {
+async function launch(box: import("./runner-box.server").Box, row: { id: string; port: number }, framework: Framework, install: string, command: string, appDir = "") {
   const dir = dirOf(row.id);
   const script = [
     "set -o pipefail",
     `cd ${REPO_DIR}`,
     `[ -f ${dir}/env ] && . ${dir}/env`,
     install ? `echo "[forge] installing dependencies…"; ${install} || { echo "[forge] install failed"; exit 90; }` : "",
+    appDir ? `cd ${REPO_DIR}/${appDir} && echo "[forge] monorepo app folder: ${appDir}"` : "",
     `echo "[forge] starting ${framework} dev server on port ${row.port}"`,
     `exec env ${RUN_ENV} ${command}`,
   ].filter(Boolean).join("\n");
@@ -200,6 +202,20 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const files = filesRaw.split("\n").map((f) => f.trim()).filter(Boolean);
   let pkg = null;
   try { pkg = JSON.parse(pkgRaw.trim() || "null"); } catch { pkg = null; }
+  // Monorepos: run the dev server from the detected web app folder (apps/web, web, ...); installs stay at the root.
+  let appDir = "";
+  if (isWorkspaceRoot(pkg, files) || !pkg) {
+    const scan = await sh(box, `cd ${REPO_DIR}; for d in apps/* packages/* web app site frontend client; do [ -f "$d/package.json" ] && { echo "@@$d"; ls -A "$d" | tr '\\n' ' '; echo; cat "$d/package.json"; echo; }; done 2>/dev/null`);
+    const candidates = scan.out.split("@@").slice(1).map((chunk) => {
+      const [dir = "", list = "", ...rest] = chunk.split("\n");
+      let cpkg = null;
+      try { cpkg = JSON.parse(rest.join("\n").trim() || "null"); } catch { cpkg = null; }
+      return { dir: dir.trim(), files: list.trim().split(/\s+/), pkg: cpkg };
+    });
+    const picked = pickAppDir({ pkg, files }, candidates);
+    const hit = picked ? candidates.find((c) => c.dir === picked) : undefined;
+    if (hit) { appDir = hit.dir; pkg = hit.pkg; files.push(...hit.files); }
+  }
   const framework = detectFramework(pkg, files);
   const pm = detectPackageManager(files);
   const port = pickPort(parseListening(ssRaw), opts.port);
@@ -214,7 +230,7 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const command = opts.command?.trim() || devCommand(framework, pm, port, base, { nextMajor: nextMajor(pkg) });
   const install = opts.command ? "" : installCommand(pm, framework);
   const envStatus = await writePublicEnv(box, row.id, session);
-  const pid = await launch(box, row, framework, install, command);
+  const pid = await launch(box, row, framework, install, command, appDir);
   // Names/status only, so the agent and the user can see why sign-in may fail in preview.
   await sh(box, `echo ${JSON.stringify(`[forge] database settings for preview: ${envStatus}`).replace(/\$/g, "")} >> ${dirOf(row.id)}/out.log`);
 
