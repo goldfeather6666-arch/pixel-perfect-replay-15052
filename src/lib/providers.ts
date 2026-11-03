@@ -41,5 +41,7 @@ export type AgentEvent =
   | { t: "pending"; pending: PendingChange[] }
   | { t: "usage"; input: number; output: number }
   | { t: "error"; m: string }
+  /** Transient status (model queued/thinking); null clears it. Never counts as progress. */
+  | { t: "wait"; d: string | null }
   | { t: "stage"; stage: string; runId: string | null }
   | { t: "done" };
