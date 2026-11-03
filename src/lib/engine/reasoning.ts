@@ -46,8 +46,8 @@ export function profilePolicy(p: Effective): { stepCap: number; maxWorkers: numb
 export function teamPolicy(c: TaskClass, p: Effective): { required: boolean; maxJobs: number; maxWorkers: number; reason: string } {
   const pol = profilePolicy(p);
   if (c === "small") return { required: false, maxJobs: Math.min(2, pol.maxJobs), maxWorkers: 1, reason: "small task — master works directly" };
-  if (c === "medium") return { required: false, maxJobs: Math.min(4, pol.maxJobs), maxWorkers: Math.min(3, pol.maxWorkers), reason: "medium task — delegate only independent parts" };
-  return { required: p !== "speed", maxJobs: pol.maxJobs, maxWorkers: pol.maxWorkers, reason: `${c.replace("_", "-")} task — parallel specialists with exclusive file ownership` };
+  if (c === "medium") return { required: p !== "speed", maxJobs: Math.min(4, pol.maxJobs), maxWorkers: Math.min(3, pol.maxWorkers), reason: "medium task — parallel helpers for independent parts" };
+  return { required: true, maxJobs: pol.maxJobs, maxWorkers: pol.maxWorkers, reason: `${c.replace("_", "-")} task — parallel specialists with exclusive file ownership` };
 }
 
 export type Routing = { master: string; coding: string | null; reviewer: string | null; fallback: string | null };

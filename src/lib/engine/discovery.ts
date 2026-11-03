@@ -24,7 +24,7 @@ export function classifyTask(message: string): { taskClass: TaskClass; signals: 
   if (large || bullets >= 6 || text.length > 1500) return { taskClass: "large", signals };
   const small = text.match(SMALL);
   if (small && text.length < 400) return { taskClass: "small", signals: [`contained change (“${small[0]}”)`] };
-  if (text.length < 160 && bullets < 2) return { taskClass: "small", signals: ["short, specific request"] };
+  if (text.length < 60 && bullets < 2) return { taskClass: "small", signals: ["short, specific request"] };
   return { taskClass: "medium", signals: signals.length ? signals : ["contained feature or fix across a few files"] };
 }
 
