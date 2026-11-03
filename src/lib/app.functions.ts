@@ -337,7 +337,20 @@ export const deleteSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("agent_sessions").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    await audit(context, "task.deleted", data.id);
     return { ok: true };
+  });
+
+async function audit(ctx: Ctx, action: string, target: string | null, detail: Record<string, unknown> = {}, sessionId?: string) {
+  await ctx.supabase.from("audit_log").insert({ user_id: ctx.userId, session_id: sessionId ?? null, action, target, detail }).then(() => {}, () => {});
+}
+
+export const listAuditLog = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from("audit_log").select("id, action, target, detail, created_at").order("created_at", { ascending: false }).limit(100);
+    if (error) throw new Error(error.message);
+    return data ?? [];
   });
 
 // ---------- Workspace ----------
@@ -421,6 +434,7 @@ export const resolvePending = createServerFn({ method: "POST" })
       ].join("\n");
       prUrl = await (await github(context, s.accounts)).openPr(s.repo, s.base_branch, s.work_branch, s.title, body);
     }
+    await audit(context, data.approve ? "changes.approved" : "changes.rejected", s.repo, { files: data.approve ? results : chosen.map((c: { path: string }) => c.path), ...(prUrl ? { prUrl } : {}) }, data.id);
     return { committed: results, remaining: rest, ...(prUrl ? { prUrl } : {}) };
   });
 
@@ -429,7 +443,9 @@ export const openPullRequest = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const s = await session(context, data.id);
-    return (await github(context, s.accounts)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
+    const url = await (await github(context, s.accounts)).openPr(s.repo, s.base_branch, s.work_branch, s.title, "Opened by BYOK coding agent.");
+    await audit(context, "pr.opened", s.repo, { url }, data.id);
+    return url;
   });
 
 // ---------- Checkpoints & editing ----------
