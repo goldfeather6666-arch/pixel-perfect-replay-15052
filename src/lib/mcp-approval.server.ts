@@ -6,7 +6,7 @@ import { inspectMcp } from "./mcp-client.server";
 import { openSavedMcp } from "./mcp-oauth.server";
 
 // The caller-facing client verifies ownership before the privileged, atomic claim.
-export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: string, id: string, approve: boolean) {
+export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: string, id: string, approve: boolean, trust = false) {
   const { data: row } = await sb.from("mcp_action_requests").select("*").eq("id", id).eq("user_id", userId).single();
   if (!row || row.state !== "pending") throw new Error("Action is unavailable or already resolved");
   const { data: session } = await sb.from("agent_sessions").select("id").eq("id", row.session_id).eq("user_id", userId).single();
@@ -25,6 +25,11 @@ export async function resolveMcpAction(sb: SupabaseClient<Database>, userId: str
     const { data: connection } = await sb.from("mcp_connections").select("*")
       .eq("id", row.connection_id).eq("user_id", userId).eq("enabled", true).eq("state", "ready").eq("allow_actions", true).single();
     if (!connection || connection.url !== row.server_url || connection.transport_mode !== row.transport_mode) throw new Error("Connection changed or disabled");
+    if (trust) {
+      // Remember the owner's choice so later calls to this tool run without asking.
+      const policies = { ...((connection.tool_policies as Record<string, string> | null) ?? {}), [row.tool_name]: "always" };
+      await sb.from("mcp_connections").update({ tool_policies: policies }).eq("id", connection.id).eq("user_id", userId);
+    }
     client = await openSavedMcp(sb, connection);
     const { definitions, sdkTools } = await inspectMcp(client, connection.url, true);
     const definition = definitions.find((d) => d.name === row.tool_name);
