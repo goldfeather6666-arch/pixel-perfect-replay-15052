@@ -322,7 +322,7 @@ function Workspace() {
       if (bg && (await bg.json() as { mode?: string }).mode === "background") {
         accepted = true;
         backgrounded = true;
-        toast.success("Running in the cloud — you can switch apps or lock your phone.");
+        if (!silent) toast.success("Running in the cloud — you can switch apps or lock your phone.");
         return;
       }
       const res = await fetch("/api/agent", {
@@ -374,7 +374,7 @@ function Workspace() {
         if (done) break;
       }
       // A clean EOF is not proof the agent finished: the API emits an explicit done event.
-      if (!receivedDoneEvent && !receivedErrorEvent && !(await followIfStillRunning())) {
+      if (!receivedDoneEvent && !receivedErrorEvent && !(await followIfStillRunning()) && !silent) {
         const detail = "The agent stream ended before completion was confirmed. Your saved progress is preserved; continue from the latest state.";
         setSendError(detail);
         setStreamInterrupted(true);
@@ -394,7 +394,7 @@ function Workspace() {
           setInput(text);
           setImages(sentImages);
           setMessages((ms) => ms.slice(0, -2));
-        } else if (!(await followIfStillRunning())) {
+        } else if (!(await followIfStillRunning()) && !silent) {
           // Server-side actions may have completed before the stream disconnected.
           // Do not replay the original prompt automatically; offer a safe continuation.
           setSendError(detail);
@@ -576,7 +576,6 @@ function Workspace() {
                 onStop={stopWork}
               />
             )}
-            {stale && !running && <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs"><p className="min-w-0 flex-1 text-foreground">No progress update for over 1 minute. Your saved work is safe. {autoResumes.current >= 3 ? "Automatic recovery has reached its limit." : "Forge is refreshing and will reconnect automatically."}</p><Button type="button" size="sm" variant="outline" onClick={() => void session.refetch()} disabled={session.isFetching}>Check status</Button>{autoResumes.current >= 3 && <Button type="button" size="sm" onClick={() => { autoResumes.current = 0; resumedFor.current = null; void send("Continue from the latest saved progress. First inspect the current state and completed work; do not repeat completed steps."); }}>Resume task</Button>}<Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={stopping} onClick={stopWork}><Square className="h-3 w-3" />{stopping ? "Stopping…" : "Stop run"}</Button></div>}
             {sendError && <div role="alert" className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm"><p className="min-w-0 flex-1 break-words text-destructive">{sendError}</p>{streamInterrupted && <Button type="button" size="sm" variant="outline" disabled={running || bgRunning} onClick={() => void send("The previous response stream disconnected. Inspect the current repository and task state, identify what was completed, then continue only unfinished work. Do not repeat completed actions.")}>Continue from saved progress</Button>}</div>}
             {images.length > 0 && (
               <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
