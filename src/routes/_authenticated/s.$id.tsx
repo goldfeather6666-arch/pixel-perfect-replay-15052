@@ -24,7 +24,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { SwarmMatrix } from "@/components/SwarmMatrix";
 import { KnowledgeDirector } from "@/components/KnowledgeDirector";
 import { FileWorkbench } from "@/components/FileWorkbench";
-import { applyHunks, diffFile, type Hunk } from "@/lib/diff-engine";
+import { applyHunks, diffFile, groupByIntent, type Hunk } from "@/lib/diff-engine";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
