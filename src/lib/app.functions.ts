@@ -408,13 +408,12 @@ export const modelComparison = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ days: z.number().int().min(1).max(180).default(30) }))
   .handler(async ({ data, context }) => {
-    const u = await context.supabase.auth.getUser();
-    if (!u.data.user) throw new Error("Not signed in");
+    const userId = context.userId;
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
     const { data: rows } = await context.supabase
       .from("agent_runs")
       .select("provider, model, outcome, stage, metrics, started_at")
-      .eq("user_id", u.data.user.id)
+      .eq("user_id", userId)
       .gte("started_at", since)
       .limit(2000);
     return aggregateModelStats(
