@@ -117,6 +117,7 @@ function SettingsPage() {
                   </>)}
                 </SelectContent>
               </Select>
+              {tab === "accounts" && <p className="text-xs text-muted-foreground">The database (Supabase) has no token to paste — use the one-click sign-in above.</p>}
             </div>
             {provider === "compatible" && (
               <div className="space-y-1.5">
@@ -152,7 +153,7 @@ function SettingsPage() {
             )}
             <div className="space-y-1.5">
               <Label>Key</Label>
-              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "supabase" ? "sbp_..." : provider === "vercel" ? "Paste your Vercel token" : meta?.hint} />
+              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "vercel" ? "Paste your Vercel token" : meta?.hint} />
             </div>
             <Button className="h-11 w-full sm:w-auto" disabled={saveM.isPending || !key.trim() || (provider === "compatible" && !baseUrl.trim())}>{saveM.isPending ? "Verifying connection…" : "Verify & save connection"}</Button>
           </form>
