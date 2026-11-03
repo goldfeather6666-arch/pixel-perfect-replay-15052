@@ -238,7 +238,7 @@ function Workspace() {
   const resumedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!stale || running || stopping || manualStopRef.current || sd?.stop_requested || !sd?.updated_at) return;
-    if (resumedFor.current === sd.updated_at || autoResumes.current >= 3) return;
+    if (resumedFor.current === sd.updated_at || autoResumes.current >= 10) return;
     resumedFor.current = sd.updated_at;
     void (async () => {
       const fresh = await session.refetch().then((r) => r.data, () => null);
@@ -383,7 +383,12 @@ function Workspace() {
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         const detail = (err as Error).message;
-        if (!accepted) {
+        if (!accepted && silent) {
+          // Invisible recovery: retry quietly on the next stale check instead of showing an error.
+          setMessages((ms) => { const last = ms.at(-1); return last?.role === "assistant" && !last.content && !last.tools?.length ? ms.slice(0, -1) : ms; });
+          setWaitNote(null);
+          setTimeout(() => { resumedFor.current = null; void session.refetch(); }, 10_000);
+        } else if (!accepted) {
           setSendError(detail);
           toast.error(detail);
           setInput(text);
@@ -713,7 +718,13 @@ function Workspace() {
   );
 }
 
-function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
+// Recovery is automatic and invisible: hide internal resume prompts and stall notes from the transcript.
+const RECOVERY_USER = /^(continue the previous command from saved progress|continue \(the previous run was cut off|Continue from the latest saved progress\.)/i;
+const RECOVERY_NOTE = /\s*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)/g;
+export function isRecoveryMessage(m: ChatMessage) { return m.role === "user" && RECOVERY_USER.test(m.content.trim()); }
+
+function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolean; sessionId: string }) {
+  const m = raw.role === "assistant" ? { ...raw, content: raw.content.replace(RECOVERY_NOTE, "").trimEnd() } : raw;
   if (m.role === "user")
     return <Message from="user"><MessageContent className="whitespace-pre-wrap break-words group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground">{m.content}</MessageContent></Message>;
   return (
@@ -723,7 +734,7 @@ function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; se
       {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-      {!live && !m.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
+      {!live && !raw.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
     </Message>
   );
 }
