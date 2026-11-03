@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { Credential, ChatMessage, PendingChange } from "./providers";
 import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills";
+import { aggregateModelStats } from "./model-stats";
 
 type Ctx = { supabase: any; userId: string };
 
