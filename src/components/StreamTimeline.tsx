@@ -8,7 +8,7 @@ import {
 import { getRunEvents, getRunOverview } from "@/lib/engine.functions";
 
 type Ev = { seq: number; type: string; payload: Record<string, unknown>; created_at: string };
-type Item = { key: string; icon: typeof Brain; title: string; detail?: string; tone: "ok" | "bad" | "warn" | "info"; at: string; group: string };
+type Item = { key: string; icon: typeof Brain; title: string; detail?: string | undefined; tone: "ok" | "bad" | "warn" | "info"; at: string; group: string };
 
 const STAGE: Record<string, string> = {
   RECEIVED: "Got your request", DISCOVERING: "Reading the project", PLANNING: "Planning the work", EXECUTING: "Building",
