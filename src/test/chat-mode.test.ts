@@ -54,6 +54,7 @@ describe("chat mode keeps the repository, drops the workspace", () => {
   it("catches a chat reply that claims it changed the repository", () => {
     expect(chatOverclaim("I've updated the header component.")).toBe(true);
     expect(chatOverclaim("I have deployed the site.")).toBe(true);
+    expect(chatOverclaim("I've reviewed the repository and read the files.")).toBe(false);
     expect(chatOverclaim("The header uses a sticky container.")).toBe(false);
     expect(chatOverclaim("I'll read the file next.")).toBe(false);
   });

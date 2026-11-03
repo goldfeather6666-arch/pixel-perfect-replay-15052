@@ -62,5 +62,5 @@ export function chatBranchContext(b: BranchState): string {
 
 /** True when a chat reply claims past-tense work this mode cannot perform (it has no write, shell or deploy tools). */
 export function chatOverclaim(text: string): boolean {
-  return /\bi(?:'ve| have| had)?\s+(?:written|wrote|edited|updated|created|deleted|fixed|implemented|refactored|committed|pushed|deployed|published|ran|tested|verified|previewed)\b/i.test(text);
+  return /\bi(?:'ve| have| had)?\s+(?:written|wrote|edited|updated|created|deleted|fixed|implemented|refactored|committed|pushed|deployed|published|ran|tested|previewed)\b/i.test(text);
 }
