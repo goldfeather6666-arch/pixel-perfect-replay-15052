@@ -1,24 +1,48 @@
-# Universal Agent Foundation rollout
-- [x] Step 1: Constitution, instruction hierarchy, completion vocabulary, task spec & sizing
-- [x] Step 2: Prompt library A–M and 7-layer prompt assembly
-- [x] Step 3: Tool broker (risk classes, side-effect state, idempotency)
-- [x] Step 4: Delegation contracts and 6-tier memory
-- [x] Step 5: Evaluation suite, hard gates, chat outcome badges
+# Forge Platform v2 — Agentic Build Engine (master execution prompt)
 
-# Env sync + agent deploy
-- [x] Sync DB settings, APP_URL and project secrets to Vercel on every sync
-- [x] Seed env into every task sandbox (.env.local + /tmp/forge-task.env), never committed
-- [x] Agent can deploy and review live Vercel build when the user asks
+## Phase 0 — Audit
+- [x] Gap report written: docs/forge-v2-gap-report.md
 
-# Redesign + preview database
-- [x] Preview/sandbox auto-find the task database; agent list_databases/link_database tools
-- [x] Calm header with account menu; slim workspace bar and single-card chat box
-- [x] New landing page
-- [ ] Deeper dashboard, settings and skills page redesign (next pass)
+## Phase 1 — Metrics baseline & telemetry
+- [ ] Baseline capture: start→first-diff, QA gate duration, autonomy rate (recorder metrics exist; add first-diff + gate timers)
 
-# Improvement plan (8.5 → 9.5)
-- [x] Monorepo app-folder detection for previews
-- [x] Repair malformed tool arguments from smaller models
-- [x] Preview runtime errors already feed auto-repair (capped at 3)
-- [ ] Pre-warmed sandbox pool (needs paid idle compute decision)
-- [ ] Auto-set Vercel root folder from detected app folder
+## Phase 2 — Persistent repo index + auto-context
+- [ ] Symbol/file index persisted per repo across sessions
+- [ ] Auto-retrieved context (symbols, call sites) instead of re-reading files
+
+## Phase 3 — Incremental cache/build layer
+- [ ] Content-hash cache for typecheck/lint/test/build in sandbox
+- [ ] Warm-start preview via E2B snapshot restore (needs paid idle compute decision)
+
+## Phase 4 — Diff engine + review UI + checkpoints
+- [x] Pure diff engine: unified-diff parse, per-hunk select/apply, grouping, checkpoints/revert (src/lib/diff-engine.ts)
+- [ ] Diff review UI: multi-file patch preview grouped by intent, per-hunk accept/reject
+- [ ] Checkpoint rewind wired to work branch (roll staged changes back)
+
+## Phase 5 — One-command QA gate
+- [ ] Gate pipeline: typecheck → lint → unit → e2e → visual → axe → Lighthouse
+- [ ] Evidence-backed reports with measured numbers; failure taxonomy (flaky/regression/config)
+
+## Phase 6 — Approval UX + auto-PR
+- [ ] Guardrail transparency: why an action was blocked
+- [ ] One-click approve with full context; auto-PR with demo link
+
+## Phase 7 — Multi-agent coordinator + merge resolver
+- [ ] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
+
+## Phase 8 — Plugin/MCP marketplace + VS Code extension (beta, feature-flagged)
+
+## Phase 9 — Enterprise hardening (BYO-model done; residency, SSO/RBAC, audit logs)
+
+## Phase 10 — Full test pass, benchmarks, canary matrix
+
+## Phase 11 — Production release after authorization; docs complete
+
+---
+
+# Completed earlier programs
+- [x] Universal Agent Foundation (constitution, prompts, tool broker, delegation, memory, evaluation)
+- [x] Env sync + agent deploy (DB settings, APP_URL, secrets to Vercel; sandbox env seeding)
+- [x] Redesign + preview database auto-link
+- [x] Monorepo app-folder detection; tool-arg repair; preview auto-repair
+- [x] Silent auto-recovery (1-min stall, 10-min tool window, 4-min model first-byte)
