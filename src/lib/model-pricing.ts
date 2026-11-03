@@ -39,6 +39,15 @@ const number = (v: unknown): number | null => {
 
 const perMillion = (v: number) => Number(v.toFixed(6));
 
+/** First stated key wins; bracket reads keep the strict index-signature rule happy. */
+const field = (o: Record<string, unknown>, ...keys: string[]) => {
+  for (const k of keys) {
+    const v = o[k];
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+};
+
 /**
  * Reads a price block from a provider's model listing. `prompt`/`completion` are per token
  * (OpenRouter's shape); `input`/`output` are already per 1M tokens. Returns null when the
@@ -47,17 +56,17 @@ const perMillion = (v: number) => Number(v.toFixed(6));
 export function parseModelPrice(raw: unknown): ModelPrice | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const prompt = number(o.prompt ?? o.prompt_tokens);
-  const completion = number(o.completion ?? o.completion_tokens);
+  const prompt = number(field(o, "prompt", "prompt_tokens"));
+  const completion = number(field(o, "completion", "completion_tokens"));
   if (prompt != null && completion != null) return { input: perMillion(prompt * 1e6), output: perMillion(completion * 1e6) };
-  const input = number(o.input ?? o.input_price ?? o.price_input);
-  const output = number(o.output ?? o.output_price ?? o.price_output);
+  const input = number(field(o, "input", "input_price", "price_input"));
+  const output = number(field(o, "output", "output_price", "price_output"));
   if (input != null && output != null) return { input: perMillion(input), output: perMillion(output) };
   return null;
 }
 
 /** Classifies one model. `price` is what the provider's own listing reported, if anything. */
-export function modelCost(provider: string, id: string, price: ModelPrice | null | undefined, baseUrl: string | null = null): ModelCost {
+export function modelCost(provider: string, id: string, price?: ModelPrice | null, baseUrl: string | null = null): ModelCost {
   if (FREE_ID.test(id)) return "free";
   if (price) return price.input === 0 && price.output === 0 ? "free" : "paid";
   if (provider === "compatible" && baseUrl && SELF_HOSTED.test(baseUrl)) return "free";
@@ -72,7 +81,7 @@ export function modelCost(provider: string, id: string, price: ModelPrice | null
 }
 
 /** Full pickable row: id plus the cost wording shown beside it. */
-export function modelOption(provider: string, id: string, price: ModelPrice | null | undefined, baseUrl: string | null = null): ModelOption {
+export function modelOption(provider: string, id: string, price?: ModelPrice | null, baseUrl: string | null = null): ModelOption {
   const cost = modelCost(provider, id, price, baseUrl);
   const meta = COST_META[cost];
   let note = meta.note;
@@ -109,6 +118,5 @@ export function freeCount(models: ModelOption[]): number {
 /** "$0.40 / $1.60" — input / output per 1M tokens, or null when the price is unpublished. */
 export function priceUsdText(price: ModelPrice | null): string | null {
   if (!price) return null;
-  const usd = (n: number) => `$${n < 1 ? n.toFixed(2) : n.toFixed(2)}`;
-  return `${usd(price.input)} / ${usd(price.output)}`;
+  return `$${price.input.toFixed(2)} / $${price.output.toFixed(2)}`;
 }

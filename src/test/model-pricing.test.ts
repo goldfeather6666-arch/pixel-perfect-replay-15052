@@ -46,7 +46,7 @@ describe("model cost labels", () => {
       modelOption("openrouter", "qwen/qwen-2.5-7b:free", null),
       modelOption("compatible", "mercury-3", null, "https://api.inceptionlabs.ai/v1"),
     ];
-    expect(costSummary(models)).toBe("2 free · 1 paid · 1 cost unknown");
+    expect(costSummary(models)).toBe("1 free · 1 free tier · 1 paid · 1 cost unknown");
     expect(freeCount(models)).toBe(2);
     expect(isFreeCost("free-tier")).toBe(true);
   });
