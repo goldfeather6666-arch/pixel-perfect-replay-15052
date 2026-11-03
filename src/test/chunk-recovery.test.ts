@@ -14,6 +14,11 @@ describe("stale route recovery", () => {
     expect(isChunkLoadError(new TypeError("Failed to fetch dynamically imported module: /assets/route-old.js"))).toBe(true);
     expect(isChunkLoadError(new Error("Database permission denied"))).toBe(false);
   });
+  it("recovers tabs holding a module that imports a since-removed export", () => {
+    const error = new SyntaxError("The requested module '/src/components/ProjectHealth.tsx' does not provide an export named 'AutoFixButton'");
+    expect(isRecoverableModuleError(error)).toBe(true);
+    expect(isRecoverableModuleError(new SyntaxError("Unexpected token '<'"))).toBe(false);
+  });
   it("reloads pages calling server functions from before a server restart", () => {
     expect(isRecoverableModuleError(new Error("Invalid server function ID: eyJmaWxlIjoi"))).toBe(true);
     expect(isRecoverableModuleError(new Error("Unauthorized"))).toBe(false);
