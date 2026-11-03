@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { googleQuotaFetch, isGoogleChatModel } from "./google-quota";
 import { modelOption, parseModelPrice, type ModelOption, type ModelPrice } from "./model-pricing";
 
 function trimSlash(u: string) {
@@ -28,7 +29,7 @@ export function createModel(provider: string, apiKey: string, baseUrl: string | 
     case "anthropic":
       return createAnthropic({ apiKey })(modelId);
     case "google":
-      return createGoogleGenerativeAI({ apiKey })(modelId);
+      return createGoogleGenerativeAI({ apiKey, fetch: googleQuotaFetch() })(modelId);
     case "openrouter":
       return createOpenAICompatible({ name: "openrouter", baseURL: "https://openrouter.ai/api/v1", apiKey })(modelId);
     case "compatible":
@@ -62,7 +63,8 @@ export async function listProviderModels(provider: string, apiKey: string, baseU
     const j = await getJson(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`, {});
     rows = j.models
       .filter((m: { supportedGenerationMethods?: string[] }) => m.supportedGenerationMethods?.includes("generateContent"))
-      .map((m: { name: string }) => ({ id: m.name.replace(/^models\//, ""), price: null }));
+      .map((m: { name: string }) => ({ id: m.name.replace(/^models\//, ""), price: null }))
+      .filter((r: { id: string }) => isGoogleChatModel(r.id));
   } else if (provider === "openrouter") {
     await getJson("https://openrouter.ai/api/v1/key", { Authorization: `Bearer ${apiKey}` });
     const j = await getJson("https://openrouter.ai/api/v1/models", {});
