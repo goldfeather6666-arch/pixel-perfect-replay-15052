@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listCredentials, listModels, updateSession } from "@/lib/app.functions";
+import { ModelSelect } from "@/components/ModelPicker";
 import { aiConnection } from '@/lib/team-models';
 import type { Credential } from '@/lib/providers';
 
@@ -62,17 +63,19 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile 
               <SelectTrigger aria-label="Lead API connection" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={creds.isLoading ? "Loading…" : "Choose AI key"}>{cred ? (creds.data?.find(c=>c.id===cred)?.label || 'Selected API connection') : undefined}</SelectValue></SelectTrigger>
               <SelectContent>{creds.data?.filter(c => aiConnection(c.provider)).map((c) => <SelectItem key={c.id} value={c.id}>{c.label || c.provider} · {c.provider} ···{c.last4}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={m} onValueChange={setM} disabled={!cred}>
-              <SelectTrigger aria-label="Lead model" className="h-11 w-full [&>span]:truncate"><SelectValue placeholder={models.isLoading ? "Loading…" : "Choose model"}>{m || undefined}</SelectValue></SelectTrigger>
-              <SelectContent className="max-w-[calc(100vw-2rem)]">{models.data?.map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
-            </Select>
+            <ModelSelect models={models.data ?? []} value={m} onChange={setM} disabled={!cred} ariaLabel="Lead model" placeholder={models.isLoading ? "Loading…" : "Choose model"} />
             {models.isError && <p className="text-xs text-destructive">Could not load models for this key.</p>}
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Backup model (optional): used once if the main model fails from overload, rate limits or timeouts before any work starts. Same AI key.</p>
-              <Select value={fb || "none"} onValueChange={(v) => setFb(v === "none" ? "" : v)} disabled={!cred}>
-                <SelectTrigger className="h-11 w-full [&>span]:truncate"><SelectValue placeholder="No backup" /></SelectTrigger>
-                <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="none">No backup</SelectItem>{models.data?.filter((x) => x !== m).map((x) => <SelectItem className="break-all" key={x} value={x}>{x}</SelectItem>)}</SelectContent>
-              </Select>
+              <ModelSelect
+                models={models.data?.filter((x) => x.id !== m) ?? []}
+                value={fb || "none"}
+                onChange={(v) => setFb(v === "none" ? "" : v)}
+                disabled={!cred}
+                ariaLabel="Backup model"
+                displayValue={fb || "No backup"}
+                extraItems={<SelectItem value="none">No backup</SelectItem>}
+              />
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Thinking level. Auto picks Speed for small fixes, Deep for risky work. Only settings your model supports are sent.</p>
@@ -101,10 +104,15 @@ function RoleModel({ label, leadCredential, credential, model, credentials, open
       <SelectTrigger aria-label={`${label} API connection`} className="h-11 w-full [&>span]:truncate"><SelectValue>{credential ? (credentials.find(c=>c.id===credential)?.label || 'Selected API connection') : 'Lead API connection'}</SelectValue></SelectTrigger>
       <SelectContent><SelectItem value="inherit">Lead API connection</SelectItem>{credentials.filter(c=>aiConnection(c.provider)).map(c=><SelectItem value={c.id} key={c.id}>{c.label || c.provider} · {c.provider} ···{c.last4}</SelectItem>)}</SelectContent>
     </Select>
-    <Select value={model || 'inherit'} onValueChange={v=>onModel(v==='inherit'?'':v)} disabled={!id}>
-      <SelectTrigger aria-label={`${label} model`} className="h-11 w-full [&>span]:truncate"><SelectValue>{model || (credential ? 'Choose model' : 'Lead model')}</SelectValue></SelectTrigger>
-      <SelectContent className="max-w-[calc(100vw-2rem)]">{!credential && <SelectItem value="inherit">Lead model</SelectItem>}{models.data?.map(m=><SelectItem key={m} value={m} className="break-all">{m}</SelectItem>)}</SelectContent>
-    </Select>
+    <ModelSelect
+      models={models.data ?? []}
+      value={model || 'inherit'}
+      onChange={(v) => onModel(v === 'inherit' ? '' : v)}
+      disabled={!id}
+      ariaLabel={`${label} model`}
+      displayValue={model || (credential ? 'Choose model' : 'Lead model')}
+      extraItems={!credential ? <SelectItem value="inherit">Lead model</SelectItem> : undefined}
+    />
     {models.isError && <p role="alert" className="text-xs text-destructive">Could not load models for this connection.</p>}
   </div>;
 }
