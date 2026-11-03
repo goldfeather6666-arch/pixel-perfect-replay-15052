@@ -24,6 +24,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { SwarmMatrix } from "@/components/SwarmMatrix";
 import { KnowledgeDirector } from "@/components/KnowledgeDirector";
 import { FileWorkbench } from "@/components/FileWorkbench";
+import { applyHunks, diffFile, type Hunk } from "@/lib/diff-engine";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
@@ -844,18 +845,20 @@ function FilesView({ id }: { id: string }) {
 function PendingApprovals({ id, pending, onResolved }: { id: string; pending: PendingChange[]; onResolved: (remaining: PendingChange[]) => void }) {
   const resolve = useServerFn(resolvePending);
   const resolveM = useMutation({
-    mutationFn: (v: { approve: boolean; paths?: string[] }) => resolve({ data: { id, ...v } }),
+    mutationFn: (v: { approve: boolean; paths?: string[]; edits?: Record<string, string> }) => resolve({ data: { id, ...v } }),
     onSuccess: (r) => { toast.success(r.committed.length ? `Committed ${r.committed.length} file(s)` : "Discarded"); onResolved(r.remaining as PendingChange[]); },
     onError: (e: Error) => toast.error(e.message),
   });
   if (!pending.length) return null;
+  const acceptOne = (c: PendingChange, edited?: string) =>
+    resolveM.mutate({ approve: true, paths: [c.path], edits: edited === undefined ? undefined : { [c.path]: edited } });
   return <section className="space-y-2" aria-label="File and data change approvals" aria-live="polite">
     <div className="flex flex-wrap items-center gap-2">
       <h3 className="flex-1 font-semibold">Changes awaiting approval · {pending.length}</h3>
       <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Reject all</Button>
       <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
     </div>
-    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={() => resolveM.mutate({ approve: true, paths: [c.path] })} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
   </section>;
 }
 
