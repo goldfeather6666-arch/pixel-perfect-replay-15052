@@ -174,3 +174,17 @@ describe("diffLines + hunksFromDiff", () => {
     expect(hunks[0]!.newLines).toBe(3);
   });
 });
+
+import { merge3 } from "@/lib/diff-engine";
+describe("merge3", () => {
+  const base = "a\nb\nc\nd\ne";
+  it("merges edits in different regions", () => {
+    expect(merge3(base, "A\nb\nc\nd\ne", "a\nb\nc\nd\nE")).toBe("A\nb\nc\nd\nE");
+  });
+  it("refuses overlapping edits", () => {
+    expect(merge3(base, "a\nX\nc\nd\ne", "a\nY\nc\nd\ne")).toBeNull();
+  });
+  it("keeps an insertion alongside a distant edit", () => {
+    expect(merge3(base, "a\nb\nnew\nc\nd\ne", "a\nb\nc\nd\nE")).toBe("a\nb\nnew\nc\nd\nE");
+  });
+});

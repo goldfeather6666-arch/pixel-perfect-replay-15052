@@ -216,3 +216,32 @@ export function diffAgainstCheckpoint(cp: Checkpoint, current: Record<string, st
   for (const p of Object.keys(cp.files)) if (!(p in current)) removed.push(p);
   return { changed, added, removed };
 }
+
+/**
+ * Three-way line merge: apply both base→ours and base→theirs edits when they
+ * touch disjoint regions of base. Returns null on any overlapping edit so the
+ * caller reassigns instead of guessing.
+ */
+export function merge3(base: string, ours: string, theirs: string): string | null {
+  if (ours === theirs) return ours;
+  if (ours === base) return theirs;
+  if (theirs === base) return ours;
+  const a = diffFile(base, ours, 0), b = diffFile(base, theirs, 0);
+  const span = (h: Hunk): [number, number] => [h.oldStart, h.oldStart + Math.max(h.oldLines, 0)];
+  for (const x of a) for (const y of b) {
+    const [xs, xe] = span(x), [ys, ye] = span(y);
+    if (xs === ys) return null; // same anchor (incl. two inserts at one spot)
+    if (xs < ye && ys < xe) return null;
+    if ((x.oldLines === 0 && ys < xs && xs < ye) || (y.oldLines === 0 && xs < ys && ys < xe)) return null;
+  }
+  const all = [...a, ...b].map((h, i) => ({ ...h, index: i }));
+  const lines = base.split("\n");
+  for (const h of all.sort((p, q) => q.oldStart - p.oldStart)) {
+    const old = h.lines.filter((l) => l.kind !== "add").map((l) => l.text);
+    const add = h.lines.filter((l) => l.kind !== "del").map((l) => l.text);
+    const start = h.oldLines === 0 ? h.oldStart - 1 : h.oldStart - 1;
+    if (lines.slice(start, start + old.length).join("\n") !== old.join("\n")) return null;
+    lines.splice(start, old.length, ...add);
+  }
+  return lines.join("\n");
+}
