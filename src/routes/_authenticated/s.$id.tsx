@@ -947,7 +947,7 @@ function ChangesView({ id, pending, onResolved }: { id: string; pending: Pending
         )}
         {diff.data && diff.data.files.length === 0 && <p className="text-sm text-muted-foreground">No commits yet.</p>}
         <div className="space-y-3">
-          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} author={diff.data?.authorship?.[f.filename]} />)}
+          {diff.data?.files.map((f) => <DiffFile key={f.filename} id={id} filename={f.filename} status={f.status} patch={f.patch} author={diff.data?.authorship?.[f.filename] ?? "unknown"} />)}
         </div>
       </section>
     </div>
