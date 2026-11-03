@@ -1367,6 +1367,13 @@ export type Database = {
         Args: { _answer: Json; _key: string; _question: string; _skip: boolean }
         Returns: Json
       }
+      consume_session_interjections: {
+        Args: { _session: string }
+        Returns: {
+          content: string
+          created_at: string
+        }[]
+      }
       decide_task_suggestion: {
         Args: { _decision: string; _suggestion: string }
         Returns: Json
