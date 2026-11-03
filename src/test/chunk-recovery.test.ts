@@ -63,6 +63,7 @@ it2("comes back for the fresh manifest when the immediate reload is throttled", 
   expect2(replaced).toBe(""); // throttled: no reload storm
   expect2(waited).toBeGreaterThan(0);
   expect2(waited).toBeLessThanOrEqual(15_250);
-  scheduled?.();
+  const run = scheduled as (() => void) | null;
+  run?.();
   expect2(replaced).toContain("_forge_refresh");
 });
