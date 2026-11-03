@@ -1275,7 +1275,8 @@ export const Route = createFileRoute("/api/agent")({
         })();
         const recentAll = history.slice(Math.max(summarizedCount, history.length - 20));
         // C24: a brand-new repo gets its basics (README, env template, CI, license, roadmap) before the first feature.
-        if (!chat && !plan && !resumedFrom) {
+        // Only a task's first run can be a cold start, so later runs skip the full repo-tree fetch.
+        if (!chat && !plan && !resumedFrom && !hadPrevRun) {
           try {
             const { isColdStart, coldStartGaps, coldStartBrief } = await import("@/lib/cold-start");
             const files = await tree();
