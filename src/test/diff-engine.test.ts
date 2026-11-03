@@ -1,0 +1,122 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyHunks,
+  createCheckpoint,
+  diffAgainstCheckpoint,
+  groupByIntent,
+  parseUnifiedDiff,
+  revertToCheckpoint,
+  summarizeDiff,
+} from "../lib/diff-engine";
+
+const DIFF = `diff --git a/src/app.ts b/src/app.ts
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,4 +1,5 @@ function main
+ line1
+-old
++new
+ line3
+ line4
++line5
+@@ -10,3 +10,2 @@ function other
+ ctx
+-gone
+ ctx2
+diff --git a/src/util/helper.ts b/src/util/helper.ts
+--- /dev/null
++++ b/src/util/helper.ts
+@@ -0,0 +1,2 @@
++export const a = 1;
++export const b = 2;
+`;
+
+describe("parseUnifiedDiff", () => {
+  it("parses multiple files with hunks and counts", () => {
+    const files = parseUnifiedDiff(DIFF);
+    expect(files).toHaveLength(2);
+    const app = files[0];
+    expect(app.newPath).toBe("src/app.ts");
+    expect(app.hunks).toHaveLength(2);
+    expect(app.additions).toBe(2);
+    expect(app.deletions).toBe(2);
+    expect(app.hunks[0].header).toBe("function main");
+    const helper = files[1];
+    expect(helper.isNew).toBe(true);
+    expect(helper.newPath).toBe("src/util/helper.ts");
+    expect(helper.additions).toBe(2);
+  });
+
+  it("detects deletions and renames", () => {
+    const del = parseUnifiedDiff(`--- a/old.ts\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-x\n`);
+    expect(del[0].isDeleted).toBe(true);
+    expect(del[0].oldPath).toBe("old.ts");
+    const ren = parseUnifiedDiff(`--- a/a.ts\n+++ b/b.ts\n@@ -1,1 +1,1 @@\n-x\n+y\n`);
+    expect(ren[0].isRename).toBe(true);
+    expect(ren[0].newPath).toBe("b.ts");
+  });
+});
+
+describe("applyHunks", () => {
+  const original = "line1\nold\nline3\nline4\na\nb\nc\nd\ne\nctx\ngone\nctx2";
+
+  it("applies all hunks when all chosen", () => {
+    const [app] = parseUnifiedDiff(DIFF);
+    const out = applyHunks(original, app, [0, 1]);
+    expect(out).toContain("new");
+    expect(out).toContain("line5");
+    expect(out).not.toContain("gone");
+    expect(out).not.toContain("\nold\n");
+  });
+
+  it("applies only the chosen hunk subset", () => {
+    const [app] = parseUnifiedDiff(DIFF);
+    const out = applyHunks(original, app, [1]);
+    expect(out).toContain("\nold\n"); // hunk 0 rejected
+    expect(out).not.toContain("gone"); // hunk 1 accepted
+  });
+
+  it("skips hunks that no longer match instead of corrupting the file", () => {
+    const [app] = parseUnifiedDiff(DIFF);
+    const out = applyHunks("totally\ndifferent\ncontent", app, [0, 1]);
+    expect(out).toBe("totally\ndifferent\ncontent");
+  });
+});
+
+describe("groupByIntent", () => {
+  it("groups by top-level area, sorted by change size", () => {
+    const files = parseUnifiedDiff(DIFF);
+    const groups = groupByIntent(files);
+    expect(groups.map((g) => g.intent)).toContain("src/app.ts".split("/")[0] + "/util");
+    const intents = groups.map((g) => g.intent);
+    expect(intents).toContain("src/util");
+    expect(intents[0]).toBe("src/util"); // 2 additions vs app.ts mixed
+    const util = groups.find((g) => g.intent === "src/util")!;
+    expect(util.additions).toBe(2);
+  });
+});
+
+describe("summarizeDiff", () => {
+  it("produces per-file what/where lines", () => {
+    const lines = summarizeDiff(parseUnifiedDiff(DIFF));
+    expect(lines[0]).toMatch(/^Modified: src\/app\.ts \(\+2\/-2\) — touches function main/);
+    expect(lines[1]).toMatch(/^New file: src\/util\/helper\.ts \(\+2\/-0\)/);
+  });
+});
+
+describe("checkpoints", () => {
+  it("snapshots and restores files", () => {
+    const cp = createCheckpoint({ "a.ts": "one", "b.ts": "two" }, "before edit");
+    expect(cp.label).toBe("before edit");
+    const restored = revertToCheckpoint(cp);
+    expect(restored).toEqual({ "a.ts": "one", "b.ts": "two" });
+  });
+
+  it("reports changed, added and removed paths against a checkpoint", () => {
+    const cp = createCheckpoint({ "a.ts": "one", "b.ts": "two" });
+    const diff = diffAgainstCheckpoint(cp, { "a.ts": "one!", "c.ts": "three" });
+    expect(diff.changed).toEqual(["a.ts"]);
+    expect(diff.added).toEqual(["c.ts"]);
+    expect(diff.removed).toEqual(["b.ts"]);
+  });
+});
