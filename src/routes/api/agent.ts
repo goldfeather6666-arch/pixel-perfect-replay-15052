@@ -1,5 +1,6 @@
 import { contractFor, contractText } from "@/lib/engine/delegation";
 import { liveMemories, memoryLine, reviewMemory, MEMORY_TYPES } from "@/lib/engine/memory-types";
+import { assessRun } from "@/lib/engine/evaluation";
 import { brokerTools, ToolLedger } from "@/lib/engine/tool-broker";
 import { masterPromptIds, render as renderPrompts, ROLE_PROMPTS } from "@/lib/engine/prompts";
 import { hasE2b } from "@/lib/e2b-pool";
@@ -20,7 +21,7 @@ import { serializeBy } from "@/lib/branch-write-queue";
 import { sharedReads } from "@/lib/shared-reads";
 import { asAutonomy, deployAllowed, migrationNeedsApproval, writeNeedsApproval } from "@/lib/engine/autonomy";
 import { costUsd, estimateTokens, fitToBudget, modelCaps } from "@/lib/engine/model-registry";
-import { finalStage } from "@/lib/engine/lifecycle";
+import { finalStage, type Stage } from "@/lib/engine/lifecycle";
 import { contentHash, parseSkill, selectSkills } from "@/lib/engine/skill-meta";
 import type { Recorder } from "@/lib/engine/recorder.server";
 import { WORKER_REPORT_INSTRUCTIONS } from "@/lib/engine/worker-report";
