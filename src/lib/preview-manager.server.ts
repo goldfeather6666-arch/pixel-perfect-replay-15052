@@ -50,13 +50,14 @@ export async function latestPreview(sb: any, projectId: string): Promise<Preview
   return (data?.[0] as PreviewRow) ?? null;
 }
 
-async function launch(box: import("./runner-box.server").Box, row: { id: string; port: number }, framework: Framework, install: string, command: string) {
+async function launch(box: import("./runner-box.server").Box, row: { id: string; port: number }, framework: Framework, install: string, command: string, appDir = "") {
   const dir = dirOf(row.id);
   const script = [
     "set -o pipefail",
     `cd ${REPO_DIR}`,
     `[ -f ${dir}/env ] && . ${dir}/env`,
     install ? `echo "[forge] installing dependencies…"; ${install} || { echo "[forge] install failed"; exit 90; }` : "",
+    appDir ? `cd ${REPO_DIR}/${appDir} && echo "[forge] monorepo app folder: ${appDir}"` : "",
     `echo "[forge] starting ${framework} dev server on port ${row.port}"`,
     `exec env ${RUN_ENV} ${command}`,
   ].filter(Boolean).join("\n");
@@ -229,7 +230,7 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const command = opts.command?.trim() || devCommand(framework, pm, port, base, { nextMajor: nextMajor(pkg) });
   const install = opts.command ? "" : installCommand(pm, framework);
   const envStatus = await writePublicEnv(box, row.id, session);
-  const pid = await launch(box, row, framework, install, command);
+  const pid = await launch(box, row, framework, install, command, appDir);
   // Names/status only, so the agent and the user can see why sign-in may fail in preview.
   await sh(box, `echo ${JSON.stringify(`[forge] database settings for preview: ${envStatus}`).replace(/\$/g, "")} >> ${dirOf(row.id)}/out.log`);
 
