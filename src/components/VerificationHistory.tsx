@@ -4,12 +4,22 @@ import { ChevronRight, History, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getVerificationHistory } from "@/lib/app.functions";
+import { installBudgetGate } from "@/lib/sharing.functions";
+import { toast } from "sonner";
 const names = { jsKb: "JavaScript · KB", cssKb: "CSS · KB", totalKb: "Total · KB", lcpMs: "LCP · ms", cls: "Layout shift" };
 const statuses = { passed: "Passed", failed: "Blocked", unmeasured: "Unverified", stale: "Revision changed" };
 export function VerificationHistory({ id, running }: { id: string; running: boolean }) {
   const [open, setOpen] = useState(false);
   const get = useServerFn(getVerificationHistory);
   const q = useQuery({ queryKey: ["verification-history", id], queryFn: () => get({ data: { id } }), enabled: open, refetchInterval: open && running ? 5000 : false });
+  const install = useServerFn(installBudgetGate);
+  const [installing, setInstalling] = useState(false);
+  const addGate = async () => {
+    if (!confirm("Add a pull-request check that fails when the build breaks budget.json (payload, LCP, layout shift)? Files are committed to this task's branch only.")) return;
+    setInstalling(true);
+    try { const r = await install({ data: { id } }); toast.success(`CI budget check added to ${r.branch}: ${r.files.join(", ")}`); }
+    catch (e) { toast.error((e as Error).message); } finally { setInstalling(false); }
+  };
   return <section className="mx-auto max-w-3xl px-3 pb-4">
     <div className="flex items-center border-b">
       <Button variant="ghost" className="h-auto min-w-0 flex-1 justify-start gap-2 px-0 py-3" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -18,6 +28,7 @@ export function VerificationHistory({ id, running }: { id: string; running: bool
       {open && <Button size="icon" variant="ghost" title="Refresh history" aria-label="Refresh history" disabled={q.isFetching} onClick={() => void q.refetch()}><RotateCw className={`size-3.5 ${q.isFetching ? "animate-spin" : ""}`} /></Button>}
     </div>
     {open && <div className="space-y-3 pt-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2 text-xs"><span className="min-w-0 flex-1 text-muted-foreground">Enforce budget.json on every pull request — the check fails and names the fix.</span><Button size="sm" variant="outline" disabled={running || installing} onClick={() => void addGate()}>{installing ? "Adding…" : "Add CI budget check"}</Button></div>
       {q.isPending && <p className="text-xs text-muted-foreground">Reading checks…</p>}
       {q.isError && <p role="alert" className="text-xs text-destructive">Couldn’t read checks. Try refreshing.</p>}
       {q.data?.length === 0 && <p className="text-xs text-muted-foreground">No budget or required-check evidence recorded yet.</p>}
