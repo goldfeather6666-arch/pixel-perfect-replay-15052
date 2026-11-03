@@ -43,7 +43,7 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [x] C25 build-failure triage with proposed fix
 - [ ] Live verification of rollback / triage / perf on a real failing deploy (needs a real failed release)
 
-## v4.2 (C26–C32) — awaiting scope choice
+## Phase-2 backlog (frozen by owner, 2026-11-03) — v4.2 C26–C32, not scheduled
 - [ ] C26 prompt/session versioning
 - [ ] C27 change provenance drill-down
 - [ ] C28 stale-project health checks
