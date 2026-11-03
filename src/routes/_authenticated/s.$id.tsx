@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { syncDeployEnv } from "@/lib/integrations.functions";
+import { getDeployments, syncDeployEnv } from "@/lib/integrations.functions";
+import { autoFix } from "@/lib/connect.functions";
+import { autoHealLabel } from "@/lib/preview-repair";
 import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -471,7 +473,7 @@ function Workspace() {
       try {
         const d = await fetchDeploys({ data: { id } });
         const latest = d.deployments[0];
-        if (cancelled || !latest || Date.parse(String(latest.created ?? 0)) < watchDeploy - 60_000) return;
+        if (cancelled || !latest || latest.created < watchDeploy - 60_000) return;
         const failed = latest.state === "ERROR" || d.runtime?.state === "ERROR";
         if (latest.state === "READY" && d.runtime?.state !== "ERROR") { setWatchDeploy(null); return; }
         if (!failed) return;
