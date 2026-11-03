@@ -25,6 +25,7 @@ Complete C1–C16 incrementally with measured evidence. Preserve owner scope and
 - [x] Verification-first: acceptance criteria first, cheapest-first ladder (typecheck → lint → unit → build → preview route → e2e) in the shared production rules, and a per-run evidence table (item | criteria | test run | result) built only from checks that really ran; a check that never ran is unverified.
 - [x] Failure intelligence: every finished run records a post-run report (time, steps, rework ratio, human interventions, failure mode with evidence) and Settings → Performance aggregates top failure modes, rework, interventions and the prior-context rate per project from the owner's own runs.
 - [ ] Evidence rows in the UI still need a run that executes the QA gate or a route probe in this project; the builders are tested against recorded gate/budget/policy/route shapes.
+- [x] Reads survive a server restarting mid-request: aborted/500 responses retry up to three times with backoff, so approval, interaction and integration panels refill themselves instead of blanking until a manual refresh.
 
 ## Remaining platform work
 - [ ] Snapshot/warm-start improvements using existing task compute only; do not introduce paid idle sandboxes.
