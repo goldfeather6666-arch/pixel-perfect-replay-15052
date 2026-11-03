@@ -32,11 +32,11 @@
 - [x] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
 
 
-## Phase 9 — Enterprise hardening (BYO-model done; audit log done; residency, SSO/RBAC open)
+## Phase 9 — Enterprise hardening: audit log done; company sign-in and team roles dropped by user
 
-## Phase 10 — Full test pass, benchmarks, canary matrix
+## Phase 10 — Full test pass done (565/565, typecheck clean)
 
-## Phase 11 — Production release after authorization; docs complete
+## Phase 11 — Production release: waiting on user go-ahead to publish
 
 ---
 
