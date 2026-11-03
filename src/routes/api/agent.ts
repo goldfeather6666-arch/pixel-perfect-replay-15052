@@ -1011,10 +1011,13 @@ export const Route = createFileRoute("/api/agent")({
         const { data: beforeClaim } = await sb.from("agent_sessions").select("stop_requested, updated_at").eq("id", sessionId).eq("user_id", u.user.id).single();
         if (beforeClaim?.stop_requested && beforeClaim.updated_at !== s.updated_at) return new Response("Task stopped", { status: 409 });
         const executionId = crypto.randomUUID();
+        // Automatic recovery is invisible: no new user bubble, and the reply continues the interrupted answer.
+        const { recoveryTurns } = await import("@/lib/run-resume");
+        const turns = recoveryTurns(history as ChatMessage[], autoRecovery);
         let claim = sb.from("agent_sessions").update({
           running: true, stop_requested: false, updated_at: new Date().toISOString(),
           execution_id: executionId,
-          messages: [...history, { role: "user", content: message }, { role: "assistant", content: "", tools: [] }],
+          messages: [...turns.base, ...(autoRecovery ? [] : [{ role: "user", content: message }]), turns.assistant("", [])],
         }).eq("id", sessionId).eq("user_id", u.user.id).or(`running.is.null,running.eq.false,updated_at.lt.${staleBefore}`);
         if (autoRecovery) claim = claim.eq("stop_requested", false);
         // A Stop during preparation rotates this fence, even if the old snapshot
@@ -1182,7 +1185,7 @@ export const Route = createFileRoute("/api/agent")({
                   rec.mark("step");
                   // Save progress so a reopened tab can follow along, and honour Stop from any device.
                   const { data: st } = await sb.from("agent_sessions").update({
-                    messages: [...history, { role: "user", content: message }, ...liveChat.map((content) => ({ role: "user", content })), { role: "assistant", content: text, tools: logs }],
+                    messages: [...turns.base, ...(autoRecovery ? [] : [{ role: "user", content: message }]), ...liveChat.map((content) => ({ role: "user", content })), turns.assistant(text, logs)],
                     pending, updated_at: new Date().toISOString(),
                   }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId).select("stop_requested").single();
                   if (st?.stop_requested) runAbort.abort();
@@ -1274,9 +1277,9 @@ export const Route = createFileRoute("/api/agent")({
               if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
               if (runAbort.signal.aborted) send({ t: "text", d: stalled ? stalledNote() : "\n\n_(stopped)_" });
               const next: ChatMessage[] = [
-                ...history,
-                { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
-                { role: "assistant", content: text, tools: logs },
+                ...turns.base,
+                ...(autoRecovery ? [] : [{ role: "user" as const, content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message }]),
+                turns.assistant(text, logs),
               ];
               await summaryUpdate?.catch(() => {});
               await sb
