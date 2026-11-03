@@ -872,3 +872,18 @@ export const getRunEvidence = createServerFn({ method: "POST" })
     const report = reportEvent ? (reportEvent.payload as unknown as PostRunReport) : null;
     return { table, report, at: tableEvent?.created_at ?? reportEvent?.created_at ?? null };
   });
+
+/** C23: the user flags part of a reply as wrong; it becomes a top-confidence correction every later run reads. */
+export const submitReplyFeedback = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), excerpt: z.string().max(4000), comment: z.string().min(3).max(1500) }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { correctionMemory } = await import("./feedback-relearn");
+    const { redact } = await import("./engine/errors");
+    const content = correctionMemory(data.excerpt, data.comment);
+    if (!content) throw new Error("Describe what is wrong");
+    const { error } = await context.supabase.from("project_memories").insert({ user_id: context.userId, repo: s.repo, category: "preference", content: redact(content, 2000), session_id: data.id, confidence: 1, source_ref: "user-feedback", validated_at: new Date().toISOString() });
+    if (error) throw new Error("Could not save your feedback");
+    return { saved: true };
+  });
