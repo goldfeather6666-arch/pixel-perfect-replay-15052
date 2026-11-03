@@ -1,43 +1,50 @@
-import { CheckCircle2, CircleDashed, Cpu, Database, GitBranch, Globe } from "lucide-react";
+import { CheckCircle2, ChevronRight, Cpu, Database, GitBranch, Globe } from "lucide-react";
 import type { Credential } from "@/lib/providers";
 
 type Tab = "profile" | "ai" | "accounts" | "tools";
 
-/** Readiness strip: what Forge needs to build and publish, and where to fix each gap. */
+/** Compact readiness card: progress ring plus one-tap status chips for each connection. */
 export function SetupOverview({ creds, onPick }: { creds: Credential[] | undefined; onPick: (t: Tab) => void }) {
   const has = (p: string) => !!creds?.some((c) => c.provider === p);
   const ai = creds?.filter((c) => !["github", "supabase", "vercel"].includes(c.provider)).length ?? 0;
   const items = [
-    { label: "AI provider", ok: ai > 0, detail: ai ? `${ai} key${ai > 1 ? "s" : ""}` : "Required", icon: Cpu, tab: "ai" as Tab, required: true },
-    { label: "GitHub", ok: has("github"), detail: has("github") ? "Connected" : "Required", icon: GitBranch, tab: "accounts" as Tab, required: true },
-    { label: "Database", ok: has("supabase"), detail: has("supabase") ? "Connected" : "Optional", icon: Database, tab: "accounts" as Tab, required: false },
-    { label: "Vercel", ok: has("vercel"), detail: has("vercel") ? "Connected" : "Optional", icon: Globe, tab: "accounts" as Tab, required: false },
+    { label: "AI", ok: ai > 0, required: true, icon: Cpu, tab: "ai" as Tab },
+    { label: "GitHub", ok: has("github"), required: true, icon: GitBranch, tab: "accounts" as Tab },
+    { label: "Database", ok: has("supabase"), required: false, icon: Database, tab: "accounts" as Tab },
+    { label: "Vercel", ok: has("vercel"), required: false, icon: Globe, tab: "accounts" as Tab },
   ];
   const done = items.filter((i) => i.ok).length;
   const pct = Math.round((done / items.length) * 100);
   const ready = items.filter((i) => i.required).every((i) => i.ok);
+  const firstGap = items.find((i) => !i.ok);
+  const r = 18, c = 2 * Math.PI * r;
 
   return (
-    <section className="panel overflow-hidden rounded-2xl">
-      <div className="flex flex-wrap items-end justify-between gap-3 p-4 sm:p-6">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Setup</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{ready ? "You're ready to build" : "Finish setting up Forge"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{ready ? "Connect a database and Vercel anytime to publish live sites." : "Add an AI key and GitHub to start your first project."}</p>
+    <section className="panel rounded-2xl p-3 sm:p-4">
+      <div className="flex items-center gap-3">
+        <div className="relative size-12 shrink-0">
+          <svg viewBox="0 0 44 44" className="size-12 -rotate-90">
+            <circle cx="22" cy="22" r={r} fill="none" strokeWidth="4" className="stroke-muted" />
+            <circle cx="22" cy="22" r={r} fill="none" strokeWidth="4" strokeLinecap="round" className="stroke-primary transition-all" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
+          </svg>
+          <span className="absolute inset-0 grid place-items-center text-[11px] font-semibold tabular-nums">{pct}%</span>
         </div>
-        <div className="text-right"><span className="text-3xl font-semibold tabular-nums">{pct}%</span><p className="text-xs text-muted-foreground">{done} of {items.length} connected</p></div>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold tracking-tight">{ready ? (done === 4 ? "All connected" : "Ready to build") : "Finish setup"}</h1>
+          <p className="truncate text-xs text-muted-foreground">{done} of 4 connected{firstGap ? ` · next: ${firstGap.label}` : ""}</p>
+        </div>
+        {firstGap && (
+          <button type="button" onClick={() => onPick(firstGap.tab)} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground">
+            Connect <ChevronRight className="size-3.5" />
+          </button>
+        )}
       </div>
-      <div className="h-1 bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} /></div>
-      <div className="grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
+      <div className="mt-3 grid grid-cols-4 gap-1.5">
         {items.map((i) => (
-          <button key={i.label} type="button" onClick={() => onPick(i.tab)} className="group flex min-w-0 items-center gap-3 p-4 text-left transition-colors hover:bg-accent/40">
-            <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${i.ok ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}><i.icon className="size-4" /></span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{i.label}</span>
-              <span className={`flex items-center gap-1 text-xs ${i.ok ? "text-muted-foreground" : i.required ? "text-destructive" : "text-muted-foreground"}`}>
-                {i.ok ? <CheckCircle2 className="size-3 text-success" /> : <CircleDashed className="size-3" />}{i.detail}
-              </span>
-            </span>
+          <button key={i.label} type="button" onClick={() => onPick(i.tab)} title={i.ok ? "Connected" : i.required ? "Required" : "Optional"}
+            className={`flex min-w-0 flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[11px] font-medium transition-colors hover:bg-accent/50 ${i.ok ? "border-primary/30 bg-primary/5 text-foreground" : i.required ? "border-dashed border-destructive/40 text-destructive" : "border-dashed text-muted-foreground"}`}>
+            <span className="relative"><i.icon className="size-4" />{i.ok && <CheckCircle2 className="absolute -right-2 -top-1.5 size-3 text-success" />}</span>
+            <span className="max-w-full truncate">{i.label}</span>
           </button>
         ))}
       </div>

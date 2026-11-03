@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Check, Database, ExternalLink, Globe, KeyRound, Loader2, Rocket } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Database, ExternalLink, Globe, KeyRound, Loader2, Rocket } from "lucide-react";
 import { saveCredential } from "@/lib/app.functions";
 import { deployOAuthStatus, startDeployOAuth } from "@/lib/deploy-oauth.functions";
 import { ConnectSyncCard } from "@/components/ProjectHealth";
@@ -41,16 +41,27 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
   const ghOpts = d.accountOptions.filter((o) => o.provider === "github");
   const live = !!d.supabase_ref && !!d.vercel_project_id;
 
+  const next = !d.supabase_ref ? 1 : !d.vercel_project_id ? 2 : 3;
+  const steps = [
+    { label: "Database", ok: !!d.supabase_ref },
+    { label: "Website", ok: !!d.vercel_project_id },
+    { label: "Synced", ok: live && d.hasDatabaseSettings },
+  ];
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-3 sm:p-4">
-      <header className="px-1">
-        <h2 className="text-lg font-semibold">Deploy</h2>
-        <p className="text-sm text-muted-foreground">Use your own database and Vercel accounts. Each task keeps its own choices.</p>
-      </header>
+    <div className="mx-auto max-w-2xl space-y-2.5 p-3 sm:p-4">
+      <div className="flex items-center gap-1.5 rounded-2xl border bg-card p-1.5">
+        {steps.map((st, i) => (
+          <div key={st.label} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium ${st.ok ? "bg-primary/10 text-primary" : next === i + 1 ? "bg-accent text-foreground" : "text-muted-foreground"}`}>
+            {st.ok ? <Check className="size-3.5 shrink-0" /> : <span className="grid size-4 shrink-0 place-items-center rounded-full border text-[10px]">{i + 1}</span>}
+            <span className="truncate">{st.label}</span>
+          </div>
+        ))}
+      </div>
 
       <AccountWarnings onRenamed={refresh} />
 
-      <Step n={1} done={!!d.supabase_ref} icon={<Database className="h-4 w-4" />} title="Database" hint="Where your app stores its data">
+      <Step open={next === 1} done={!!d.supabase_ref} icon={<Database className="size-4" />} title="Database" hint={d.supabase_ref ? `Linked · ${d.supabase_ref}` : "Where your app stores its data"}>
         <AccountPicker id={id} svc="supabase" options={sbOpts} active={d.activeAccounts.supabase} onChange={refresh} />
         {d.hasSupabase && (
           <DatabaseStep key={d.activeAccounts.supabase ?? "none"} id={id} account={d.activeAccounts.supabase} linked={d.supabase_ref} onChange={refresh} />
@@ -58,41 +69,52 @@ export function DeployPanel({ id, onSend }: { id: string; onSend?: (prompt: stri
         {d.supabase_ref && <DatabaseKeys id={id} saved={d.hasDatabaseSettings} privileged={d.hasServiceRoleKey} onChange={refresh} />}
       </Step>
 
-      <Step n={2} done={!!d.vercel_project_id} icon={<Globe className="h-4 w-4" />} title="Website" hint="Where your app goes online">
+      <Step open={next === 2} done={!!d.vercel_project_id} icon={<Globe className="size-4" />} title="Website" hint={d.vercel_project_id ? "Linked to Vercel" : "Where your app goes online"}>
         <AccountPicker id={id} svc="vercel" options={vercelOpts} active={d.activeAccounts.vercel} onChange={refresh} />
         {d.hasVercel && (
           <WebsiteStep key={d.activeAccounts.vercel ?? "none"} id={id} account={d.activeAccounts.vercel} linked={d.vercel_project_id} dbLinked={!!d.supabase_ref} onChange={refresh} />
         )}
-        {d.vercel_project_id && <><CustomDomainSetup taskId={id} {...(onSend ? { onSend } : {})} /><div className="border-t pt-4"><ProjectSecrets taskId={id} allowCreate /></div></>}
       </Step>
 
-      <Step n={3} done={false} icon={<Rocket className="h-4 w-4" />} title="Go live" hint={live ? "Database and website are linked together" : "Finish steps 1 and 2 first, or sync what you have"}>
+      <Step open={next === 3} done={false} icon={<Rocket className="size-4" />} title="Sync & health" hint={live ? "Push settings and check the live site" : "Sync whatever is linked so far"}>
         <ConnectSyncCard id={id} {...(onSend ? { onSend } : {})} />
       </Step>
 
+      {d.vercel_project_id && (
+        <>
+          <Step open={false} done={false} icon={<Globe className="size-4" />} title="Custom domain" hint="Use your own web address">
+            <CustomDomainSetup taskId={id} {...(onSend ? { onSend } : {})} />
+          </Step>
+          <Step open={false} done={false} icon={<KeyRound className="size-4" />} title="Private keys" hint="Payment and service keys for your app">
+            <ProjectSecrets taskId={id} allowCreate />
+          </Step>
+        </>
+      )}
+
       {ghOpts.length > 1 && (
-        <section className="rounded-lg border bg-card p-4">
+        <Step open={false} done={!!d.activeAccounts.github} icon={<KeyRound className="size-4" />} title="GitHub account" hint="Which account owns this code">
           <AccountPicker id={id} svc="github" options={ghOpts} active={d.activeAccounts.github} onChange={refresh} />
-        </section>
+        </Step>
       )}
     </div>
   );
 }
 
-function Step({ n, done, icon, title, hint, children }: { n: number; done: boolean; icon: ReactNode; title: string; hint: string; children: ReactNode }) {
+function Step({ open, done, icon, title, hint, children }: { open: boolean; done: boolean; icon: ReactNode; title: string; hint: string; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-xl border bg-card">
-      <div className="flex items-center gap-3 border-b p-4">
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-accent"}`}>
-          {done ? <Check className="h-4 w-4" /> : n}
+    <details open={open} className="group min-w-0 overflow-hidden rounded-2xl border bg-card transition-shadow open:shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 hover:bg-accent/40 [&::-webkit-details-marker]:hidden">
+        <span className={`grid size-8 shrink-0 place-items-center rounded-xl ${done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+          {done ? <Check className="size-4" /> : icon}
         </span>
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-1.5 font-semibold">{icon}{title}</h3>
-          <p className="text-xs text-muted-foreground">{hint}</p>
-        </div>
-      </div>
-      <div className="space-y-4 p-4">{children}</div>
-    </section>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">{title}</span>
+          <span className="block truncate text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-3 border-t p-3.5">{children}</div>
+    </details>
   );
 }
 
