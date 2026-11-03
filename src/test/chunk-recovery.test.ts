@@ -36,9 +36,34 @@ describe("stale route recovery", () => {
     expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 115_001, 0)).not.toBeNull();
   });
 });
-import { isStaleServerFunctionError as staleFn } from "@/lib/chunk-recovery";
-import { it as it2, expect as expect2 } from "vitest";
+import { isStaleServerFunctionError as staleFn, recoverChunkLoad } from "@/lib/chunk-recovery";
+import { it as it2, expect as expect2, afterEach as afterEach2 } from "vitest";
 it2("treats the restarted server's HTML error page as a stale server function", () => {
   expect2(staleFn(new Error("<!doctype html>\n<html><head><title>This page didn't load</title></head></html>"))).toBe(true);
   expect2(staleFn(new Error("Forbidden"))).toBe(false);
+});
+
+it2("comes back for the fresh manifest when the immediate reload is throttled", () => {
+  let replaced = "";
+  let scheduled: (() => void) | null = null;
+  let waited = -1;
+  const store: Record<string, string> = { "forge-chunk-reload": String(Date.now()) };
+  const fake = {
+    location: { href: "https://forge.test/s/task", replace: (u: string) => { replaced = u; } },
+    sessionStorage: {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    },
+    setTimeout: (fn: () => void, ms: number) => { scheduled = fn; waited = ms; return 1; },
+  };
+  (globalThis as { window?: unknown }).window = fake;
+  afterEach2(() => { delete (globalThis as { window?: unknown }).window; });
+  expect2(recoverChunkLoad()).toBe(true);
+  expect2(replaced).toBe(""); // throttled: no reload storm
+  expect2(waited).toBeGreaterThan(0);
+  expect2(waited).toBeLessThanOrEqual(15_250);
+  const run = scheduled as (() => void) | null;
+  run?.();
+  expect2(replaced).toContain("_forge_refresh");
 });

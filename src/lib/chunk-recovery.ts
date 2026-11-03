@@ -30,10 +30,13 @@ export function isRecoverableModuleError(error: unknown) {
 }
 
 /** Replace a stale manifest with a cache-busted document, with bounded retries. */
+const RELOAD_INTERVAL = 15_000;
+let pendingReload: number | null = null;
+
 export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number) {
   const url = new URL(href);
   const previous = Math.max(lastAttempt || 0, Number(url.searchParams.get("_forge_refresh")) || 0);
-  if (now - previous < 15_000) return null; // bounded: at most one reload per 15s, so back-to-back preview restarts still recover
+  if (now - previous < RELOAD_INTERVAL) return null; // bounded: at most one reload per 15s, so back-to-back preview restarts still recover
   url.searchParams.set("_forge_refresh", String(now));
   return url.href;
 }
@@ -43,8 +46,20 @@ export function recoverChunkLoad() {
   try { previous = Number(window.sessionStorage.getItem("forge-chunk-reload")) || 0; } catch { /* storage may be blocked */ }
   const now = Date.now();
   const target = chunkRecoveryUrl(window.location.href, now, previous);
-  if (!target) return false;
-  try { window.sessionStorage.setItem("forge-chunk-reload", String(now)); } catch { /* URL also bounds retries */ }
-  window.location.replace(target);
+  if (target) {
+    try { window.sessionStorage.setItem("forge-chunk-reload", String(now)); } catch { /* URL also bounds retries */ }
+    window.location.replace(target);
+    return true;
+  }
+  // Inside the throttle window: don't leave the tab calling dead function IDs — come back for the fresh manifest when it expires.
+  if (pendingReload == null) {
+    const wait = Math.max(0, previous + RELOAD_INTERVAL - now) + 250;
+    pendingReload = window.setTimeout(() => {
+      pendingReload = null;
+      try { window.sessionStorage.removeItem("forge-chunk-reload"); } catch { /* storage may be blocked */ }
+      const next = chunkRecoveryUrl(window.location.href, Date.now(), 0) || window.location.href;
+      window.location.replace(next);
+    }, wait);
+  }
   return true;
 }

@@ -74,7 +74,7 @@ export type AgentMode = "chat" | "plan" | "build" | "publish";
 
 /** Templates for the master agent per mode. Chat stays lean; build/publish carry execution discipline. */
 export function masterPromptIds(mode: AgentMode): PromptId[] {
-  if (mode === "chat") return ["A_system", "B_runtime", "M_report"];
+  if (mode === "chat") return ["A_system", "B_runtime", "C_understanding", "G_review", "M_report"];
   if (mode === "plan") return ["A_system", "B_runtime", "C_understanding", "D_planning", "M_report"];
   return ["A_system", "B_runtime", "C_understanding", "D_planning", "E_coding", "F_debugging", "H_tool", "J_memory", "L_recovery", "M_report"];
 }
