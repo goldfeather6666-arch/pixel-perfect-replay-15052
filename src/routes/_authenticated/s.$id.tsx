@@ -12,6 +12,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { RunTimeline } from "@/components/RunTimeline";
+import { StreamTimeline } from "@/components/StreamTimeline";
+import { ListTree } from "lucide-react";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
 import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
@@ -54,10 +56,10 @@ export const Route = createFileRoute("/_authenticated/s/$id")({
   component: Workspace,
 });
 
-type PanelKey = "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
+type PanelKey = "timeline" | "preview" | "chat" | "swarm" | "run" | "knowledge" | "changes" | "deploy" | "terminal" | "files";
 // Studio layout: the canvas shows the product (preview, code, changes); power tools live in a
 // collapsible drawer beneath it; going live lives behind the header Publish button.
-const MAIN = [["preview", "Preview", Globe], ["files", "Code", FolderTree], ["changes", "Changes", GitCompare]] as const;
+const MAIN = [["preview", "Preview", Globe], ["timeline", "Timeline", ListTree], ["files", "Code", FolderTree], ["changes", "Changes", GitCompare]] as const;
 const MORE = [
   ["terminal", "Terminal", TerminalSquare], ["swarm", "Agents", Network],
   ["run", "Activity", Activity], ["knowledge", "Knowledge", BookOpen],
@@ -443,6 +445,7 @@ function Workspace() {
     if (!s) return null;
     switch (k) {
       case "swarm": return <SwarmMatrix messages={messages} usage={usage} model={s.model} running={running || bgRunning} />;
+      case "timeline": return <StreamTimeline sessionId={id} running={running || bgRunning} />;
       case "run": return <RunTimeline sessionId={id} repo={s.repo} running={running || bgRunning} />;
       case "knowledge": return <KnowledgeDirector id={id} repo={s.repo} />;
       case "deploy": return <DeployPanel id={id} onSend={autoFixSend} />;
