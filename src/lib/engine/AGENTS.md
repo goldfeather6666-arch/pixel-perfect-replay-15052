@@ -6,7 +6,7 @@
 - Explicit promise-only natural finishes get one same-model tool-required follow-up within the step budget; repeated promises block completion, refusals/Stop/approval waits never continue. Why: narration is not executed work.
 - Stored errors/events pass redact(); categories come from classifyError. Why: no secrets in logs.
 - Model capabilities come from model-registry.ts; unknown models are flagged, not assumed capable. One fallback only, before any tool ran, for provider/rate/timeout/network errors.
-- Autonomy is enforced server-side in /api/agent via autonomy.ts; "supervised"/"autonomous" keep legacy meanings. MCP non-read-only actions always need approval at every level.
+- Autonomy is enforced server-side in /api/agent via autonomy.ts; "supervised"/"autonomous" keep legacy meanings. MCP non-read-only actions need approval at every level unless the owner set that tool to "always" (per-connection tool_policies, set from Settings or "Execute & always allow"). Why: consent once, not per call.
 - Skills: matching/always-on/dependency skills load in full; others are listed and recorded when read_skill loads them.
 - Resume: a new run injects a checkpoint built from the previous unfinished run's recorded events (checkpoint.ts); engine_start_run closes the old run. Why: continue without redoing work.
 - Memory: rank saved memories locally (memory-rank.ts) and inject the top 40; recall_memory searches the rest. No embeddings. Why: BYOK has no shared embedding key.

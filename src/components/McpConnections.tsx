@@ -108,10 +108,11 @@ function ToolPermissions({ id, tools, policies }: { id: string; tools: string[];
               <span className="min-w-0 flex-1 truncate font-mono">{t}</span>
               <select aria-label={`Permission for ${t}`} className="h-9 rounded-md border bg-background px-2" value={policies[t] ?? "allow"}
                 onChange={async (e) => {
-                  try { await save({ data: { id, tool: t, policy: e.target.value as "allow" | "ask" | "deny" } }); await qc.invalidateQueries({ queryKey: ["mcp-connections"] }); }
+                  try { await save({ data: { id, tool: t, policy: e.target.value as "allow" | "ask" | "deny" | "always" } }); await qc.invalidateQueries({ queryKey: ["mcp-connections"] }); }
                   catch (err) { toast.error(err instanceof Error ? err.message : "Could not save"); }
                 }}>
                 <option value="allow">Default</option>
+                <option value="always">Always allow</option>
                 <option value="ask">Always ask</option>
                 <option value="deny">Never use</option>
               </select>

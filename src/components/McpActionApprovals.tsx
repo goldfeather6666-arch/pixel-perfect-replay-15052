@@ -18,7 +18,7 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
   const resolve = useServerFn(resolveMcpActionRequest);
   const query = useQuery({ queryKey: ["mcp-actions", sessionId], queryFn: async () => { try { return await list({ data: { sessionId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 3000, refetchOnWindowFocus: true, retry: false, throwOnError: false });
   const mutation = useMutation({
-    mutationFn: (data: { id: string; approve: boolean }) => resolve({ data }),
+    mutationFn: (data: { id: string; approve: boolean; trust?: boolean }) => resolve({ data }),
     onMutate: (v) => { batch.current.add(v.id); },
     onSuccess: (r) => { setConfirmId(null); if (r.ok) toast.success(r.message); else toast.error(r.message); qc.invalidateQueries({ queryKey: ["mcp-actions", sessionId] }); qc.invalidateQueries({ queryKey: ["session", sessionId] }); },
     onError: () => { toast.error("Could not resolve action. Refresh to check its status before retrying."); qc.invalidateQueries({ queryKey: ["mcp-actions", sessionId] }); },
@@ -54,7 +54,7 @@ export function McpActionApprovals({ sessionId, chat = false, busy = false, onRe
         <Button size="sm" variant="outline" disabled={mutation.isPending} onClick={() => mutation.mutate({ id: action.id, approve: false })}><X /> Reject</Button>
         {confirmId === action.id ? <div className="w-full space-y-2 rounded border border-destructive/40 p-2">
           <p className="break-words text-xs">Execute this exact request? It may change or delete external data.</p>
-          <div className="flex flex-wrap gap-2"><Button size="sm" disabled={expired || mutation.isPending} onClick={() => mutation.mutate({ id: action.id, approve: true })}><Check /> Confirm & execute</Button><Button size="sm" variant="ghost" disabled={mutation.isPending} onClick={() => setConfirmId(null)}>Cancel</Button></div>
+          <div className="flex flex-wrap gap-2"><Button size="sm" disabled={expired || mutation.isPending} onClick={() => mutation.mutate({ id: action.id, approve: true })}><Check /> Confirm & execute</Button><Button size="sm" variant="secondary" disabled={expired || mutation.isPending} onClick={() => mutation.mutate({ id: action.id, approve: true, trust: true })}><Check /> Execute & always allow</Button><Button size="sm" variant="ghost" disabled={mutation.isPending} onClick={() => setConfirmId(null)}>Cancel</Button></div>
         </div> : <Button size="sm" disabled={expired || mutation.isPending} onClick={() => setConfirmId(action.id)}><Check /> Approve & execute</Button>}
       </div>}
       {action.result && <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Saved result</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all">{action.result}</pre></details>}

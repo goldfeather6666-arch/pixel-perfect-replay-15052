@@ -60,7 +60,7 @@ export const changeMcpConnection = createServerFn({ method: "POST" }).middleware
 });
 /** Per-tool permission: allow (default rules), ask (always stage for approval) or deny (never offered). */
 export const setMcpToolPolicy = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), tool: z.string().min(1).max(160), policy: z.enum(["allow", "ask", "deny"]) }))
+  .inputValidator(z.object({ id: z.string().uuid(), tool: z.string().min(1).max(160), policy: z.enum(["allow", "ask", "deny", "always"]) }))
   .handler(async ({ data, context }) => {
     const table = context.supabase.from("mcp_connections");
     const { data: row, error } = await table.select("tool_policies, tool_names").eq("id", data.id).eq("user_id", context.userId).single();

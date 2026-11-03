@@ -12,7 +12,7 @@ export const listMcpActions = createServerFn({ method: "GET" }).middleware([requ
   });
 
 export const resolveMcpActionRequest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean() })).handler(async ({ data, context }) => {
+  .inputValidator(z.object({ id: z.string().uuid(), approve: z.boolean(), trust: z.boolean().default(false) })).handler(async ({ data, context }) => {
     const { resolveMcpAction } = await import("./mcp-approval.server");
-    return resolveMcpAction(context.supabase, context.userId, data.id, data.approve);
+    return resolveMcpAction(context.supabase, context.userId, data.id, data.approve, data.approve && data.trust);
   });
