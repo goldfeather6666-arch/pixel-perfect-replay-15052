@@ -18,3 +18,6 @@ Workflow hardening (env/secret guards, state tracking).
 ## Open decisions / blockers
 - Vault key rotation (commit b53ce3a): that commit is not in this repository. If it lives in another repo, rotate there and set the new value as a server-side secret on the deploy target.
 - gitleaks first CI run unverified (runs on GitHub only).
+
+## Scope decision (2026-11-03)
+- C26–C32 frozen as a phase-2 backlog by the owner. No new C-items get folded in; new ideas go to that backlog.
