@@ -73,8 +73,8 @@ async function killTree(box: import("./runner-box.server").Box, id: string, port
 }
 
 /** Gives the private dev server the task's database settings, kept outside the repo and never sent to the browser. The server-only key is included only when the user saved it in guided setup, mirroring Vercel's server env. */
-async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }) {
-  if (!session.supabase_ref) return;
+async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }): Promise<string> {
+  if (!session.supabase_ref) return "not provided — no database is linked to this task (Publish → Database)";
   try {
     const { loadDatabaseSettings } = await import("./deployment-settings.server");
     const { deploymentEnv, isPublicDatabaseKey } = await import("./deployment-env");
@@ -91,13 +91,14 @@ async function writePublicEnv(box: import("./runner-box.server").Box, id: string
         publicKey = (await new SupabaseMgmt(await decryptSecret(cred[0]!.ciphertext, cred[0]!.iv)).anonKey(session.supabase_ref)) ?? "";
       }
     }
-    if (!publicKey || !isPublicDatabaseKey(publicKey)) return;
+    if (!publicKey || !isPublicDatabaseKey(publicKey)) return "not provided — the linked database's public key could not be read; reconnect the database account";
     const env = deploymentEnv(saved?.url || `https://${session.supabase_ref}.supabase.co`, publicKey, saved?.serviceRoleKey, session.supabase_ref) as Record<string, string>;
     const lines = Object.entries(env).filter(([k, v]) => !!v && (k === "SUPABASE_SERVICE_ROLE_KEY" || !/SERVICE|SECRET/i.test(k))).map(([k, v]) => `export ${k}='${String(v).replace(/'/g, "")}'`);
     await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
     await box.files.write(TASK_ENV, lines.join("\n") + "\n");
     await sh(box, `chmod 600 ${dirOf(id)}/env ${TASK_ENV}`);
-  } catch { /* preview still starts; app may show its own missing-config error */ }
+    return `provided (${Object.keys(env).filter((k) => lines.some((l) => l.startsWith(`export ${k}=`))).join(", ")})`;
+  } catch { return "not provided — loading the database settings failed"; /* preview still starts */ }
 }
 
 /** Starts (or returns the existing) preview for a task. Never starts a duplicate server for an active preview. */
@@ -132,8 +133,10 @@ export async function startPreview(sb: any, session: Session, ghToken: string, o
   const base = gatewayBase(row.id);
   const command = opts.command?.trim() || devCommand(framework, pm, port, base, { nextMajor: nextMajor(pkg) });
   const install = opts.command ? "" : installCommand(pm, framework);
-  await writePublicEnv(box, row.id, session);
+  const envStatus = await writePublicEnv(box, row.id, session);
   const pid = await launch(box, row, framework, install, command);
+  // Names/status only, so the agent and the user can see why sign-in may fail in preview.
+  await sh(box, `echo ${JSON.stringify(`[forge] database settings for preview: ${envStatus}`).replace(/\$/g, "")} >> ${dirOf(row.id)}/out.log`);
 
   const host = box.getHost(port);
   const token = box.trafficAccessToken ?? "";
