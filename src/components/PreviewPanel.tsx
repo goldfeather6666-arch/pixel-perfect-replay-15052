@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -95,7 +96,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const startM = useMutation({ mutationFn: () => start({ data: { id } }), onSuccess: () => { setErrors([]); qc.invalidateQueries({ queryKey: ["preview", id] }); }, onError: (e: Error) => toast.error(e.message) });
   const actM = useMutation({ mutationFn: (action: "stop" | "restart") => act({ data: { id, action } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["preview", id] }), onError: (e: Error) => toast.error(e.message) });
   const logs = useQuery({ queryKey: ["preview-logs", id], queryFn: () => act({ data: { id, action: "logs" } }), enabled: (showLogs || repairOpen) && !!p, refetchInterval: showLogs && running ? 3000 : false });
-  const health = useQuery({ queryKey: ["preview-diagnosis", id], queryFn: () => diagnose({ data: { id } }), enabled: drawer === "health" || repairOpen, staleTime: 30000, retry: false });
+  const health = useQuery({ queryKey: ["preview-diagnosis", id], queryFn: () => diagnose({ data: { id } }), enabled: drawer === "health" || repairOpen, staleTime: 30000, ...transientRetry });
   async function fixPreview() {
     if (!p || !onSend || agentBusy || sendingRepair) return;
     setSendingRepair(true);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { transientRetry } from "@/lib/chunk-recovery";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Cpu } from "lucide-react";
@@ -28,7 +29,7 @@ export function ModelSwitcher({ id, credentialId, model, fallbackModel, profile 
   const fetchModels = useServerFn(listModels);
   const update = useServerFn(updateSession);
   const creds = useQuery({ queryKey: ["credentials"], queryFn: () => fetchCreds(), enabled: open });
-  const models = useQuery({ queryKey: ["models", cred], queryFn: () => fetchModels({ data: { id: cred } }), enabled: open && !!cred, retry: false });
+  const models = useQuery({ queryKey: ["models", cred], queryFn: () => fetchModels({ data: { id: cred } }), enabled: open && !!cred, ...transientRetry });
   useEffect(() => { if (open) { setCred(credentialId ?? ""); setM(model); setFb(fallbackModel ?? ""); setProf(profile); setCm(codingModel ?? ""); setRm(reviewerModel ?? ""); setCc(codingCredentialId ?? ''); setRc(reviewerCredentialId ?? ''); } }, [open, credentialId, model, fallbackModel, profile, codingModel, reviewerModel, codingCredentialId, reviewerCredentialId]);
 
   async function save() {
