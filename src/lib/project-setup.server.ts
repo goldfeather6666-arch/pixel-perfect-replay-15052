@@ -36,7 +36,7 @@ export async function listProjectSecrets(ctx: Ctx, taskId: string) {
   const row = await accountRow(ctx.supabase, ctx.userId, "vercel", s.accounts);
   if (!row) return [];
   const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await db.from("task_secret_requests").select("id,name,purpose,source_url,targets,state").eq("task_id", taskId).eq("user_id", ctx.userId).eq("vercel_project_id", s.vercel_project_id).eq("vercel_account_id", row.id).order("created_at");
+  const { data, error } = await db.from("task_secret_requests").select("id,name,purpose,source_url,targets,state,updated_at").eq("task_id", taskId).eq("user_id", ctx.userId).eq("vercel_project_id", s.vercel_project_id).eq("vercel_account_id", row.id).order("created_at");
   if (error) throw new Error("Secret requests could not be loaded");
   return data ?? [];
 }

@@ -161,6 +161,10 @@ export class Vercel {
     const r = await this.req<any>("/v13/deployments?forceNew=1", { method: "POST", body: JSON.stringify({ name: d.name, deploymentId: d.id, ...(d.target ? { target: d.target } : {}) }) });
     return { id: r.id as string, url: `https://${r.url}` };
   }
+  /** Instantly points production back at an earlier deployment (no rebuild). */
+  async promote(projectId: string, deploymentId: string) {
+    await this.req(`/v10/projects/${encodeURIComponent(projectId)}/promote/${encodeURIComponent(deploymentId)}`, { method: "POST" });
+  }
   /** Installs Forge's build gate (skip agent/* commits unless marked for deploy). Returns true when the gate is active. */
   async ensureBuildGate(projectId: string) {
     const { gateUpdate, BUILD_GATE_COMMAND } = await import("./vercel-build-gate");

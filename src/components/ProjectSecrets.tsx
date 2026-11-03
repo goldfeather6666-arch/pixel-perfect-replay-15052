@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSecretRequest, listSecretRequests, submitSecretRequest, cancelSecretRequest } from "@/lib/project-setup.functions";
 import type { SecretRequestSummary } from "@/lib/project-setup";
+import { secretAge } from "@/lib/security-watch";
 import { isStaleServerFunctionError, recoverChunkLoad, transientRetry } from "@/lib/chunk-recovery";
 
 export function ProjectSecrets({ taskId, busy = false, onSend, allowCreate = false }: { taskId: string; busy?: boolean; onSend?: (message: string) => void; allowCreate?: boolean }) {
@@ -22,7 +23,7 @@ export function ProjectSecrets({ taskId, busy = false, onSend, allowCreate = fal
     {allowCreate && q.isError && <p role="alert" className="text-xs text-destructive">Secret requests could not be checked. Try again.</p>}
     {adding && <RequestForm taskId={taskId} onDone={() => setAdding(false)} />}
     {pending.map((r) => <SecretForm key={r.id} taskId={taskId} request={r} busy={busy} {...(onSend ? { onSend } : {})} />)}
-    {allowCreate && q.data?.filter((r) => r.state === "synced").map((r) => <p key={r.id} className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3 w-3" /> {r.name} · sent to {r.targets.join(", ")}</p>)}
+    {allowCreate && q.data?.filter((r) => r.state === "synced").map((r) => <p key={r.id} className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3 w-3" /> {r.name} · sent to {r.targets.join(", ")}{(() => { const a = secretAge(r.updated_at); return a.due ? <span className="text-destructive"> · {a.days} days old — rotate it at the provider, then request it again</span> : null; })()}</p>)}
   </div>;
 }
 

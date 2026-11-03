@@ -10,7 +10,7 @@ export function isFailedRelease(buildState: string, runtimeState: string | null 
  * Newest READY deployment older than the failed one, on the same target (production vs branch).
  * Deployments this run verified (build READY + runtime PASSED) win over merely READY ones.
  */
-export function pickRollbackTarget(deployments: ReleaseDeployment[], failedId: string, verified: ReadonlySet<string> = new Set()): ReleaseDeployment | null {
+export function pickRollbackTarget<T extends ReleaseDeployment>(deployments: T[], failedId: string, verified: ReadonlySet<string> = new Set()): T | null {
   const failed = deployments.find((d) => d.id === failedId);
   const before = deployments
     .filter((d) => d.id !== failedId && d.state === "READY" && (!failed || (d.created < failed.created && (d.target ?? null) === (failed.target ?? null))))
