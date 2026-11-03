@@ -33,3 +33,24 @@ export function quietStopCandidates(sessions: Quiet[], now: number, quietMs = QU
     && now - Date.parse(s.updated_at) >= quietMs
     && !(s.last_stage && HUMAN_WAIT_STAGES.includes(s.last_stage)));
 }
+
+type Turn = { role: "user" | "assistant"; content: string; tools?: unknown[] };
+const STALL_NOTE = /\n*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)\s*$/;
+
+/**
+ * Automatic recovery stays invisible in chat: it adds no user message and continues the interrupted
+ * assistant reply (dropping its "no signs of life" note) instead of starting a new bubble.
+ */
+export function recoveryTurns<T extends Turn>(history: T[], autoRecovery: boolean) {
+  const last = history.at(-1);
+  const prev = autoRecovery && last?.role === "assistant" ? last : null;
+  const base = prev ? history.slice(0, -1) : history;
+  const prevText = prev ? prev.content.replace(STALL_NOTE, "").trimEnd() : "";
+  return {
+    base,
+    assistant(text: string, tools: NonNullable<T["tools"]>): T {
+      if (!prev) return { role: "assistant", content: text, tools } as T;
+      return { ...prev, content: prevText && text ? `${prevText}\n\n${text}` : prevText || text, tools: [...(prev.tools ?? []), ...tools] } as T;
+    },
+  };
+}
