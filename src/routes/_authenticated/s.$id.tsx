@@ -131,7 +131,15 @@ function Workspace() {
     if (wasBgRunning.current && !sd?.running && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Forge", { body: "Your agent finished." });
     wasBgRunning.current = !!sd?.running;
   }, [sd?.running]);
-  const stale = !!sd?.running && !!sd.updated_at && Date.now() - new Date(sd.updated_at).getTime() > STALE_MS;
+  // Measure silence on this device's clock (time since the heartbeat last changed), never by
+  // comparing the server timestamp with a possibly skewed phone clock.
+  const seenBeat = useRef<{ at: string | null; local: number }>({ at: null, local: 0 });
+  if (sd?.updated_at !== seenBeat.current.at) {
+    const serverAge = sd?.updated_at ? Date.now() - new Date(sd.updated_at).getTime() : 0;
+    // A run the server already marked dead (backdated past STALE_MS) is stale at once.
+    seenBeat.current = { at: sd?.updated_at ?? null, local: serverAge > STALE_MS + 60_000 ? Date.now() - STALE_MS - 1 : Date.now() };
+  }
+  const stale = !!sd?.running && !!sd.updated_at && Date.now() - seenBeat.current.local > STALE_MS;
   const bgRunning = !running && !!sd?.running && !stale;
   const runStart = useRef<number>(0);
   const runPlan = useRef(false);
