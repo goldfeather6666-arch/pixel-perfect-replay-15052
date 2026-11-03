@@ -191,6 +191,13 @@ function Workspace() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages.length, pending.length]);
   useEffect(() => { taRef.current?.focus(); }, [running]);
   useEffect(() => { if (!running && !sd?.running) setStopping(false); }, [running, sd?.running]);
+  // Keep the phone tab awake while the agent works so switching apps doesn't cut the connection.
+  useEffect(() => {
+    if (!(running || sd?.running)) return;
+    let stop = () => {};
+    void import("@/lib/background-keepalive").then((m) => { m.startKeepAlive(); stop = m.stopKeepAlive; });
+    return () => stop();
+  }, [running, sd?.running]);
   // Network comes back / app reopened / window refocused: resync saved progress right away.
   useEffect(() => {
     const resync = () => { if (document.visibilityState === "visible") void qc.invalidateQueries({ queryKey: ["session", id] }); };
