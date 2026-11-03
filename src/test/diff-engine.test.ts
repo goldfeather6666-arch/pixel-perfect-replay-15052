@@ -64,7 +64,7 @@ describe("applyHunks", () => {
   const original = "line1\nold\nline3\nline4\na\nb\nc\nd\ne\nctx\ngone\nctx2";
 
   it("applies all hunks when all chosen", () => {
-    const [app] = parseUnifiedDiff(DIFF);
+    const [app] = parseUnifiedDiff(DIFF) as [import("../lib/diff-engine").FileDiff];
     const out = applyHunks(original, app, [0, 1]);
     expect(out).toContain("new");
     expect(out).toContain("line5");
@@ -73,14 +73,14 @@ describe("applyHunks", () => {
   });
 
   it("applies only the chosen hunk subset", () => {
-    const [app] = parseUnifiedDiff(DIFF);
+    const [app] = parseUnifiedDiff(DIFF) as [import("../lib/diff-engine").FileDiff];
     const out = applyHunks(original, app, [1]);
     expect(out).toContain("\nold\n"); // hunk 0 rejected
     expect(out).not.toContain("gone"); // hunk 1 accepted
   });
 
   it("skips hunks that no longer match instead of corrupting the file", () => {
-    const [app] = parseUnifiedDiff(DIFF);
+    const [app] = parseUnifiedDiff(DIFF) as [import("../lib/diff-engine").FileDiff];
     const out = applyHunks("totally\ndifferent\ncontent", app, [0, 1]);
     expect(out).toBe("totally\ndifferent\ncontent");
   });
