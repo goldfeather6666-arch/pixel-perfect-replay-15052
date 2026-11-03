@@ -7,8 +7,8 @@
 - [x] Baseline capture: start→first-diff, QA gate duration, autonomy rate (recorder metrics exist; add first-diff + gate timers)
 
 ## Phase 2 — Persistent repo index + auto-context
-- [ ] Symbol/file index persisted per repo across sessions
-- [ ] Auto-retrieved context (symbols, call sites) instead of re-reading files
+- [x] Symbol/file index persisted per repo across sessions
+- [x] Auto-retrieved context (symbols, call sites) instead of re-reading files
 
 ## Phase 3 — Incremental cache/build layer
 - [x] Content-hash cache for typecheck/lint/test/build in sandbox
