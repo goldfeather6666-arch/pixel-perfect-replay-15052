@@ -59,10 +59,12 @@ describe("recovery reload budget", () => {
     expect(recoverChunkLoad()).toBe(true);
     expect(fake.replaced).toEqual([]); // no replace while the page is loading
     expect(fake.loadHandlers).toHaveLength(1);
-    fake.loadHandlers[0]();
+    const settle = fake.loadHandlers[0];
+    if (!settle) throw new Error("recovery did not register a load handler");
+    settle();
     expect(fake.replaced).toHaveLength(1);
     expect(fake.replaced[0]).toContain("_forge_refresh");
-    fake.loadHandlers[0](); // the settle timer firing later must not reload twice
+    settle(); // the settle timer firing later must not reload twice
     expect(fake.replaced).toHaveLength(1);
   });
 
