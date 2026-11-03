@@ -1239,6 +1239,41 @@ export type Database = {
           },
         ]
       }
+      task_maintenance: {
+        Row: {
+          dismissed: string[]
+          enabled: boolean
+          last_scanned_at: string | null
+          report: Json
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          dismissed?: string[]
+          enabled?: boolean
+          last_scanned_at?: string | null
+          report?: Json
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          dismissed?: string[]
+          enabled?: boolean
+          last_scanned_at?: string | null
+          report?: Json
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_maintenance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_questions: {
         Row: {
           allow_custom_answer: boolean
