@@ -36,6 +36,7 @@ import { PromptAssistance } from "@/components/PromptAssistance";
 import { MentionPicker } from "@/components/MentionPicker";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { CopyTextButton } from "@/components/CopyTextButton";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
@@ -732,6 +733,11 @@ function MessageView({ m: raw, live, sessionId }: { m: ChatMessage; live: boolea
       <div className="flex items-center gap-1.5 text-xs font-semibold"><img src={forgeMark} alt="" width={24} height={24} className="size-6 object-contain" />Forge</div>
       {!!m.tools?.length && <ActivityView tools={m.tools} live={live} />}
       {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
+      {!live && m.content.trim() && (
+        <div className="-mt-1 flex items-center gap-1">
+          <CopyTextButton text={m.content} label="Copy reply" />
+        </div>
+      )}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
       {!live && !raw.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
