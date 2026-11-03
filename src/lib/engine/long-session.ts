@@ -2,7 +2,7 @@
 // and phased delivery policy for large builds. Pure so the agent route and tests share it.
 import type { TaskClass } from "./discovery";
 
-export type Edit = { find: string; replace: string; all?: boolean };
+export type Edit = { find: string; replace: string; all?: boolean | undefined };
 
 /** Applies exact search/replace edits in order. Each `find` must match exactly once unless `all`. */
 export function applyEdits(content: string, edits: Edit[]): { ok: true; content: string; replaced: number } | { ok: false; error: string } {
