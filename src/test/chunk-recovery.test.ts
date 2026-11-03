@@ -26,9 +26,9 @@ describe("stale route recovery", () => {
     expect(url.hash).toBe("#saved");
   });
   it("bounds retries even when storage is unavailable", () => {
-    expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 110_000, 0)).toBeNull();
-    expect(chunkRecoveryUrl("https://forge.test/", 110_000, 100_000)).toBeNull();
-    expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 160_001, 0)).not.toBeNull();
+    expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 105_000, 0)).toBeNull();
+    expect(chunkRecoveryUrl("https://forge.test/", 105_000, 100_000)).toBeNull();
+    expect(chunkRecoveryUrl("https://forge.test/?_forge_refresh=100000", 115_001, 0)).not.toBeNull();
   });
 });
 import { isStaleServerFunctionError as staleFn } from "@/lib/chunk-recovery";

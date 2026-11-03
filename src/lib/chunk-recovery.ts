@@ -27,7 +27,7 @@ export function isRecoverableModuleError(error: unknown) {
 export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number) {
   const url = new URL(href);
   const previous = Math.max(lastAttempt || 0, Number(url.searchParams.get("_forge_refresh")) || 0);
-  if (now - previous < 60_000) return null;
+  if (now - previous < 15_000) return null; // bounded: at most one reload per 15s, so back-to-back preview restarts still recover
   url.searchParams.set("_forge_refresh", String(now));
   return url.href;
 }
