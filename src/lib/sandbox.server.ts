@@ -92,6 +92,14 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     if (c.action === "delete") await box.files.remove(full).catch(() => {});
     else await box.files.write(full, c.content ?? "");
   }
+  // New or reset sandbox: seed database settings + project secrets so agent commands match preview/Vercel.
+  if (job !== OPEN_ONLY) {
+    const has = await box.commands.run(`test -f /tmp/forge-task.env && test -f ${REPO_DIR}/.env.local`, { timeoutMs: 10_000 }).catch((e: any) => e);
+    if (has?.exitCode !== 0) {
+      const { seedTaskEnv } = await import("./preview-manager.server");
+      await seedTaskEnv(box, session).catch(() => {});
+    }
+  }
   if (job === OPEN_ONLY) return { box } as never;
   if (job) {
     // Detached terminal job: output streams to a log file the client polls, so long commands

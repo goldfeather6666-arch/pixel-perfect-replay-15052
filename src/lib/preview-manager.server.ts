@@ -114,18 +114,27 @@ async function databaseLines(session: Session & { supabase_ref?: string | null }
 }
 
 /** Gives the private dev server and agent shell the task's database settings and submitted project secrets, kept outside the repo (mode 600) and never sent to the browser. Returns a names-only status. */
-async function writePublicEnv(box: import("./runner-box.server").Box, id: string, session: Session & { supabase_ref?: string | null }): Promise<string> {
+async function writePublicEnv(box: import("./runner-box.server").Box, id: string | null, session: Session & { supabase_ref?: string | null }): Promise<string> {
   const db = await databaseLines(session);
   const secrets = await projectSecretLines(session);
   const lines = [...(Array.isArray(db) ? db : []), ...secrets];
   const names = (ls: string[]) => ls.map((l) => l.slice(7, l.indexOf("="))).join(", ");
   try {
-    await box.files.write(`${dirOf(id)}/env`, lines.join("\n") + "\n");
-    await box.files.write(TASK_ENV, lines.join("\n") + "\n");
-    await sh(box, `chmod 600 ${dirOf(id)}/env ${TASK_ENV}`);
+    const body = lines.join("\n") + "\n";
+    if (id) await box.files.write(`${dirOf(id)}/env`, body);
+    await box.files.write(TASK_ENV, body);
+    // Frameworks (Vite, Next, Remix, TanStack) auto-load .env.local; git-excluded so it is never committed.
+    await box.files.write(`${REPO_DIR}/.env.local`, lines.map((l) => l.slice(7)).join("\n") + "\n");
+    await sh(box, `chmod 600 ${id ? `${dirOf(id)}/env ` : ""}${TASK_ENV} ${REPO_DIR}/.env.local; mkdir -p ${REPO_DIR}/.git/info; grep -qx '.env.local' ${REPO_DIR}/.git/info/exclude 2>/dev/null || echo '.env.local' >> ${REPO_DIR}/.git/info/exclude`);
   } catch { return "not provided — writing the settings file failed"; }
   const dbPart = Array.isArray(db) ? `database provided (${names(db)})` : `database not provided — ${db}`;
   return `${dbPart}; project secrets: ${secrets.length ? names(secrets) : "none"}`;
+}
+
+/** Seeds the task's database settings and project secrets into a sandbox (agent shell + dev tools), even before any preview starts. */
+export async function seedTaskEnv(box: import("./runner-box.server").Box, session: Session) {
+  const { data } = await (await admin()).from("agent_sessions").select("supabase_ref, accounts").eq("id", session.id).eq("user_id", session.user_id).maybeSingle();
+  return writePublicEnv(box, null, { ...session, supabase_ref: data?.supabase_ref ?? null, accounts: data?.accounts } as Session & { supabase_ref?: string | null });
 }
 
 /** Starts (or returns the existing) preview for a task. Never starts a duplicate server for an active preview. */
