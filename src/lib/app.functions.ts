@@ -408,8 +408,8 @@ export const modelComparison = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ days: z.number().int().min(1).max(180).default(30) }))
   .handler(async ({ data, context }) => {
-    const u = context.supabase.auth.getUser().data;
-    if (!u?.user) throw new Error("Not signed in");
+    const u = await context.supabase.auth.getUser();
+    if (!u.data.user) throw new Error("Not signed in");
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
     const { data: rows } = await context.supabase
       .from("agent_runs")
