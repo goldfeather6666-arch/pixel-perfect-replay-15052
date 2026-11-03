@@ -419,17 +419,18 @@ function Workspace() {
   };
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader>
+      <AppHeader actions={s ? (
+        <>
+          <span className="hidden lg:block"><ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} /></span>
+          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3.5 w-3.5" /> Publish</Button>
+        </>
+      ) : undefined}>
         {s && (
-          <div className="flex min-w-0 max-w-[60vw] items-center gap-2 overflow-x-auto text-xs sm:max-w-none">
-            <span className="hidden min-w-0 truncate md:inline" title={`${s.repo} · ${s.work_branch}`}>
-              <span className="font-medium text-foreground">{s.repo.split("/").pop()}</span>
-              <span className="font-mono text-muted-foreground"> / {s.work_branch}</span>
-            </span>
-            <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
-            <span role="status" className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 lg:flex ${running || bgRunning ? "text-primary" : pending.length ? "text-warning" : "text-muted-foreground"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} />
-              {running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"}
+          <div className="flex min-w-0 items-center gap-2 text-xs">
+            <span className={`size-2 shrink-0 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} role="status" aria-label={running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"} />
+            <span className="min-w-0 truncate" title={`${s.repo} · ${s.work_branch}`}>
+              <span className="text-sm font-medium text-foreground">{s.title || s.repo.split("/").pop()}</span>
+              <span className="hidden font-mono text-muted-foreground sm:inline"> · {s.work_branch}</span>
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
