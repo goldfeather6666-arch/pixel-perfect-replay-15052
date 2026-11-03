@@ -1062,6 +1062,9 @@ export const Route = createFileRoute("/api/agent")({
               if (secs >= 15) sendQuiet({ t: "wait", d: `Waiting for ${waitingModelName} to start replying · ${secs}s. This model's service is slow to begin; messages you send now are read as soon as it replies.` });
             }, 5_000);
             let lastThinkingNote = 0;
+            const stalledNote = () => stalledWaitingModel
+              ? `\n\n${waitingModelName} did not start replying within 4 minutes, so this attempt was stopped. Its service is overloaded or too slow for Forge's instructions. Progress saved; automatic recovery is queued — or pick a faster model and send again.`
+              : "\n\nNo signs of life detected. Progress saved; automatic recovery is queued.";
             const stopWatching = watchForStop(async () => {
               const { data } = await sb.from("agent_sessions").select("stop_requested, execution_id").eq("id", sessionId).eq("user_id", u.user.id).single();
               return data?.stop_requested === true || (!!data && data.execution_id !== executionId);
@@ -1139,7 +1142,6 @@ export const Route = createFileRoute("/api/agent")({
                 } else if (part.type === "text-delta") {
                   rec.metric("timeToFirstTokenMs", rec.since("firstToken"));
                   text += part.text;
-                  send({ t: "wait", d: null });
                   send({ t: "text", d: part.text });
                 } else if (part.type === "tool-call") {
                   responseToolCalls++;
@@ -1260,7 +1262,7 @@ export const Route = createFileRoute("/api/agent")({
             } catch (e: any) {
               errored = true;
               rec.error("provider", errorText(e));
-              if (runAbort.signal.aborted) text += stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_"; else {
+              if (runAbort.signal.aborted) text += stalled ? stalledNote() : "\n\n_(stopped)_"; else {
                 const detail = providerRequestError(e);
                 text += `\n\n${detail}`;
                 send({ t: "error", m: detail });
@@ -1268,8 +1270,9 @@ export const Route = createFileRoute("/api/agent")({
             } finally {
               stopWatching();
               clearInterval(beat);
+              clearInterval(waitNotice);
               if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
-              if (runAbort.signal.aborted) send({ t: "text", d: stalled ? "\n\nNo signs of life detected. Progress saved; automatic recovery is queued." : "\n\n_(stopped)_" });
+              if (runAbort.signal.aborted) send({ t: "text", d: stalled ? stalledNote() : "\n\n_(stopped)_" });
               const next: ChatMessage[] = [
                 ...history,
                 { role: "user", content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message },
