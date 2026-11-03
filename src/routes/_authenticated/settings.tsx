@@ -5,7 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { toast } from "sonner";
-import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
+import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink, Cpu, Link2, Wrench, User, CheckCircle2 } from "lucide-react";
+import { SetupOverview } from "@/components/SetupOverview";
 import { TOKEN_LINKS, hasTokenLink } from "@/lib/token-links";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -93,9 +94,10 @@ function SettingsPage() {
     <div className="min-h-screen">
       <AppHeader><span className="text-sm text-muted-foreground">Settings</span></AppHeader>
       <main className="mx-auto max-w-4xl space-y-5 p-3 sm:space-y-7 sm:p-6 lg:p-8">
-        <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 text-sm" role="tablist">
-          {([["profile", "Profile"], ["ai", "AI models"], ["accounts", "Accounts"], ["tools", "Tools & skills"]] as const).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => pickTab(k)} className={`flex-1 rounded-md px-3 py-2 ${tab === k ? "bg-accent text-primary" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+        <SetupOverview creds={creds.data} onPick={pickTab} />
+        <div className="sticky top-14 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-full border bg-card/90 p-1 text-sm shadow-sm backdrop-blur" role="tablist">
+          {([["ai", "AI models", Cpu], ["accounts", "Accounts", Link2], ["tools", "Tools & skills", Wrench], ["profile", "Profile", User]] as const).map(([k, label, Icon]) => (
+            <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => pickTab(k)} className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 font-medium transition-colors ${tab === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}><Icon className="size-3.5" />{label}</button>
           ))}
         </div>
         {tab === "profile" ? <ProfileSettings /> : tab === "tools" ? (
@@ -114,18 +116,21 @@ function SettingsPage() {
           <p className="mt-1 text-sm text-muted-foreground">{tab === "ai" ? "Keys are verified, encrypted and never displayed again." : "Connect your own GitHub, Supabase and Vercel accounts. Each project can use its own selected accounts."}</p></div></div>
           {tab === "accounts" && <OneClickConnect />}
           <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
-            <div className="space-y-1.5">
-              <Label>Service</Label>
-              <Select value={svc} onValueChange={(v) => setProvider(v as ProviderId)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {tab === "ai" ? AI_PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>) : (<>
-                    <SelectItem value="github">GitHub token</SelectItem>
-                    <SelectItem value="vercel">Vercel token</SelectItem>
-                  </>)}
-                </SelectContent>
-              </Select>
-              {tab === "accounts" && <p className="text-xs text-muted-foreground">The database (Supabase) has no token to paste — use the one-click sign-in above.</p>}
+            <div className="space-y-2">
+              <Label>{tab === "ai" ? "Choose a provider" : "Add a token"}</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(tab === "ai" ? AI_PROVIDERS.map((p) => ({ id: p.id as ProviderId, name: p.id === "compatible" ? "Custom / Ollama" : p.name })) : [{ id: "github" as ProviderId, name: "GitHub" }, { id: "vercel" as ProviderId, name: "Vercel" }]).map((p) => {
+                  const count = creds.data?.filter((c) => c.provider === p.id).length ?? 0;
+                  return (
+                    <button key={p.id} type="button" onClick={() => setProvider(p.id)} aria-pressed={svc === p.id} className={`relative min-w-0 rounded-xl border p-3 text-left transition-all ${svc === p.id ? "border-primary bg-accent/60 ring-2 ring-primary/20" : "bg-background hover:border-primary/40 hover:bg-accent/30"}`}>
+                      <span className="block truncate text-sm font-medium">{p.name}</span>
+                      <span className="text-xs text-muted-foreground">{count ? `${count} connected` : "Not connected"}</span>
+                      {count > 0 && <CheckCircle2 className="absolute right-2 top-2 size-3.5 text-success" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {tab === "accounts" && <p className="text-xs text-muted-foreground">The database has no token to paste — use the one-click sign-in above.</p>}
             </div>
             {provider === "compatible" && (
               <div className="space-y-1.5">
