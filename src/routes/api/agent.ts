@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import type { ModelMessage } from "ai";
 import { parseGateLog } from "@/lib/engine/qa-gate";
+import { evaluateBudget, formatBudgetResult, parseAssetListing, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
 import { merge3 } from "@/lib/diff-engine";
 import { indexFile, isIndexable, lookupSymbol, type SymbolEntry } from "@/lib/engine/symbol-index";
 // Content-addressed check cache: a commit that already passed checks need not be rechecked (per worker isolate).
