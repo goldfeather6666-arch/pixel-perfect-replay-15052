@@ -90,9 +90,53 @@ async function projectSecretLines(session: Session): Promise<string[]> {
   } catch { return []; }
 }
 
+/** Lists the database projects of the task's pinned database account (names/refs only). */
+export async function listTaskDatabases(userId: string, accounts: unknown) {
+  const { accountToken } = await import("./accounts.server");
+  const tok = await accountToken(await admin(), userId, "supabase", accounts);
+  if (!tok) return null;
+  const { SupabaseMgmt } = await import("./integrations.server");
+  return new SupabaseMgmt(tok).projects();
+}
+
+/** Links a database project to a task (owner-checked). Clears migration tracking when the project changes. */
+export async function linkTaskDatabase(userId: string, taskId: string, ref: string) {
+  const db = await admin();
+  const { data: row } = await db.from("agent_sessions").select("supabase_ref, applied_migrations, accounts").eq("id", taskId).eq("user_id", userId).maybeSingle();
+  if (!row) throw new Error("Task not found");
+  const projects = await listTaskDatabases(userId, row.accounts);
+  if (!projects) throw new Error("No database account is connected. Connect it in Settings → Accounts.");
+  if (!projects.some((p) => p.ref === ref)) throw new Error("That database is not in the connected account");
+  await db.from("agent_sessions").update({ supabase_ref: ref, applied_migrations: row.supabase_ref === ref ? row.applied_migrations : [] }).eq("id", taskId).eq("user_id", userId);
+  return ref;
+}
+
+/** Finds the task's database: the saved link, else the repo's last link, else the only project in the connected account. */
+export async function resolveTaskDatabaseRef(session: Session & { supabase_ref?: string | null; accounts?: unknown }): Promise<{ ref: string | null; reason?: string }> {
+  const db = await admin();
+  const { data: cur } = await db.from("agent_sessions").select("supabase_ref, accounts").eq("id", session.id).eq("user_id", session.user_id).maybeSingle();
+  if (cur?.supabase_ref) return { ref: cur.supabase_ref };
+  const accounts = cur?.accounts ?? session.accounts;
+  try {
+    const projects = await listTaskDatabases(session.user_id, accounts);
+    if (!projects) return { ref: null, reason: "no database account is connected (Settings → Accounts)" };
+    const { data: prev } = await db.from("agent_sessions").select("supabase_ref").eq("user_id", session.user_id).eq("repo", session.repo).not("supabase_ref", "is", null).order("updated_at", { ascending: false }).limit(1);
+    const inherited = prev?.[0]?.supabase_ref as string | undefined;
+    const pick = inherited && projects.some((p) => p.ref === inherited) ? inherited : projects.length === 1 ? projects[0]!.ref : null;
+    if (!pick) return { ref: null, reason: projects.length ? `several databases exist (${projects.map((p) => p.name).join(", ")}); the agent can call link_database or choose one in Publish → Database` : "the connected database account has no projects yet" };
+    await db.from("agent_sessions").update({ supabase_ref: pick }).eq("id", session.id).eq("user_id", session.user_id).is("supabase_ref", null);
+    return { ref: pick };
+  } catch { return { ref: null, reason: "the database account could not be read; reconnect it" }; }
+}
+
 /** Database lines, or a reason why they could not be supplied. */
 async function databaseLines(session: Session & { supabase_ref?: string | null }): Promise<string[] | string> {
-  if (!session.supabase_ref) return "no database is linked to this task (Publish → Database)";
+  if (!session.supabase_ref) {
+    const r = await resolveTaskDatabaseRef(session);
+    if (!r.ref) return r.reason ?? "no database is linked to this task (Publish → Database)";
+    session = { ...session, supabase_ref: r.ref };
+  }
+  if (!session.supabase_ref) return "no database is linked to this task";
   try {
     const { loadDatabaseSettings } = await import("./deployment-settings.server");
     const { deploymentEnv, isPublicDatabaseKey } = await import("./deployment-env");
