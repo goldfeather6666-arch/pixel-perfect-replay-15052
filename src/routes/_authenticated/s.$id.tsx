@@ -24,7 +24,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { SwarmMatrix } from "@/components/SwarmMatrix";
 import { KnowledgeDirector } from "@/components/KnowledgeDirector";
 import { FileWorkbench } from "@/components/FileWorkbench";
-import { applyHunks, diffFile, type Hunk } from "@/lib/diff-engine";
+import { applyHunks, diffFile, groupByIntent, type Hunk } from "@/lib/diff-engine";
 import { MAX_PROMPT_CHARS, promptCapacity, promptError } from "@/lib/agent-request";
 import { STALE_MS, taskRunStatus } from "@/lib/task-run-status";
 import { ATTACH_ACCEPT, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, attachmentType } from "@/lib/agent-request";
@@ -858,7 +858,22 @@ function PendingApprovals({ id, pending, onResolved }: { id: string; pending: Pe
       <Button size="sm" variant="outline" onClick={() => resolveM.mutate({ approve: false })} disabled={resolveM.isPending}><X /> Reject all</Button>
       <Button size="sm" onClick={() => resolveM.mutate({ approve: true })} disabled={resolveM.isPending}><Check /> Approve & commit</Button>
     </div>
-    {pending.map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+    {groupByIntent(pending.map((c) => ({ oldPath: c.path, newPath: c.path, isNew: c.original == null, isDeleted: c.action === "delete", isRename: false, hunks: [], additions: 0, deletions: 0 }))).map((g) => {
+      const paths = g.files.map((f) => f.newPath);
+      return (
+        <div key={g.intent} className="overflow-hidden rounded-md border bg-card">
+          <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-xs">
+            <span className="flex-1 truncate font-mono font-medium">{g.intent}</span>
+            <span className="text-muted-foreground">{paths.length} file{paths.length === 1 ? "" : "s"}</span>
+            {paths.length > 1 && <>
+              <Button size="sm" variant="ghost" className="h-6 px-2" disabled={resolveM.isPending} onClick={() => resolveM.mutate({ approve: false, paths })} aria-label={`Reject all in ${g.intent}`}><X /></Button>
+              <Button size="sm" variant="ghost" className="h-6 px-2" disabled={resolveM.isPending} onClick={() => resolveM.mutate({ approve: true, paths })} aria-label={`Accept all in ${g.intent}`}><Check /></Button>
+            </>}
+          </div>
+          {pending.filter((c) => paths.includes(c.path)).map((c) => <PendingView key={c.path} c={c} busy={resolveM.isPending} onAccept={(edited) => acceptOne(c, edited)} onReject={() => resolveM.mutate({ approve: false, paths: [c.path] })} />)}
+        </div>
+      );
+    })}
   </section>;
 }
 
