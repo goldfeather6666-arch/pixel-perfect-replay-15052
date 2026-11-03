@@ -17,9 +17,9 @@ export const TOOL_POLICY: Record<string, ToolPolicy> = {
   write_file: R("reversible_write", true), write_files: R("reversible_write", true),
   save_memory: R("reversible_write", true), remember: R("reversible_write"), update_spec: R("reversible_write"),
   suggest_improvement: R("reversible_write"), ask_user: R("reversible_write"), share_file: R("reversible_write"),
-  run_command: R("reversible_write"), preview_start: R("reversible_write", true), preview_restart: R("reversible_write", true),
-  preview_stop: R("reversible_write", true), apply_proposals: R("reversible_write"), delegate: R("reversible_write"),
-  review_vercel_issues: R("reversible_write"), request_secret: R("external_effect"),
+  run_command: R("reversible_write", true), preview_start: R("reversible_write", true), preview_restart: R("reversible_write", true),
+  preview_stop: R("reversible_write", true), apply_proposals: R("reversible_write", true), delegate: R("reversible_write"),
+  review_vercel_issues: R("reversible_write", true), request_secret: R("external_effect"),
   delete_file: R("destructive", true), apply_migrations: R("destructive"),
   tool_invoke: R("external_effect"),
 };
