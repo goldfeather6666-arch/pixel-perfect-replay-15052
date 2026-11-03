@@ -1,5 +1,5 @@
 /** Silence, not elapsed task duration, determines whether an execution is stuck. */
-export const NO_PROGRESS_MS = 2 * 60_000;
+export const NO_PROGRESS_MS = 60_000;
 /**
  * Slow BYOK services (free shared tiers) can take 90s+ before the first byte of a reply.
  * While a model request is open and nothing has arrived yet, allow this longer bounded window.
