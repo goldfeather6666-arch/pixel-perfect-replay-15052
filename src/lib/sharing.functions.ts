@@ -109,3 +109,30 @@ export const saveNotifySettings = createServerFn({ method: "POST" }).middleware(
     if (data.url && data.test) await notify(context, "Forge notifications are connected 🎉");
     return { ok: true };
   });
+
+// ---------- Budget CI gate ----------
+/** Owner-clicked: commits the budget CI gate (and a starter budget.json when none exists) to this task's branch only. */
+export const installBudgetGate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(idIn.extend({ root: z.string().max(200).regex(/^[\w./-]*$/).refine((r) => !r.includes("..")).default(".") }))
+  .handler(async ({ data, context }) => {
+    const { data: s, error } = await context.supabase.from("agent_sessions").select("id, repo, work_branch, accounts, running").eq("id", data.id).eq("user_id", context.userId).single();
+    if (error || !s) throw new Error("Task not found");
+    if (s.running) throw new Error("Wait until the build finishes.");
+    const { accountToken } = await import("./accounts.server");
+    const key = await accountToken(context.supabase, context.userId, "github", s.accounts);
+    if (!key) throw new Error("Connect this task's GitHub account first.");
+    const { GitHub } = await import("./github.server");
+    const { budgetCheckScript, budgetWorkflow, BUDGET_SCRIPT_PATH, BUDGET_WORKFLOW_PATH } = await import("./budget-ci");
+    const gh = new GitHub(key);
+    const root = data.root.replace(/^\.\/?|\/$/g, "");
+    const budgetPath = root ? `${root}/budget.json` : "budget.json";
+    const files: string[] = [];
+    await gh.putFile(s.repo, s.work_branch, BUDGET_SCRIPT_PATH, budgetCheckScript(), "ci: add Forge performance budget check"); files.push(BUDGET_SCRIPT_PATH);
+    await gh.putFile(s.repo, s.work_branch, BUDGET_WORKFLOW_PATH, budgetWorkflow(root || "."), "ci: enforce budget.json on pull requests"); files.push(BUDGET_WORKFLOW_PATH);
+    if (!(await gh.getFile(s.repo, s.work_branch, budgetPath))) {
+      await gh.putFile(s.repo, s.work_branch, budgetPath, JSON.stringify({ lcpMs: 2500, cls: 0.1, jsKb: 300, totalKb: 400 }, null, 2) + "\n", "chore: add starter performance budget");
+      files.push(budgetPath);
+    }
+    await audit(context, "budget_gate.installed", s.id, { files, branch: s.work_branch });
+    return { files, branch: s.work_branch };
+  });
