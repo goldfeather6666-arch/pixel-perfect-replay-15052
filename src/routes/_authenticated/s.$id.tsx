@@ -241,22 +241,16 @@ function Workspace() {
   }, [stale, running, stopping, sd?.updated_at]);
 
 
-  // Messages typed while the agent works wait here and are sent, in order, once it finishes.
-  const [queued, setQueued] = useState<string[]>([]);
-  useEffect(() => {
-    if (running || bgRunning || stopping || sendLockRef.current || !queued.length) return;
-    const [next, ...rest] = queued;
-    setQueued(rest);
-    void send(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, bgRunning, stopping, queued]);
-
   async function send(override?: string, forcePlan?: boolean, publish?: boolean) {
     let text = (override ?? input).trim();
-    if (text && override === undefined && (running || bgRunning) && !images.length) {
-      setQueued((q) => [...q, text]);
+    if (text && override === undefined && (running || bgRunning)) {
+      // Live chat: the running agent reads this before its next step — no waiting, no queue.
+      const sentText = text;
       setInput("");
-      toast.info("Got it — this message will be sent as soon as the current step finishes.");
+      setMessages((ms) => { const last = ms.at(-1); return last?.role === "assistant" ? [...ms.slice(0, -1), { role: "user", content: sentText }, last] : [...ms, { role: "user", content: sentText }]; });
+      const { error } = await supabase.from("session_interjections").insert({ session_id: id, content: sentText });
+      if (error) { setInput(sentText); toast.error(`Message not delivered: ${error.message}`); }
+      else if (images.length) toast.info("Attachments can only be sent with a new run; your text reached the agent.");
       return;
     }
     // State updates render asynchronously; this ref closes the same-tick double-submit race.
@@ -561,7 +555,6 @@ function Workspace() {
               </div>
             )}
             <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={stopping} />
-            {queued.length > 0 && <div className="mx-auto mb-2 flex max-w-3xl flex-col gap-1">{queued.map((q, i) => <div key={i} className="flex items-center gap-2 rounded-lg border border-dashed bg-secondary/50 px-3 py-1.5 text-xs"><span className="shrink-0 text-muted-foreground">Queued</span><span className="min-w-0 flex-1 truncate">{q}</span><button type="button" aria-label="Remove queued message" onClick={() => setQueued((x) => x.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></div>)}</div>}
             <MentionPicker sessionId={id} text={input} caret={caret} onPick={(t, c) => { setInput(t); setCaret(c); requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(c, c); }); }} />
             <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
               <PromptInputTextarea
@@ -580,7 +573,7 @@ function Workspace() {
               <PromptInputFooter className="px-3 pb-3">
                 <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
                 {(running || bgRunning) && <Button type="button" size="icon" variant="outline" className="ml-auto size-10" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>}
-                <PromptInputSubmit className="size-10" status="ready" aria-label={running || bgRunning ? "Queue message" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
+                <PromptInputSubmit className="size-10" status="ready" aria-label={running || bgRunning ? "Send to agent now" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
               </PromptInputFooter>
             </PromptInput>
             <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
