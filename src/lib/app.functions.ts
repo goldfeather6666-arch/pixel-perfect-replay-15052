@@ -8,6 +8,7 @@ import { inspectSkillText, skillUsable, type SkillRegistry } from "./free-skills
 import { aggregateModelStats } from "./model-stats";
 import { buildReproBundle } from "./repro-bundle";
 import { tagAuthorship } from "./authorship";
+import { verificationHistory, type VerificationEvent } from "./verification-history";
 
 type Ctx = { supabase: any; userId: string };
 
@@ -408,6 +409,20 @@ export const getDiff = createServerFn({ method: "POST" })
       ? await context.supabase.from("change_provenance").select("path, blob_sha").eq("session_id", s.id).in("path", paths.slice(0, 300))
       : { data: [] as { path: string; blob_sha: string | null }[] };
     return { ...diff, authorship: tagAuthorship(diff.files, (prov ?? []) as { path: string; blob_sha: string | null }[]) };
+  });
+
+export const getVerificationHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const s = await session(context, data.id);
+    const { data: events, error } = await context.supabase.from("agent_events")
+      .select("seq, run_id, type, payload, created_at")
+      .eq("session_id", s.id).eq("user_id", context.userId)
+      .in("type", ["budget.check", "policy.check"])
+      .order("created_at", { ascending: false }).limit(50);
+    if (error) throw new Error("Could not read verification history.");
+    return verificationHistory((events ?? []).map((event) => ({ ...event, id: `${event.run_id}:${event.seq}` })) as VerificationEvent[]);
   });
 
 /** Bug autopsy: a repro artifact for this task's most recent run — environment, redacted evidence,
