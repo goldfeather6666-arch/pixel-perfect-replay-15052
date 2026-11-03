@@ -40,6 +40,7 @@ import { CopyTextButton } from "@/components/CopyTextButton";
 import { FileProvenance } from "@/components/FileProvenance";
 import { BugAutopsy } from "@/components/BugAutopsy";
 import { MaintenancePanel } from "@/components/MaintenancePanel";
+import { ReviewPanel, SharePanel } from "@/components/ReviewShare";
 import { VerificationHistory } from "@/components/VerificationHistory";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
@@ -449,6 +450,8 @@ function Workspace() {
       case "changes": return (
         <>
           <ChangesView id={id} pending={pending} onResolved={(rem) => { setPending(rem ?? []); qc.invalidateQueries({ queryKey: ["diff", id] }); qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
+          <ReviewPanel id={id} running={running || bgRunning} />
+          <SharePanel id={id} />
           <MemoryView repo={s.repo} />
           <BugAutopsy id={id} onReplay={(text) => void send(text)} />
           <VerificationHistory id={id} running={running || bgRunning} />
