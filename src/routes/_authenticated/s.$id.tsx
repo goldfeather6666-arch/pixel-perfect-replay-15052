@@ -91,6 +91,9 @@ function Workspace() {
     queryFn: () => fetchSession({ data: { id } }),
     // While a run continues in the background (tab was closed/reopened), follow its saved progress.
     refetchInterval: running ? false : 3000,
+    refetchIntervalInBackground: true,
+    retry: (n) => n < 10,
+    retryDelay: (n) => Math.min(10_000, 1000 * 2 ** n),
   });
   const sd = session.data;
   // The server beats every 30s while alive; no beat for 2 min means the run died (e.g. hosting cut it off).
@@ -172,6 +175,42 @@ function Workspace() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages.length, pending.length]);
   useEffect(() => { taRef.current?.focus(); }, [running]);
   useEffect(() => { if (!running && !sd?.running) setStopping(false); }, [running, sd?.running]);
+  // Network comes back / app reopened / window refocused: resync saved progress right away.
+  useEffect(() => {
+    const resync = () => { if (document.visibilityState === "visible") void qc.invalidateQueries({ queryKey: ["session", id] }); };
+    window.addEventListener("online", resync);
+    window.addEventListener("focus", resync);
+    window.addEventListener("pageshow", resync);
+    document.addEventListener("visibilitychange", resync);
+    const offline = () => toast.info("You're offline — the agent keeps working. Progress will sync when you're back.");
+    window.addEventListener("offline", offline);
+    return () => {
+      window.removeEventListener("online", resync);
+      window.removeEventListener("focus", resync);
+      window.removeEventListener("pageshow", resync);
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("offline", offline);
+    };
+  }, [qc, id]);
+
+  /** The server keeps running after a dropped stream; follow its saved progress instead of failing. */
+  async function followIfStillRunning(): Promise<boolean> {
+    if (manualStopRef.current) return false;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const fresh = await fetchSession({ data: { id } });
+        if (fresh?.running) {
+          qc.setQueryData(["session", id], fresh);
+          toast.info("Connection dropped — the agent is still working. Following live progress.");
+          return true;
+        }
+        return false;
+      } catch {
+        await new Promise((r) => setTimeout(r, Math.min(8000, 1000 * 2 ** i)));
+      }
+    }
+    return false;
+  }
 
   async function stopWork() {
     if (stopping) return;
