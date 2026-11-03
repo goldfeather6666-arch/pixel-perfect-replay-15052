@@ -72,6 +72,7 @@ export const Route = createFileRoute("/api/agent")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const prepStart = Date.now();
         const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
         if (!token) return new Response("Unauthorized", { status: 401 });
         const sb = userClient(token);
@@ -121,6 +122,15 @@ export const Route = createFileRoute("/api/agent")({
         const repo: string = s.repo;
         const branch: string = s.work_branch;
         const autonomy = asAutonomy(s.mode);
+        // Speed: independent reads start together instead of one after another (each is a network round trip).
+        const prefetch = {
+          mem: sb.from("repo_memory").select("notes, updated_at").eq("user_id", u.user.id).eq("repo", repo).maybeSingle(),
+          rawMem: sb.from("project_memories").select("id, category, content, updated_at, confidence, status, expires_at, source_ref").eq("user_id", u.user.id).eq("repo", repo).order("updated_at", { ascending: false }).limit(300),
+          prev: sb.from("agent_runs").select("id, objective, stage, started_at, ended_at").eq("session_id", sessionId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
+          skills: sb.from("skills").select("name, instructions, source, registry").eq("user_id", u.user.id).eq("enabled", true),
+          skillHistory: sb.from("skill_executions").select("skill_name, agent_runs(outcome)").eq("user_id", u.user.id).eq("status", "loaded").order("created_at", { ascending: false }).limit(300),
+          docs: Promise.all(["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"].map((f) => gh.getFile(repo, branch, f).then((d) => (d ? { f, d } : null), () => null))),
+        };
         // "supervised" (level 1) stages every write; other levels decide per action below.
         const supervised = autonomy === "supervised";
         const caps = modelCaps(s.model);
@@ -182,9 +192,9 @@ export const Route = createFileRoute("/api/agent")({
         };
         // Runs keep going if the browser disconnects (background tasks); only an explicit stop cancels.
         const runAbort = new AbortController();
-        const { data: mem } = await sb.from("repo_memory").select("notes, updated_at").eq("user_id", u.user.id).eq("repo", repo).maybeSingle();
+        const { data: mem } = await prefetch.mem;
         let memoryNotes: string = mem?.notes ?? "";
-        const { data: rawMem } = await sb.from("project_memories").select("id, category, content, updated_at, confidence, status, expires_at, source_ref").eq("user_id", u.user.id).eq("repo", repo).order("updated_at", { ascending: false }).limit(300);
+        const { data: rawMem } = await prefetch.rawMem;
         const allMem = liveMemories(rawMem ?? []);
         const { rankMemories } = await import("@/lib/engine/memory-rank");
         const typedMem = rankMemories(allMem ?? [], message, 40);
@@ -192,7 +202,7 @@ export const Route = createFileRoute("/api/agent")({
         let resumeContext = "";
         let resumedFrom: string | null = null;
         {
-          const { data: prev } = await sb.from("agent_runs").select("id, objective, stage, started_at, ended_at").eq("session_id", sessionId).order("started_at", { ascending: false }).limit(1).maybeSingle();
+          const { data: prev } = await prefetch.prev;
           const { isInterrupted, buildCheckpoint } = await import("@/lib/engine/checkpoint");
           if (prev && isInterrupted(prev, false)) {
             const { data: evs } = await sb.from("agent_events").select("type, payload").eq("run_id", prev.id).order("seq", { ascending: true }).limit(2000);
@@ -918,7 +928,7 @@ export const Route = createFileRoute("/api/agent")({
         if (chat) { for (const k of CHAT_REMOVED_TOOLS) delete (tools as Record<string, unknown>)[k]; }
 
         // Project instructions from the repo + the user's enabled skills.
-        const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions, source, registry").eq("user_id", u.user.id).eq("enabled", true);
+        const { data: skills, error: skillsError } = await prefetch.skills;
         const { freeSkillLibrary, platformSkillLibrary, skillUsable } = await import("@/lib/free-skills");
         const { agentSkills } = await import("@/lib/agent-skills");
         if (skillsError) return new Response("Could not load your saved skills. Please retry.", { status: 503 });
@@ -926,7 +936,7 @@ export const Route = createFileRoute("/api/agent")({
         const builtInNames = new Set(builtInSkills.map((skill) => skill.name.toLowerCase()));
         const allSkills = [...builtInSkills, ...(skills ?? []).filter((skill) => !builtInNames.has(skill.name.toLowerCase()) && skillUsable(skill))];
         const metas = allSkills.map((sk) => parseSkill(sk.name, sk.instructions));
-        const { data: skillHistory } = await sb.from("skill_executions").select("skill_name, agent_runs(outcome)").eq("user_id", u.user.id).eq("status", "loaded").order("created_at", { ascending: false }).limit(300);
+        const { data: skillHistory } = await prefetch.skillHistory;
         const { skillStats } = await import("@/lib/engine/skill-stats");
         const picked = selectSkills(message, metas, skillStats((skillHistory ?? []).map((r) => ({ skill_name: r.skill_name, outcome: (r.agent_runs as { outcome?: string | null } | null)?.outcome ?? null }))));
         // The built-in deployment skill is always loaded for code-changing runs.
@@ -946,10 +956,8 @@ export const Route = createFileRoute("/api/agent")({
         savedSkillContext = skillAccess.context;
         savedSkillTools = skillAccess.tools;
         let projectDoc = "";
-        for (const f of ["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"]) {
-          const doc = await gh.getFile(repo, branch, f).catch(() => null);
-          if (doc) { projectDoc = `\n\n<project_instructions file="${f}">\n${doc.content.slice(0, 12000)}\n</project_instructions>`; break; }
-        }
+        const firstDoc = (await prefetch.docs).find(Boolean);
+        if (firstDoc) projectDoc = `\n\n<project_instructions file="${firstDoc.f}">\n${firstDoc.d.content.slice(0, 12000)}\n</project_instructions>`;
         let pinned = "";
         for (const path of mentioned.file.filter(mentionPathOk).slice(0, 6)) {
           const f = await gh.getFile(repo, branch, path).catch(() => null);
@@ -1019,7 +1027,7 @@ export const Route = createFileRoute("/api/agent")({
         rec.mark("discover");
         rec.to("DISCOVERING", "Loading project context, skills and external tools");
         if (resumedFrom) rec.event("run.resumed", { from: resumedFrom });
-        rec.event("context.loaded", { repoMemory: !!memoryNotes, typedMemories: typedMem.length, savedMemories: allMem?.length ?? 0, projectDoc: !!projectDoc, history: history.length, keptMessages: recent.length, droppedForBudget: fitted.dropped, contextWindow: caps.contextWindow, modelKnown: caps.known });
+        rec.event("context.loaded", { prepMs: Date.now() - prepStart, repoMemory: !!memoryNotes, typedMemories: typedMem.length, savedMemories: allMem?.length ?? 0, projectDoc: !!projectDoc, history: history.length, keptMessages: recent.length, droppedForBudget: fitted.dropped, contextWindow: caps.contextWindow, modelKnown: caps.known });
         // Only loaded skills get their own record; the other ~140 listed skills are counted in the summary event,
         // so recording no longer queues 100+ writes ahead of the run's live events.
         for (const sk of allSkills) if (loadedNames.has(sk.name)) rec.skill({ name: sk.name, hash: skillHashes.get(sk.name) ?? "", status: "loaded", reason: skillReasons.get(sk.name) ?? "selected" });

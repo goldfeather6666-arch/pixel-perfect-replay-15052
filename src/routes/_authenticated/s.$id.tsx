@@ -290,14 +290,18 @@ function Workspace() {
     abortRef.current = ac;
     let backgrounded = false;
     try {
-      // A fresh token gives the cloud-kept run a full hour of access.
-      const refreshed = await supabase.auth.refreshSession().catch(() => null);
-      const token = refreshed?.data.session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token;
-      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, mode: publish ? "build" : plan ? "plan" : forcePlan === false ? "build" : chatMode, publish: !!publish, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
-      // Prefer a cloud-kept run so work continues when the phone sleeps or switches apps.
-      const bg = await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
-      if (!bg.ok) throw new Error(await bg.text());
-      if ((await bg.json() as { mode?: string }).mode === "background") {
+      const runMode = publish ? "build" : plan ? "plan" : forcePlan === false ? "build" : chatMode;
+      // Chat replies stream straight back for an instant answer; plan/build runs go to a cloud keeper so
+      // long work survives the phone sleeping (that keeper needs a fresh token and takes a few seconds to start).
+      const direct = runMode === "chat";
+      const current = (await supabase.auth.getSession()).data.session;
+      const expiresSoon = !current?.expires_at || current.expires_at * 1000 - Date.now() < 50 * 60_000;
+      const refreshed = !direct && expiresSoon ? await supabase.auth.refreshSession().catch(() => null) : null;
+      const token = refreshed?.data.session?.access_token ?? current?.access_token;
+      const body = JSON.stringify((runPlan.current = plan, { sessionId: id, message: text, plan, mode: runMode, publish: !!publish, images: sentImages.map(({ mediaType, data, name }) => ({ mediaType, data, name })) }));
+      const bg = direct ? null : await fetch("/api/agent-background", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: ac.signal });
+      if (bg && !bg.ok) throw new Error(await bg.text());
+      if (bg && (await bg.json() as { mode?: string }).mode === "background") {
         accepted = true;
         backgrounded = true;
         toast.success("Running in the cloud — you can switch apps or lock your phone.");
