@@ -38,6 +38,11 @@ const RECOVERY_WINDOW = 90_000;
 const LOAD_SETTLE_LIMIT = 4_000;
 let pendingReload: number | null = null;
 
+/** True once the tab has reloaded too many times in a row: chasing a server that keeps changing only blanks the screen. */
+export function recoveryExhausted(now: number, attempts: number, windowStart: number) {
+  return attempts >= MAX_RECOVERIES && now - windowStart < RECOVERY_WINDOW;
+}
+
 /**
  * Build the cache-busted document URL, or null when a reload is not allowed.
  * `attempts` counts reloads already made inside the current `windowStart` budget.
@@ -46,7 +51,7 @@ export function chunkRecoveryUrl(href: string, now: number, lastAttempt: number,
   const url = new URL(href);
   const previous = Math.max(lastAttempt || 0, Number(url.searchParams.get("_forge_refresh")) || 0);
   if (now - previous < RELOAD_INTERVAL) return null; // bounded: at most one reload per 15s, so back-to-back preview restarts still recover
-  if (attempts >= MAX_RECOVERIES && now - windowStart < RECOVERY_WINDOW) return null; // budget spent: stop reloading forever
+  if (recoveryExhausted(now, attempts, windowStart)) return null; // budget spent: stop reloading forever
   url.searchParams.set("_forge_refresh", String(now));
   return url.href;
 }
