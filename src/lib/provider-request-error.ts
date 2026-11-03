@@ -1,3 +1,4 @@
+import { planLimitMessage } from "./provider-limits";
 import { googleQuotaMessage } from "./google-quota";
 export function modelConfigurationError(baseUrl: string | null, model: string): string | null {
   let host: string;
@@ -21,6 +22,8 @@ export function providerRequestError(error: unknown): string {
   }
   const gq = googleQuotaMessage(String(e?.message ?? ""));
   if (gq) return gq;
+  const pl = planLimitMessage(String(e?.message ?? ""));
+  if (pl) return pl;
   if (isRateLimit(e)) {
     return "The AI provider's rate limit was reached (usually a cap on generated tokens per minute). Everything done so far is saved — wait a few minutes and send “continue”.";
   }
