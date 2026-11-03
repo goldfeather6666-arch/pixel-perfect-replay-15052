@@ -110,21 +110,21 @@ function SettingsPage() {
             <OwnServerCard />
           </>
         ) : (<>
-        <section className="panel rounded-2xl p-4 sm:p-6">
-          <div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-primary"><ShieldCheck className="size-5" /></div><div><h2 className="font-semibold tracking-tight">{tab === "ai" ? "Connect an AI provider" : "Connect an account"}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{tab === "ai" ? "Keys are verified, encrypted and never displayed again." : "Connect your own GitHub, Supabase and Vercel accounts. Each project can use its own selected accounts."}</p></div></div>
+        <section className="panel rounded-2xl p-3.5 sm:p-5">
+          <div className="flex items-center gap-2.5"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-primary"><ShieldCheck className="size-4" /></div><div className="min-w-0"><h2 className="text-sm font-semibold tracking-tight">{tab === "ai" ? "Connect an AI provider" : "Connect an account"}</h2>
+          <p className="truncate text-xs text-muted-foreground">{tab === "ai" ? "Keys are verified, encrypted and never displayed again." : "Connect your own GitHub, Supabase and Vercel accounts. Each project can use its own selected accounts."}</p></div></div>
           {tab === "accounts" && <OneClickConnect />}
-          <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
+          <form className="mt-4 space-y-4" onSubmit={(e) => { e.preventDefault(); saveM.mutate(); }}>
             <div className="space-y-2">
               <Label>{tab === "ai" ? "Choose a provider" : "Add a token"}</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="flex flex-wrap gap-1.5">
                 {(tab === "ai" ? AI_PROVIDERS.map((p) => ({ id: p.id as ProviderId, name: p.id === "compatible" ? "Custom / Ollama" : p.name })) : [{ id: "github" as ProviderId, name: "GitHub" }, { id: "vercel" as ProviderId, name: "Vercel" }]).map((p) => {
                   const count = creds.data?.filter((c) => c.provider === p.id).length ?? 0;
                   return (
-                    <button key={p.id} type="button" onClick={() => setProvider(p.id)} aria-pressed={svc === p.id} className={`relative min-w-0 rounded-xl border p-3 text-left transition-all ${svc === p.id ? "border-primary bg-accent/60 ring-2 ring-primary/20" : "bg-background hover:border-primary/40 hover:bg-accent/30"}`}>
-                      <span className="block truncate text-sm font-medium">{p.name}</span>
-                      <span className="text-xs text-muted-foreground">{count ? `${count} connected` : "Not connected"}</span>
-                      {count > 0 && <CheckCircle2 className="absolute right-2 top-2 size-3.5 text-success" />}
+                    <button key={p.id} type="button" onClick={() => setProvider(p.id)} aria-pressed={svc === p.id} className={`inline-flex h-9 min-w-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-all ${svc === p.id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:border-primary/40 hover:bg-accent/40"}`}>
+                      {count > 0 && <CheckCircle2 className={`size-3.5 ${svc === p.id ? "" : "text-success"}`} />}
+                      <span className="truncate">{p.name}</span>
+                      {count > 0 && <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${svc === p.id ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground"}`}>{count}</span>}
                     </button>
                   );
                 })}
