@@ -84,6 +84,7 @@ function Workspace() {
   const [tool, setTool] = useState<PanelKey | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [dockPct, setDockPct] = useState(46);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     const move = (ev: PointerEvent) => setDockPct(Math.min(75, Math.max(25, ((window.innerWidth - ev.clientX) / window.innerWidth) * 100)));
@@ -537,7 +538,20 @@ function Workspace() {
           </section>
         </main>
       )}
-      <div className={`${!s ? "hidden " : ""}flex min-h-0 flex-1`}>
+      <div className={`${!s ? "hidden " : ""}flex min-h-0 flex-1 bg-aurora`}
+        onTouchStart={(e) => { if (desktop) return; const t = e.touches[0]!; swipe.current = { x: t.clientX, y: t.clientY }; }}
+        onTouchEnd={(e) => {
+          const st = swipe.current; swipe.current = null;
+          if (desktop || !st) return;
+          const t = e.changedTouches[0]!; const dx = t.clientX - st.x; const dy = t.clientY - st.y;
+          if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          // Ignore swipes that start inside horizontally scrollable areas (code, tables, tab strips).
+          if ((e.target as HTMLElement).closest("pre, table, [data-no-swipe], iframe, textarea")) return;
+          const order: PanelKey[] = ["chat", ...MAIN.map((m) => m[0])];
+          const i = Math.max(0, order.indexOf(view));
+          const next = order[Math.min(order.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1)))]!;
+          if (next !== view) setView(next);
+        }}>
         <section className={`${!desktop && view !== "chat" ? "hidden" : "flex"} min-w-0 flex-1 flex-col`}>
           <Conversation className="min-h-0 flex-1">
             <ConversationContent className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -655,12 +669,12 @@ function Workspace() {
           </div>
         </section>
         {desktop && right && (
-          <aside className="relative flex min-h-0 flex-col border-l bg-card/30" style={{ width: `${dockPct}%` }}>
+          <aside className="relative m-2 ml-0 flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-[var(--workspace-shadow)]" style={{ width: `${dockPct}%` }}>
             <div role="separator" aria-label="Resize panels" onPointerDown={startResize} className="absolute -left-1 top-0 z-20 h-full w-2 cursor-col-resize hover:bg-primary/30" />
             <div role="tablist" aria-label="Canvas" className="flex items-center gap-1 border-b px-2 py-1.5">
-              <div className="flex rounded-lg bg-muted p-0.5">
+              <div className="flex rounded-full bg-muted p-0.5">
                 {MAIN.map(([k, label, Icon]) => (
-                  <button key={k} type="button" role="tab" aria-selected={right === k} onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${right === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                  <button key={k} type="button" role="tab" aria-selected={right === k} onClick={() => setRight(k)} className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${right === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                     <Icon className="h-3.5 w-3.5" />{label}
                     {k === "changes" && pending.length > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{pending.length}</span>}
                   </button>
@@ -689,10 +703,10 @@ function Workspace() {
         {!desktop && view !== "chat" && <div className="min-h-0 flex-1 overflow-y-auto">{renderPanel(view)}</div>}
       </div>
       {!desktop && (
-        <nav className="glass flex shrink-0 overflow-x-auto border-t px-1 pb-[env(safe-area-inset-bottom)]" aria-label="Workspace panels">
+        <nav className="glass mx-2 mb-[calc(env(safe-area-inset-bottom)+0.4rem)] flex shrink-0 overflow-x-auto rounded-2xl border px-1 shadow-[var(--workspace-shadow)]" aria-label="Workspace panels">
           {([["chat", "Chat", MessageSquare] as const, ...MAIN]).map(([k, label, Icon]) => (
-            <button key={k} type="button" onClick={() => setView(k)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${view === k ? "text-primary" : "text-muted-foreground"}`}>
-              <Icon className="h-5 w-5" />{label}
+            <button key={k} type="button" onClick={() => setView(k)} className={`relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] transition-colors ${view === k ? "text-primary" : "text-muted-foreground"}`}>
+              <span className={`grid h-7 w-12 place-items-center rounded-full transition-colors ${view === k ? "bg-accent" : ""}`}><Icon className="h-[18px] w-[18px]" /></span>{label}
               {k === "chat" && (running || bgRunning) && <span className="absolute right-1/3 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />}
               {k === "changes" && pending.length > 0 && <span className="absolute right-1/4 top-1 rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{pending.length}</span>}
             </button>
