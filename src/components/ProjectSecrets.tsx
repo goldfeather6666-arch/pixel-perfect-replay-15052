@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSecretRequest, listSecretRequests, submitSecretRequest, cancelSecretRequest } from "@/lib/project-setup.functions";
 import type { SecretRequestSummary } from "@/lib/project-setup";
+import { isStaleServerFunctionError, recoverChunkLoad } from "@/lib/chunk-recovery";
 
 export function ProjectSecrets({ taskId, busy = false, onSend, allowCreate = false }: { taskId: string; busy?: boolean; onSend?: (message: string) => void; allowCreate?: boolean }) {
   const list = useServerFn(listSecretRequests);
-  const q = useQuery({ queryKey: ["project-secrets", taskId], queryFn: () => list({ data: { taskId } }), refetchInterval: 5000, retry: false, throwOnError: false });
+  const q = useQuery({ queryKey: ["project-secrets", taskId], queryFn: async () => { try { return await list({ data: { taskId } }); } catch (e) { if (isStaleServerFunctionError(e)) recoverChunkLoad(); throw e; } }, refetchInterval: 5000, retry: false, throwOnError: false });
   const [adding, setAdding] = useState(false);
   const pending = q.data?.filter((r) => ["pending", "failed", "saving"].includes(r.state)) ?? [];
   if (!pending.length && !allowCreate) return q.isError ? <p className="text-xs text-muted-foreground">Secret requests could not be checked. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Retry</Button></p> : null;
