@@ -16,6 +16,7 @@ Workflow hardening (env/secret guards, state tracking).
 - Git history check: committed `.env` only ever held public keys (Supabase URL/project ID/publishable key). No commit `b53ce3a` and no `VAULT_KEY` in history [verified, git log].
 
 ## Open decisions / blockers
+- Connection resilience (2026-11-03): agent run is no longer tied to the browser stream — a dead client write is swallowed instead of aborting the run; the workspace refetches saved progress and follows a background run; mobile keep-alive (wake lock + inaudible audio loop) is always-on during runs [verified: code read, build OK]. Completion alerts are page-local Notifications only; real web push (service worker + VAPID + server send) is NOT built [verified: no serviceWorker/PushManager/VAPID anywhere in src].
 - Vault key rotation (commit b53ce3a): that commit is not in this repository. If it lives in another repo, rotate there and set the new value as a server-side secret on the deploy target.
 - gitleaks first CI run unverified (runs on GitHub only).
 
