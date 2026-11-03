@@ -31,6 +31,8 @@ import { actionFollowThrough, ACTION_FOLLOW_THROUGH } from "@/lib/engine/action-
 import { vercelBuildFindings, reviewBuildFindings, type BuildFinding } from "@/lib/vercel-build-review";
 import { secretRequestInput } from "@/lib/project-setup";
 import { CHAT_MODE, CHAT_REMOVED_TOOLS, CHAT_SYSTEM, chatBranchContext, chatOverclaim } from "@/lib/chat-mode";
+/** Extra full step budgets an exhausted run takes automatically before it pauses. */
+const AUTO_CONTINUE_SEGMENTS = 4;
 
 function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
