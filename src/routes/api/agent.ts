@@ -265,6 +265,19 @@ export const Route = createFileRoute("/api/agent")({
         const ledger = new ToolLedger(sessionId);
         let previewReady = false;
         const brokerHooks = { onAmbiguous: (e: { name: string; risk: string; state: string }, kind: string) => rec.event("tool.ambiguous", { tool: e.name, risk: e.risk, sideEffect: e.state, failure: kind }) };
+        // Prompt audit: every file the agent changes keeps the user request that drove it, so any
+        // diff can be traced back to its prompt, the run that made it and that run's evidence.
+        const remember = (path: string, toolName: string, action = "write") => {
+          void sb.from("change_provenance").insert({
+            user_id: u.user.id,
+            session_id: sessionId,
+            run_id: rec?.runId ?? null,
+            path,
+            tool: toolName,
+            action,
+            prompt: message.slice(0, 2000),
+          }).then(() => {}, () => {});
+        };
         const tools = {
           list_files: tool({
             description: "List repository file paths, optionally filtered by a path prefix.",
@@ -373,11 +386,13 @@ export const Route = createFileRoute("/api/agent")({
                 const original = await readCurrent(path);
                 pending.push({ path, action: "write", content, original });
                 invalidateChecks();
+                remember(path, "write_file");
                 return { staged: true, note: "Staged for user approval." };
               }
               const sha = await gh.putFile(repo, branch, path, content, commit_message);
               invalidateChecks();
               treeCache = null;
+              remember(path, "write_file");
               return { committed: sha.slice(0, 7) };
             },
           }),
@@ -394,11 +409,13 @@ export const Route = createFileRoute("/api/agent")({
                 if (staged) staged.content = r.content;
                 else pending.push({ path, action: "write", content: r.content, original: current });
                 invalidateChecks();
+                remember(path, "edit_file");
                 return { staged: true, replaced: r.replaced, note: "Staged for user approval." };
               }
               const sha = await gh.putFile(repo, branch, path, r.content, commit_message);
               invalidateChecks();
               treeCache = null;
+              remember(path, "edit_file");
               return { committed: sha.slice(0, 7), replaced: r.replaced };
             },
           }),
@@ -416,6 +433,7 @@ export const Route = createFileRoute("/api/agent")({
                 } else direct.push(f);
               }
               invalidateChecks();
+              for (const f of files) remember(f.path, "write_files");
               if (!direct.length) return { staged, note: "Staged for user approval." };
               const sha = await gh.putFiles(repo, branch, direct, commit_message);
               treeCache = null;
@@ -429,11 +447,13 @@ export const Route = createFileRoute("/api/agent")({
               if (writeNeedsApproval(autonomy, { path, action: "delete" })) {
                 pending.push({ path, action: "delete", original: await readCurrent(path) });
                 invalidateChecks();
+                remember(path, "delete_file", "delete");
                 return { staged: true };
               }
               const sha = await gh.deleteFile(repo, branch, path, commit_message);
               invalidateChecks();
               treeCache = null;
+              remember(path, "delete_file", "delete");
               return { committed: sha.slice(0, 7) };
             },
           }),
