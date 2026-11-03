@@ -12,8 +12,8 @@ describe("task execution status", () => {
     expect(taskRunStatus({ ...fresh, running: false, keeper_id: "keeper" }, now)).toBe("idle");
     expect(taskRunStatus({ ...fresh, updated_at: "2026-10-31T03:20:00Z", keeper_id: "keeper" }, now)).toBe("stale");
   });
-  it("marks a missing heartbeat stale after one minute", () => {
-    expect(taskRunStatus({ running: true, updated_at: new Date(now - 59_999).toISOString() }, now)).toBe("browser");
-    expect(taskRunStatus({ running: true, updated_at: new Date(now - 60_000).toISOString() }, now)).toBe("stale");
+  it("marks a missing heartbeat stale after three minutes", () => {
+    expect(taskRunStatus({ running: true, updated_at: new Date(now - 179_999).toISOString() }, now)).toBe("browser");
+    expect(taskRunStatus({ running: true, updated_at: new Date(now - 180_000).toISOString() }, now)).toBe("stale");
   });
 });
