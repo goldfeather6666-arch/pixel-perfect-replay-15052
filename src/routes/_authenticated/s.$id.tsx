@@ -707,6 +707,7 @@ function MessageView({ m, live, sessionId }: { m: ChatMessage; live: boolean; se
       {m.content && <MessageContent className="w-full"><MessageResponse isAnimating={live}>{m.content}</MessageResponse></MessageContent>}
       <SharedFiles sessionId={sessionId} tools={m.tools ?? []} />
       {live && !m.content && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+      {!live && !m.content.trim() && !m.tools?.length && <p className="text-xs italic text-muted-foreground">No reply — the model didn't answer before this attempt ended (stopped, replaced by a newer message, or the model's service was too slow).</p>}
     </Message>
   );
 }
