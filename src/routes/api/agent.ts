@@ -1189,7 +1189,7 @@ export const Route = createFileRoute("/api/agent")({
               if (blocker && repairRound < 3 && !exhausted && !runAbort.signal.aborted) {
                 rec.to("REPAIRING", blocker);
                 rec.event("repair.started", { round: repairRound + 1, blocker });
-                messages.push(...(await result.response).messages, { role: "user", content: `Required verification is incomplete: ${blocker} Repair follow-up ${repairRound + 1} of 3. If blocked by missing access or environment, explain exactly what is needed; do not invent success.` });
+                messages.push(...(await result.response).messages, { role: "user", content: `Required verification is incomplete: ${blocker} Repair follow-up ${repairRound + 1} of 3. If blocked by missing access or environment, explain exactly what is needed; do not invent success.${repairRound === 2 ? " This is the LAST automatic attempt: if it still fails, end with three short sections for the user — Issue (plain words), Solution, and How to implement it (numbered steps, naming any setting they must change)." : ""}` });
                 continue;
               }
               if (exhausted && !blocker && autoSegments < autoContinueSegments(taskClass) && !askedThisRun && !runAbort.signal.aborted) {
