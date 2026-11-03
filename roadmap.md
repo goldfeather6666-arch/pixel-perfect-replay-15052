@@ -25,11 +25,11 @@
 - [x] Evidence-backed reports with measured numbers; failure taxonomy (flaky/regression/config)
 
 ## Phase 6 — Approval UX + auto-PR
-- [ ] Guardrail transparency: why an action was blocked
+- [x] Guardrail transparency: why an action was blocked
 - [ ] One-click approve with full context; auto-PR with demo link
 
 ## Phase 7 — Multi-agent coordinator + merge resolver
-- [ ] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
+- [x] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
 
 ## Phase 8 — Plugin/MCP marketplace + VS Code extension (beta, feature-flagged)
 

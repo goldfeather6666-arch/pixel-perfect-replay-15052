@@ -117,7 +117,7 @@ export function brokerTools<T extends Record<string, unknown>>(tools: T, ledger:
             return { deduplicated: true, note: `Identical ${name} call already succeeded in this run; not executed again.`, previous: prior.result };
           }
           if (prior.state === "unknown" || prior.state === "possible") {
-            return { blocked: true, sideEffect: prior.state, note: `A previous identical ${name} call may have taken effect. Read back real state and change the arguments or confirm before retrying.` };
+            return { blocked: true, sideEffect: prior.state, guardrail: { rule: "no-blind-retry", risk: policy.risk, why: `${name} is a ${policy.risk} action that is not safe to repeat, and its earlier identical call ended without a clear result.` }, note: `A previous identical ${name} call may have taken effect. Read back real state and change the arguments or confirm before retrying.` };
           }
         }
         try {
