@@ -843,6 +843,36 @@ export type Database = {
         }
         Relationships: []
       }
+      repo_symbol_index: {
+        Row: {
+          content_hash: string
+          imports: Json
+          path: string
+          repo: string
+          symbols: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content_hash: string
+          imports?: Json
+          path: string
+          repo: string
+          symbols?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content_hash?: string
+          imports?: Json
+          path?: string
+          repo?: string
+          symbols?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       run_resume_secrets: {
         Row: {
           attempts: number
