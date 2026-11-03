@@ -278,7 +278,7 @@ function Dashboard() {
                   onClick={() => setDeleting({ id: s.id, title: s.title, running: kind === "running" })}>
                   <Trash2 className="size-4" />
                 </Button>
-                <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-lg border bg-card p-5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
+                <Link to="/s/$id" params={{ id: s.id }} className={`group block min-h-32 rounded-3xl border bg-card p-5 shadow-[var(--workspace-shadow)] transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${kind === "running" ? "border-success/40" : ""}`}>
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.title}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${kind === "running" ? "bg-accent text-primary" : kind === "needs" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>

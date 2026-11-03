@@ -104,7 +104,7 @@ function SettingsPage() {
         </div>
         {tab === "profile" ? <><ProfileSettings /><NotifySettings /></> : tab === "performance" ? <><ModelPerformance /><FailureIntelligence /></> : tab === "tools" ? (
           <>
-            <section className="rounded-lg border bg-card p-5">
+            <section className="rounded-3xl border bg-card p-5 shadow-[var(--workspace-shadow)]">
               <h2 className="font-semibold">Skills</h2>
               <p className="mt-1 text-sm text-muted-foreground">Reusable instructions the agent follows, saved by you or imported from GitHub.</p>
               <Button asChild variant="secondary" size="sm" className="mt-3"><Link to="/skills">Manage skills</Link></Button>
