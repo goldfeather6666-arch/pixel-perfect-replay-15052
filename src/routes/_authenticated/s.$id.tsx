@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { resumeForcePlan } from "@/lib/approval-resume";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -451,9 +452,9 @@ function Workspace() {
                 <MessageView key={i} sessionId={id} m={m} live={running && i === messages.length - 1} />
               ))}
               <PendingApprovals id={id} pending={pending} onResolved={(rem) => { setPending(rem); void qc.invalidateQueries({ queryKey: ["session", id] }); void qc.invalidateQueries({ queryKey: ["diff", id] }); void qc.invalidateQueries({ queryKey: ["tree", id] }); }} />
-              <McpActionApprovals sessionId={id} chat />
+              <McpActionApprovals sessionId={id} chat busy={running || bgRunning || stopping} onResume={(m) => void send(m, false)} />
               <DatabaseApproval id={id} busy={running || bgRunning || stopping} />
-              <TaskInteractions sessionId={id} busy={running || bgRunning || stopping} onSend={(m) => send(m, false)} />
+              <TaskInteractions sessionId={id} busy={running || bgRunning || stopping} onSend={(m) => send(m, resumeForcePlan(chatMode))} />
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
