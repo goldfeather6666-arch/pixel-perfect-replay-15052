@@ -56,7 +56,9 @@ async function launch(box: import("./runner-box.server").Box, row: { id: string;
     "set -o pipefail",
     `cd ${REPO_DIR}`,
     `[ -f ${dir}/env ] && . ${dir}/env`,
-    install ? `echo "[forge] installing dependencies…"; ${install} || { echo "[forge] install failed"; exit 90; }` : "",
+    // Warm start: skip install when package.json + lockfiles are unchanged since the last good install in this sandbox.
+    install ? `STAMP=$(cat package.json package-lock.json pnpm-lock.yaml yarn.lock bun.lock bun.lockb 2>/dev/null | sha1sum | cut -d" " -f1)` : "",
+    install ? `if [ -d node_modules ] && [ "$(cat node_modules/.forge-install-stamp 2>/dev/null)" = "$STAMP" ]; then echo "[forge] dependencies unchanged — warm start, skipping install"; else echo "[forge] installing dependencies…"; ${install} || { echo "[forge] install failed"; exit 90; }; echo "$STAMP" > node_modules/.forge-install-stamp 2>/dev/null || true; fi` : "",
     appDir ? `cd ${REPO_DIR}/${appDir} && echo "[forge] monorepo app folder: ${appDir}"` : "",
     `echo "[forge] starting ${framework} dev server on port ${row.port}"`,
     `exec env ${RUN_ENV} ${command}`,

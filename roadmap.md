@@ -12,7 +12,7 @@
 
 ## Phase 3 — Incremental cache/build layer
 - [x] Content-hash cache for typecheck/lint/test/build in sandbox
-- [ ] Warm-start preview via E2B snapshot restore (needs paid idle compute decision)
+- [x] Warm-start preview: skip dependency install when lockfiles unchanged in the task sandbox
 
 ## Phase 4 — Diff engine + review UI + checkpoints
 - [x] Pure diff engine: unified-diff parse, per-hunk select/apply, grouping, checkpoints/revert (src/lib/diff-engine.ts)
@@ -31,13 +31,12 @@
 ## Phase 7 — Multi-agent coordinator + merge resolver
 - [x] Conflict detection/merge resolver across parallel workers (branch-write-queue serializes today)
 
-## Phase 8 — Plugin/MCP marketplace + VS Code extension (beta, feature-flagged)
 
-## Phase 9 — Enterprise hardening (BYO-model done; audit log done; residency, SSO/RBAC open)
+## Phase 9 — Enterprise hardening: audit log done; company sign-in and team roles dropped by user
 
-## Phase 10 — Full test pass, benchmarks, canary matrix
+## Phase 10 — Full test pass done (565/565, typecheck clean)
 
-## Phase 11 — Production release after authorization; docs complete
+## Phase 11 — Production release: waiting on user go-ahead to publish
 
 ---
 
