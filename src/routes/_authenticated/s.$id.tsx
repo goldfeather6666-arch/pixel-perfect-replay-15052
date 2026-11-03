@@ -230,7 +230,7 @@ function Workspace() {
     setImages([]);
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission().catch(() => {});
     setRunning(true);
-    lastWasPlan.current = plan;
+    lastWasPlan.current = !publish && (plan || (forcePlan === undefined && chatMode !== "build"));
     setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${text}\n\n📎 ${sentImages.map((im) => im.name).join(", ")}` : text }, { role: "assistant", content: "", tools: [] }]);
     const patchLast = (fn: (m: ChatMessage) => ChatMessage) =>
       setMessages((ms) => { const last = ms.at(-1); return last ? [...ms.slice(0, -1), fn(last)] : ms; });
@@ -457,7 +457,7 @@ function Workspace() {
               <TaskInteractions sessionId={id} busy={running || bgRunning || stopping} onSend={(m) => send(m, resumeForcePlan(chatMode))} />
               {!running && messages.at(-1)?.role === "assistant" && lastWasPlan.current && (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => { lastWasPlan.current = false; setPlanMode(false); send("The plan is approved. Implement it now, then verify with tests.", false); }}><Check /> Approve plan & build</Button>
+                  <Button size="sm" onClick={() => { lastWasPlan.current = false; setChatMode("build"); send("Approved — build what we discussed above now. Do not ask for confirmation again; implement it fully, then verify with tests and a preview.", false); }}><Check /> Build</Button>
                 </div>
               )}
               <div ref={endRef} />

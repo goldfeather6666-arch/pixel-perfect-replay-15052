@@ -61,7 +61,8 @@ Repository memory: if <repo_memory> is provided, trust it as your starting map a
 Communication: work silently. Do NOT narrate steps ("Let me look at…", "Now I'll read…") — tool activity is shown to the user separately in a collapsed panel. Write text only for what matters: the final result, an analysis or plan the user asked for, a question you truly need answered, or a critical blocker.
 Finish with a concise summary of what changed and what was not verified.`;
 
-const CHAT_MODE = `\nCHAT MODE: Discuss, explain and answer questions only. Use read-only tools when helpful. Do NOT write, delete or stage files, start previews, or run changes. Keep replies concise.`;
+const CHAT_MODE = `\nCHAT MODE: Discuss, explain and answer questions only. No workspace, shell, preview or coding tools exist in this mode; you may read repository files when helpful. Do NOT ask the user to type "yes", "go ahead" or similar to start work — when they want it built, they press the Build button. Keep replies concise.`;
+export const CHAT_REMOVED_TOOLS = ["write_file", "write_files", "delete_file", "run_command", "run_checks", "deployment_preflight", "share_file", "request_secret", "apply_migrations", "deploy_status", "review_vercel_issues", "read_proposals", "apply_proposals", "delegate", "preview_start", "preview_diagnose", "preview_status", "preview_logs", "preview_errors", "preview_check_route", "preview_restart", "preview_stop"] as const;
 const PUBLISH_MODE = `\nPUBLISH: The user reviewed the preview and pressed Publish. Do not change features. Run deployment_preflight (check), fix only build-breaking errors, then call deploy_status to deploy the current commit and report the live URL.`;
 const PLAN_MODE = `\nPLAN MODE: Do NOT write, delete, or stage any files. Investigate with read-only tools, then reply with a numbered implementation plan (files to change, approach, risks, how you will verify). End by asking the user to approve the plan.`;
 
@@ -231,7 +232,8 @@ export const Route = createFileRoute("/api/agent")({
             return runInSandbox(sb, sbxSession, ghToken, command, pending, preview, runAbort.signal);
           }), runAbort.signal);
         };
-        if (hasE2b()) warm = sbxRun("true").catch(() => null);
+        // Chat mode is pure conversation: never start or warm a workspace container.
+        if (hasE2b() && !chat) warm = sbxRun("true").catch(() => null);
         void tree().catch(() => {});
         const ledger = new ToolLedger(sessionId);
         let previewReady = false;
@@ -827,6 +829,8 @@ export const Route = createFileRoute("/api/agent")({
         readOnly = () => ({ list_files: tools.list_files, read_file: tools.read_file, read_files: tools.read_files, search_files: tools.search_files }) as import("ai").ToolSet;
         if (!publish) { for (const k of ["deployment_preflight", "deploy_status", "review_vercel_issues"] as const) delete (tools as Record<string, unknown>)[k]; }
         if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).write_files; delete (tools as Partial<typeof tools>).delete_file; }
+        // Chat mode: no container/coding tools at all — only conversation plus light repo reads via GitHub.
+        if (chat) { for (const k of CHAT_REMOVED_TOOLS) delete (tools as Record<string, unknown>)[k]; }
 
         // Project instructions from the repo + the user's enabled skills.
         const { data: skills, error: skillsError } = await sb.from("skills").select("name, instructions, source, registry").eq("user_id", u.user.id).eq("enabled", true);
