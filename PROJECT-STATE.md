@@ -22,3 +22,4 @@ Workflow hardening (env/secret guards, state tracking).
 
 ## Scope decision (2026-11-03)
 - C26–C32 frozen as a phase-2 backlog by the owner. No new C-items get folded in; new ideas go to that backlog.
+- 2026-11-03: Real web push for run finished/failed/needs-input. Verified: encryption round-trip test + typecheck. Unverified: delivery to a real phone.
