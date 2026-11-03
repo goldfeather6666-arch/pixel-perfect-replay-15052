@@ -370,39 +370,44 @@ function Workspace() {
     <div className="flex h-dvh flex-col">
       <AppHeader>
         {s && (
-          <div className="flex min-w-0 max-w-[50vw] items-center gap-2 overflow-x-auto text-xs sm:max-w-none">
-            <span className="hidden truncate font-mono text-muted-foreground md:inline">{s.repo} · {s.work_branch}</span>
-            <select
-              aria-label="Autonomy level"
-              title={AUTONOMY_LABEL[asAutonomy(s.mode)].hint}
-              className="h-7 shrink-0 rounded border bg-background px-1 font-mono text-xs hover:border-primary"
-              value={asAutonomy(s.mode)}
-              onChange={async (e) => {
-                const nextMode = e.target.value as Autonomy;
-                try {
-                  await update({ data: { id, mode: nextMode } });
-                  toast.success("Autonomy level updated");
-                  await qc.invalidateQueries({ queryKey: ["session", id] });
-                } catch (error) {
-                  toast.error("Could not update autonomy: " + (error as Error).message);
-                  await qc.invalidateQueries({ queryKey: ["session", id] });
-                }
-              }}
-            >
-              {AUTONOMY.map((a) => <option key={a} value={a}>{AUTONOMY_LABEL[a].title}</option>)}
-            </select>
+          <div className="flex min-w-0 max-w-[60vw] items-center gap-2 overflow-x-auto text-xs sm:max-w-none">
+            <span className="hidden min-w-0 truncate md:inline" title={`${s.repo} · ${s.work_branch}`}>
+              <span className="font-medium text-foreground">{s.repo.split("/").pop()}</span>
+              <span className="font-mono text-muted-foreground"> / {s.work_branch}</span>
+            </span>
             <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
-            {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
-            <span className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 lg:flex ${running || bgRunning ? "text-primary" : pending.length ? "text-warning" : "text-muted-foreground"}`}>
+            <span role="status" className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 lg:flex ${running || bgRunning ? "text-primary" : pending.length ? "text-warning" : "text-muted-foreground"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${running || bgRunning ? "animate-pulse bg-primary" : pending.length ? "bg-warning" : "bg-success"}`} />
               {running || bgRunning ? "Working" : pending.length ? "Needs review" : "Idle"}
             </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" aria-label="Task settings"><Wrench className="h-3 w-3" /><span className="hidden sm:inline">{AUTONOMY_LABEL[asAutonomy(s.mode)].title}</span></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">How much the agent may do alone</p>
+                {AUTONOMY.map((a) => (
+                  <DropdownMenuItem key={a} onSelect={async () => {
+                    if (a === asAutonomy(s.mode)) return;
+                    try {
+                      await update({ data: { id, mode: a as Autonomy } });
+                      toast.success("Autonomy level updated");
+                    } catch (error) {
+                      toast.error("Could not update autonomy: " + (error as Error).message);
+                    }
+                    await qc.invalidateQueries({ queryKey: ["session", id] });
+                  }} className="flex-col items-start gap-0.5">
+                    <span className="flex w-full items-center gap-1.5 text-sm">{AUTONOMY_LABEL[a].title}{a === asAutonomy(s.mode) && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}</span>
+                    <span className="text-xs text-muted-foreground">{AUTONOMY_LABEL[a].hint}</span>
+                  </DropdownMenuItem>
+                ))}
+                {usage.input + usage.output > 0 && (
+                  <p className="flex items-center gap-1.5 border-t px-2 py-2 font-mono text-xs text-muted-foreground"><Coins className="h-3 w-3" />{fmt(usage.input)} in / {fmt(usage.output)} out tokens</p>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {desktop && <AutoFixButton id={id} onSend={autoFixSend} disabled={running || bgRunning} />}
             <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
-            {usage.input + usage.output > 0 && (
-              <span className="hidden shrink-0 items-center gap-1 font-mono text-muted-foreground sm:flex" title="Tokens used by this task (input / output)">
-                <Coins className="h-3 w-3" />{fmt(usage.input)} / {fmt(usage.output)}
-              </span>
-            )}
           </div>
         )}
       </AppHeader>
