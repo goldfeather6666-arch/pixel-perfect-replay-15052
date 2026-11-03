@@ -370,6 +370,41 @@ export type Database = {
         }
         Relationships: []
       }
+      change_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          note: string
+          session_id: string
+          user_id: string
+          verdict: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string
+          session_id: string
+          user_id: string
+          verdict: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string
+          session_id?: string
+          user_id?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_reviews_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deploy_oauth_states: {
         Row: {
           created_at: string
@@ -622,6 +657,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_settings: {
+        Row: {
+          updated_at: string
+          user_id: string
+          webhook_url: string | null
+        }
+        Insert: {
+          updated_at?: string
+          user_id: string
+          webhook_url?: string | null
+        }
+        Update: {
+          updated_at?: string
+          user_id?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
       }
       owner_runners: {
         Row: {
@@ -1404,6 +1457,50 @@ export type Database = {
           {
             foreignKeyName: "task_secret_requests_task_id_fkey"
             columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_shares: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          in_gallery: boolean
+          revoked_at: string | null
+          session_id: string
+          snapshot: Json
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          in_gallery?: boolean
+          revoked_at?: string | null
+          session_id: string
+          snapshot: Json
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          in_gallery?: boolean
+          revoked_at?: string | null
+          session_id?: string
+          snapshot?: Json
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_shares_session_id_fkey"
+            columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "agent_sessions"
             referencedColumns: ["id"]
