@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBudget, formatBudgetResult, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
+import { evaluateBudget, formatBudgetResult, parseAssetListing, parsePerfBudget, payloadKb } from "@/lib/perf-budget";
 
 describe("parsePerfBudget", () => {
   it("reads a committed budget file", () => {
