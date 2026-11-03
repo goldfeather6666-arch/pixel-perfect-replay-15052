@@ -5,7 +5,7 @@ import { inspectMaintenance, maintenanceDue, maintenancePaths, type MaintenanceF
 const input = z.object({ id: z.string().uuid() });
 type Ctx = { userId: string; supabase: any };
 async function task(ctx: Ctx, id: string) {
-  const { data, error } = await ctx.supabase.from("agent_sessions").select("id, user_id, repo, work_branch, accounts, is_running").eq("id", id).eq("user_id", ctx.userId).single();
+  const { data, error } = await ctx.supabase.from("agent_sessions").select("id, user_id, repo, work_branch, accounts, running").eq("id", id).eq("user_id", ctx.userId).single();
   if (error || !data) throw new Error("Task not found");
   return data;
 }
@@ -17,18 +17,18 @@ export const getMaintenance = createServerFn({ method: "POST" }).middleware([req
 });
 export const setMaintenance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(input.extend({ enabled: z.boolean() })).handler(async ({ data, context }) => {
   const s = await task(context, data.id);
-  if (s.is_running) throw new Error("Wait until the build finishes before changing maintenance settings.");
+  if (s.running) throw new Error("Wait until the build finishes before changing maintenance settings.");
   const { error } = await context.supabase.from("task_maintenance").upsert({ session_id: data.id, user_id: context.userId, enabled: data.enabled });
   if (error) throw new Error(error.message);
   return { ok: true };
 });
 export const scanMaintenance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(input.extend({ automatic: z.boolean().default(false) })).handler(async ({ data, context }) => {
   const s = await task(context, data.id);
-  if (s.is_running) throw new Error("Maintenance waits until the build finishes.");
+  if (s.running) throw new Error("Maintenance waits until the build finishes.");
   const { data: row, error: readError } = await context.supabase.from("task_maintenance").select("enabled, last_scanned_at").eq("session_id", data.id).maybeSingle();
   if (readError) throw new Error(readError.message);
   if (!row?.enabled) throw new Error("Enable maintenance before scanning.");
-  if (data.automatic && !maintenanceDue(row.enabled, s.is_running, row.last_scanned_at)) return { skipped: true };
+  if (data.automatic && !maintenanceDue(row.enabled, s.running, row.last_scanned_at)) return { skipped: true };
   const { accountToken } = await import("./accounts.server");
   const key = await accountToken(context.supabase, context.userId, "github", s.accounts);
   if (!key) throw new Error("Connect this task's GitHub account first.");
