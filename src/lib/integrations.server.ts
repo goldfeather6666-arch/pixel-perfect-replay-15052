@@ -127,11 +127,23 @@ export class Vercel {
     return this.req<{ misconfigured?: boolean; recommendedIPv4?: { value: string[] }[]; recommendedCNAME?: { value: string }[] }>(`/v6/domains/${encodeURIComponent(name)}/config?projectIdOrName=${encodeURIComponent(projectId)}`);
   }
   async createProject(name: string, repo: string) {
-    const p = await this.req<any>("/v11/projects", {
-      method: "POST",
-      body: JSON.stringify({ name: name.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90), gitRepository: { type: "github", repo } }),
-    });
-    return { id: p.id as string, name: p.name as string };
+    try {
+      const p = await this.req<any>("/v11/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: name.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90), gitRepository: { type: "github", repo } }),
+      });
+      return { id: p.id as string, name: p.name as string };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/repository|couldn.t be found|install|login connection/i.test(msg)) {
+        throw new Error(
+          `This Vercel account can't see the GitHub repository "${repo}" yet. ` +
+          `Fix: open vercel.com/account/settings/authentication and connect GitHub (the same GitHub account that owns ${repo.split("/")[0]}), ` +
+          `then open github.com/apps/vercel/installations/new, choose ${repo.split("/")[0]}, and give Vercel access to "${repo.split("/")[1] ?? repo}". Then click Create website again.`,
+        );
+      }
+      throw e;
+    }
   }
   async setEnv(projectId: string, vars: Record<string, string>, targets: ("production" | "preview" | "development")[] = ["production", "preview", "development"]) {
     const body = Object.entries(vars).map(([key, value]) => ({ key, value, type: "encrypted", target: targets }));
