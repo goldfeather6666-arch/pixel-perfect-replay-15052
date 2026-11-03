@@ -417,9 +417,9 @@ export const resolvePending = createServerFn({ method: "POST" })
         `Changes approved in Forge for **${s.title}**.`,
         "", "### Files", ...results.map((p) => `- \`${p}\``),
         "", `Branch: \`${s.work_branch}\` → \`${s.base_branch}\``,
-        s.vercel_project_id ? "Preview: Vercel posts a preview deployment link on this pull request once the branch builds." : "Preview: connect a Vercel project to get a preview link on this pull request.",
+        (s as { vercel_project_id?: string | null }).vercel_project_id ? "Preview: Vercel posts a preview deployment link on this pull request once the branch builds." : "Preview: connect a Vercel project to get a preview link on this pull request.",
       ].join("\n");
-      prUrl = await gh.openPr(s.repo, s.base_branch, s.work_branch, s.title, body);
+      prUrl = await (await github(context, s.accounts)).openPr(s.repo, s.base_branch, s.work_branch, s.title, body);
     }
     return { committed: results, remaining: rest, ...(prUrl ? { prUrl } : {}) };
   });
