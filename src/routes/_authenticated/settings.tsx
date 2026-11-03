@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2, Search, ShieldCheck, RefreshCw } from "lucide-react";
+import { Trash2, Search, ShieldCheck, RefreshCw, ExternalLink } from "lucide-react";
+import { TOKEN_LINKS, hasTokenLink } from "@/lib/token-links";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -142,9 +143,17 @@ function SettingsPage() {
               <Label>Name (optional)</Label>
               <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={providerName(provider)} />
             </div>
+            {hasTokenLink(provider) && (
+              <div className="space-y-2 rounded-lg border bg-muted/40 p-3 text-sm">
+                <Button asChild type="button" variant="outline" className="h-10 w-full sm:w-auto">
+                  <a href={TOKEN_LINKS[provider].url} target="_blank" rel="noreferrer"><ExternalLink /> Get {providerName(provider)} token</a>
+                </Button>
+                <p className="text-xs text-muted-foreground">{TOKEN_LINKS[provider].steps}</p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Key</Label>
-              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "supabase" ? "sbp_... (supabase.com → Account → Access Tokens)" : provider === "vercel" ? "vercel.com → Account Settings → Tokens" : meta?.hint} />
+              <Input required type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={provider === "github" ? "ghp_... or github_pat_..." : provider === "supabase" ? "sbp_..." : provider === "vercel" ? "Paste your Vercel token" : meta?.hint} />
             </div>
             <Button className="h-11 w-full sm:w-auto" disabled={saveM.isPending || !key.trim() || (provider === "compatible" && !baseUrl.trim())}>{saveM.isPending ? "Verifying connection…" : "Verify & save connection"}</Button>
           </form>
