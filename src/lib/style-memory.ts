@@ -5,7 +5,7 @@ export type StyleProfile = { colors: string[]; fonts: string[]; radii: number[];
 
 const GENERIC_FONTS = new Set(["sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace", "-apple-system", "blinkmacsystemfont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans", "Liberation Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"]);
 
-const cleanFont = (v: string) => v.replace(/^["']|["']$/g, "").trim();
+const cleanFont = (v: string) => v.trim().replace(/^["']|["']$/g, "").trim();
 
 /** Pull the palette, typefaces, corner radii and design tokens actually declared in a stylesheet. */
 export function extractStyle(css: string): StyleProfile {
@@ -15,7 +15,7 @@ export function extractStyle(css: string): StyleProfile {
   };
 
   for (const m of css.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) push(colors, (m[0] ?? "").toLowerCase(), 24);
-  for (const m of css.matchAll(/\b(?:rgba?|hsla?)\([^)]*\)/gi)) push(colors, m[0].replace(/\s+/g, "").toLowerCase(), 24);
+  for (const m of css.matchAll(/\b(?:rgba?|hsla?)\([^)]*\)/gi)) push(colors, (m[0] ?? "").replace(/\s+/g, " ").trim().toLowerCase(), 24);
 
   const fonts: string[] = [];
   for (const m of css.matchAll(/font-family\s*:\s*([^;{}]+)/gi)) {

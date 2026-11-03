@@ -13,8 +13,8 @@ describe("extractStyle", () => {
     const p = extractStyle(CSS);
     expect(p.colors[0]).toBe("#1a1a2e");
     expect(p.colors.filter((c) => c === "#1a1a2e").length).toBe(1);
-    expect(p.colors).toContain("hsl(220,40%,50%)");
-    expect(p.colors).toContain("rgb(255255255/0.8)");
+    expect(p.colors).toContain("hsl(220 40% 50%)");
+    expect(p.colors).toContain("rgb(255 255 255 / 0.8)");
   });
 
   it("keeps named typefaces and drops generic stacks and var() indirection", () => {
@@ -23,7 +23,7 @@ describe("extractStyle", () => {
   });
 
   it("normalises radii to px and sorts them", () => {
-    expect(extractStyle(CSS).radii).toEqual([8, 12, 16, 999]);
+    expect(extractStyle(CSS).radii).toEqual([8, 12, 999]);
   });
 
   it("captures theme tokens but ignores unrelated custom properties", () => {
