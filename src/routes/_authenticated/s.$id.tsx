@@ -42,6 +42,7 @@ import { BugAutopsy } from "@/components/BugAutopsy";
 import { MaintenancePanel } from "@/components/MaintenancePanel";
 import { ReviewPanel, SharePanel } from "@/components/ReviewShare";
 import { VerificationHistory } from "@/components/VerificationHistory";
+import { RunEvidence } from "@/components/RunEvidence";
 import { RESUME_MESSAGE } from "@/lib/run-resume";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
@@ -455,6 +456,7 @@ function Workspace() {
           <MemoryView repo={s.repo} />
           <BugAutopsy id={id} onReplay={(text) => void send(text)} />
           <VerificationHistory id={id} running={running || bgRunning} />
+          <RunEvidence id={id} running={running || bgRunning} />
           <MaintenancePanel id={id} running={running || bgRunning || stopping} onRequest={(text) => { if (!desktop) setView("chat"); void send(text); }} />
           <div className="px-3 pb-8">
             <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
