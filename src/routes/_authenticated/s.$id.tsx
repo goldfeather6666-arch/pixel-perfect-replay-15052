@@ -434,7 +434,7 @@ function Workspace() {
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" aria-label="Task settings"><Wrench className="h-3 w-3" /><span className="hidden sm:inline">{AUTONOMY_LABEL[asAutonomy(s.mode)].title}</span></Button>
+                <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs text-muted-foreground" aria-label="Task settings"><Wrench className="h-3 w-3" /><span className="hidden xl:inline">{AUTONOMY_LABEL[asAutonomy(s.mode)].title}</span></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
                 <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">How much the agent may do alone</p>
@@ -458,7 +458,6 @@ function Workspace() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-             <Button type="button" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setPublishOpen(true)}><Rocket className="h-3 w-3" /> Publish</Button>
           </div>
         )}
       </AppHeader>
