@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as DotwellKnownOauthClientRouteImport } from './routes/[.]well-known.oauth-client'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
@@ -22,6 +23,7 @@ import { Route as ApiAgentBackgroundRouteImport } from './routes/api/agent-backg
 import { Route as ApiPromptAssistRouteImport } from './routes/api/prompt-assist'
 import { Route as ApiVisualCompareRouteImport } from './routes/api/visual-compare'
 import { Route as McpCallbackRouteImport } from './routes/mcp.callback'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as AuthenticatedSIdRouteImport } from './routes/_authenticated/s.$id'
 import { Route as ApiPreviewSplatRouteImport } from './routes/api/preview.$'
 import { Route as ApiPublicOauthClientRouteImport } from './routes/api/public/oauth-client'
@@ -42,6 +44,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -94,6 +101,11 @@ const McpCallbackRoute = McpCallbackRouteImport.update({
   path: '/mcp/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSIdRoute = AuthenticatedSIdRouteImport.update({
   id: '/s/$id',
   path: '/s/$id',
@@ -135,6 +147,7 @@ const ApiPublicOauthProviderCallbackRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/app': typeof AuthenticatedAppRoute
@@ -145,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/api/prompt-assist': typeof ApiPromptAssistRoute
   '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
+  '/share/$token': typeof ShareTokenRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -156,6 +170,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/app': typeof AuthenticatedAppRoute
@@ -166,6 +181,7 @@ export interface FileRoutesByTo {
   '/api/prompt-assist': typeof ApiPromptAssistRoute
   '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
+  '/share/$token': typeof ShareTokenRoute
   '/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -179,6 +195,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/.well-known/oauth-client': typeof DotwellKnownOauthClientRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
@@ -189,6 +206,7 @@ export interface FileRoutesById {
   '/api/prompt-assist': typeof ApiPromptAssistRoute
   '/api/visual-compare': typeof ApiVisualCompareRoute
   '/mcp/callback': typeof McpCallbackRoute
+  '/share/$token': typeof ShareTokenRoute
   '/_authenticated/s/$id': typeof AuthenticatedSIdRoute
   '/api/preview/$': typeof ApiPreviewSplatRoute
   '/api/public/oauth-client': typeof ApiPublicOauthClientRoute
@@ -202,6 +220,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/gallery'
     | '/reset-password'
     | '/.well-known/oauth-client'
     | '/app'
@@ -212,6 +231,7 @@ export interface FileRouteTypes {
     | '/api/prompt-assist'
     | '/api/visual-compare'
     | '/mcp/callback'
+    | '/share/$token'
     | '/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
@@ -223,6 +243,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/gallery'
     | '/reset-password'
     | '/.well-known/oauth-client'
     | '/app'
@@ -233,6 +254,7 @@ export interface FileRouteTypes {
     | '/api/prompt-assist'
     | '/api/visual-compare'
     | '/mcp/callback'
+    | '/share/$token'
     | '/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
@@ -245,6 +267,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/gallery'
     | '/reset-password'
     | '/.well-known/oauth-client'
     | '/_authenticated/app'
@@ -255,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/prompt-assist'
     | '/api/visual-compare'
     | '/mcp/callback'
+    | '/share/$token'
     | '/_authenticated/s/$id'
     | '/api/preview/$'
     | '/api/public/oauth-client'
@@ -268,6 +292,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  GalleryRoute: typeof GalleryRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   DotwellKnownOauthClientRoute: typeof DotwellKnownOauthClientRoute
   ApiAgentRoute: typeof ApiAgentRoute
@@ -275,6 +300,7 @@ export interface RootRouteChildren {
   ApiPromptAssistRoute: typeof ApiPromptAssistRoute
   ApiVisualCompareRoute: typeof ApiVisualCompareRoute
   McpCallbackRoute: typeof McpCallbackRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   ApiPreviewSplatRoute: typeof ApiPreviewSplatRoute
   ApiPublicOauthClientRoute: typeof ApiPublicOauthClientRoute
   ApiPublicJobsResumeRunsRoute: typeof ApiPublicJobsResumeRunsRoute
@@ -304,6 +330,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -374,6 +407,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp/callback'
       fullPath: '/mcp/callback'
       preLoaderRoute: typeof McpCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/s/$id': {
@@ -449,6 +489,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  GalleryRoute: GalleryRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   DotwellKnownOauthClientRoute: DotwellKnownOauthClientRoute,
   ApiAgentRoute: ApiAgentRoute,
@@ -456,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPromptAssistRoute: ApiPromptAssistRoute,
   ApiVisualCompareRoute: ApiVisualCompareRoute,
   McpCallbackRoute: McpCallbackRoute,
+  ShareTokenRoute: ShareTokenRoute,
   ApiPreviewSplatRoute: ApiPreviewSplatRoute,
   ApiPublicOauthClientRoute: ApiPublicOauthClientRoute,
   ApiPublicJobsResumeRunsRoute: ApiPublicJobsResumeRunsRoute,
