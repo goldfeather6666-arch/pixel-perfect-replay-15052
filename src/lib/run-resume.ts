@@ -34,7 +34,7 @@ export function quietStopCandidates(sessions: Quiet[], now: number, quietMs = QU
     && !(s.last_stage && HUMAN_WAIT_STAGES.includes(s.last_stage)));
 }
 
-type Turn = { role: "user" | "assistant"; content: string; tools?: unknown[] };
+type Turn = { role: "user" | "assistant"; content: string; tools?: unknown[] | undefined };
 const STALL_NOTE = /\n*(No signs of life detected\.[^\n]*|\S+ did not start replying within 4 minutes[^\n]*)\s*$/;
 
 /**

@@ -1279,7 +1279,6 @@ export const Route = createFileRoute("/api/agent")({
               const next: ChatMessage[] = [
                 ...turns.base,
                 ...(autoRecovery ? [] : [{ role: "user" as const, content: images?.length ? `${message}\n\n📎 ${images.map((im) => im.name ?? im.mediaType).join(", ")}` : message }]),
-                ...liveChat.map((content) => ({ role: "user" as const, content })),
                 turns.assistant(text, logs),
               ];
               await summaryUpdate?.catch(() => {});
