@@ -105,15 +105,15 @@ export function StreamTimeline({ sessionId, running }: { sessionId: string; runn
 
   return (
     <div className="mx-auto max-w-2xl p-4 text-sm">
-      <header className="mb-4 flex items-center gap-2">
+      <header className="mb-4 flex flex-wrap items-center gap-2">
         <span className={`relative flex h-2.5 w-2.5 ${live ? "" : "opacity-40"}`}>
           {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />}
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
         </span>
         <h2 className="font-semibold">{live ? "Working live" : STAGE[run.stage] ?? run.stage}</h2>
-        <span className="truncate text-xs text-muted-foreground">· {run.objective}</span>
+        <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">· {run.objective}</span>
         {overview.data!.runs.length > 1 && (
-          <select className="ml-auto h-8 max-w-[45%] rounded-md border bg-background px-2 text-xs" value={run.id} onChange={(e) => setRunId(e.target.value)} aria-label="Choose run">
+          <select className="h-8 w-full rounded-full border sm:ml-auto sm:w-auto sm:max-w-[45%] bg-background px-2 text-xs" value={run.id} onChange={(e) => setRunId(e.target.value)} aria-label="Choose run">
             {overview.data!.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.started_at).toLocaleString()} · {STAGE[r.stage] ?? r.stage}</option>)}
           </select>
         )}
