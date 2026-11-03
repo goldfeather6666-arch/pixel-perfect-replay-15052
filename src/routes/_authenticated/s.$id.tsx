@@ -241,8 +241,24 @@ function Workspace() {
   }, [stale, running, stopping, sd?.updated_at]);
 
 
+  // Messages typed while the agent works wait here and are sent, in order, once it finishes.
+  const [queued, setQueued] = useState<string[]>([]);
+  useEffect(() => {
+    if (running || bgRunning || stopping || sendLockRef.current || !queued.length) return;
+    const [next, ...rest] = queued;
+    setQueued(rest);
+    void send(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, bgRunning, stopping, queued]);
+
   async function send(override?: string, forcePlan?: boolean, publish?: boolean) {
     let text = (override ?? input).trim();
+    if (text && override === undefined && (running || bgRunning) && !images.length) {
+      setQueued((q) => [...q, text]);
+      setInput("");
+      toast.info("Got it — this message will be sent as soon as the current step finishes.");
+      return;
+    }
     // State updates render asynchronously; this ref closes the same-tick double-submit race.
     if (!text || running || bgRunning || sendLockRef.current) return;
     manualStopRef.current = false;
@@ -544,7 +560,8 @@ function Workspace() {
                 ))}
               </div>
             )}
-            <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={running || bgRunning || stopping} />
+            <PromptAssistance key={id} sessionId={id} draft={input} onChange={setInput} disabled={stopping} />
+            {queued.length > 0 && <div className="mx-auto mb-2 flex max-w-3xl flex-col gap-1">{queued.map((q, i) => <div key={i} className="flex items-center gap-2 rounded-lg border border-dashed bg-secondary/50 px-3 py-1.5 text-xs"><span className="shrink-0 text-muted-foreground">Queued</span><span className="min-w-0 flex-1 truncate">{q}</span><button type="button" aria-label="Remove queued message" onClick={() => setQueued((x) => x.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></div>)}</div>}
             <MentionPicker sessionId={id} text={input} caret={caret} onPick={(t, c) => { setInput(t); setCaret(c); requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(c, c); }); }} />
             <PromptInput className="mx-auto max-w-3xl bg-card [&_[data-slot=input-group]]:shadow-glow" onSubmit={() => { void send(); }}>
               <PromptInputTextarea
@@ -555,15 +572,15 @@ function Workspace() {
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
                 onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (running || bgRunning)) e.preventDefault(); }}
-                placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
+                                placeholder={chatMode === "chat" ? "Ask anything — no changes will be made" : planMode ? "Describe the task — the agent will plan first" : "e.g. Add a dark-mode toggle to the header"}
                 className="max-h-48 min-h-20 px-4 text-base leading-relaxed md:text-sm"
                 rows={2}
               />
               <input ref={fileRef} type="file" accept={ATTACH_ACCEPT} multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
               <PromptInputFooter className="px-3 pb-3">
                 <Button type="button" size="icon" variant="ghost" aria-label="Attach image or document" title="Attach image or document" disabled={images.length >= MAX_ATTACHMENTS} onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
-                <PromptInputSubmit className="size-10" status={running || bgRunning ? "streaming" : "ready"} onStop={stopWork} aria-label={running || bgRunning ? "Stop" : "Send"} disabled={running || bgRunning ? stopping : !input.trim() || capacity.overLimit}>{running || bgRunning ? <Square /> : <Send />}</PromptInputSubmit>
+                {(running || bgRunning) && <Button type="button" size="icon" variant="outline" className="ml-auto size-10" aria-label="Stop" disabled={stopping} onClick={stopWork}><Square /></Button>}
+                <PromptInputSubmit className="size-10" status="ready" aria-label={running || bgRunning ? "Queue message" : "Send"} disabled={!input.trim() || capacity.overLimit}><Send /></PromptInputSubmit>
               </PromptInputFooter>
             </PromptInput>
             <div id="prompt-capacity" className={`mx-auto mt-2 flex max-w-3xl flex-wrap justify-between gap-x-3 gap-y-1 text-xs ${capacity.overLimit || capacity.nearLimit ? "text-destructive" : "text-muted-foreground"}`}>
