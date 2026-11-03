@@ -22,7 +22,7 @@ describe("UAF tool broker", () => {
   });
   it("does not re-execute a confirmed non-idempotent write", async () => {
     let calls = 0;
-    const t = brokerTools({ tool_invoke: { execute: async () => { calls++; return "sent"; } } }, new ToolLedger("t"));
+    const t = brokerTools({ tool_invoke: { execute: async (_i: unknown, _o: unknown) => { calls++; return "sent"; } } }, new ToolLedger("t"));
     await t.tool_invoke.execute({ n: 1 } as never, {} as never);
     const second = await t.tool_invoke.execute({ n: 1 } as never, {} as never);
     expect(calls).toBe(1);
@@ -30,7 +30,7 @@ describe("UAF tool broker", () => {
   });
   it("blocks blind retry after an ambiguous timeout", async () => {
     let calls = 0; const seen: string[] = [];
-    const t = brokerTools({ tool_invoke: { execute: async () => { calls++; throw new Error("timeout"); } } }, new ToolLedger("t"), { onAmbiguous: (e) => seen.push(e.state) });
+    const t = brokerTools({ tool_invoke: { execute: async (_i: unknown, _o: unknown) => { calls++; throw new Error("timeout"); } } }, new ToolLedger("t"), { onAmbiguous: (e) => seen.push(e.state) });
     await expect(t.tool_invoke.execute({} as never, {} as never)).rejects.toThrow(/sideEffect=unknown/);
     const retry = await t.tool_invoke.execute({} as never, {} as never);
     expect(retry).toMatchObject({ blocked: true });
@@ -39,7 +39,7 @@ describe("UAF tool broker", () => {
   });
   it("re-runs idempotent tools like run_command freely", async () => {
     let calls = 0;
-    const t = brokerTools({ run_command: { execute: async () => ++calls } }, new ToolLedger("t"));
+    const t = brokerTools({ run_command: { execute: async (_i: unknown, _o: unknown) => ++calls } }, new ToolLedger("t"));
     await t.run_command.execute({ c: "npm test" } as never, {} as never);
     await t.run_command.execute({ c: "npm test" } as never, {} as never);
     expect(calls).toBe(2);
