@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, ExternalLink, Globe, Link2, Loader2, Maximize2, Minimize2, Monitor, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Smartphone, Square, Tablet, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Copy, ExternalLink, Globe, Link2, Loader2, Maximize2, Minimize2, Monitor, MoreHorizontal, Play, RefreshCw, RotateCcw, RotateCw, ScrollText, ShieldCheck, Smartphone, Square, Tablet, Wrench, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { canAutoRepair, previewNeedsRepair, previewRepairPrompt, redactPreviewDiagnostic } from "@/lib/preview-repair";
 import { diagnosePreviewFn, getPreview, previewAccessFn, previewActionFn, reportPreviewErrors, revokePreviewLinks, startPreviewFn } from "@/lib/preview.functions";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { VisualComparison } from "@/components/VisualComparison";
 
-const DEVICES = { desktop: { w: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", icon: Smartphone, label: "Mobile" } } as const;
+const DEVICES = { desktop: { w: "100%", h: "100%", icon: Monitor, label: "Desktop" }, tablet: { w: "820px", h: "1180px", icon: Tablet, label: "Tablet" }, mobile: { w: "390px", h: "844px", icon: Smartphone, label: "Mobile" } } as const;
+
+function IconBtn({ label, children, ...rest }: { label: string; children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return <Button type="button" size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground [&_svg]:size-3.5" aria-label={label} title={label} {...rest}>{children}</Button>;
+}
 type Device = keyof typeof DEVICES;
 
 const TONE: Record<string, string> = { ready: "bg-primary", starting: "bg-accent-foreground animate-pulse", unhealthy: "bg-destructive animate-pulse", error: "bg-destructive", crashed: "bg-destructive", stopped: "bg-muted-foreground", expired: "bg-muted-foreground" };
@@ -27,14 +30,16 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const diagnose = useServerFn(diagnosePreviewFn);
   const [device, setDevice] = useState<Device>("desktop");
   const [full, setFull] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
+  const [drawer, setDrawer] = useState<"errors" | "logs" | "health" | null>(null);
+  const showLogs = drawer === "logs";
+  const [landscape, setLandscape] = useState(false);
+  const [path, setPath] = useState("/");
   const [src, setSrc] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [errors, setErrors] = useState<Array<{ m: string; path?: string }>>([]);
   const [repairOpen, setRepairOpen] = useState(false);
   const [dismissedFailure, setDismissedFailure] = useState<string | null>(null);
   const [sendingRepair, setSendingRepair] = useState(false);
-  const [showHealth, setShowHealth] = useState(false);
   const [autoRepair, setAutoRepair] = useState(false);
   const [repairAttempts, setRepairAttempts] = useState(0);
   const lastAutoFailure = useRef<string | null>(null);
@@ -90,7 +95,7 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
   const startM = useMutation({ mutationFn: () => start({ data: { id } }), onSuccess: () => { setErrors([]); qc.invalidateQueries({ queryKey: ["preview", id] }); }, onError: (e: Error) => toast.error(e.message) });
   const actM = useMutation({ mutationFn: (action: "stop" | "restart") => act({ data: { id, action } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["preview", id] }), onError: (e: Error) => toast.error(e.message) });
   const logs = useQuery({ queryKey: ["preview-logs", id], queryFn: () => act({ data: { id, action: "logs" } }), enabled: (showLogs || repairOpen) && !!p, refetchInterval: showLogs && running ? 3000 : false });
-  const health = useQuery({ queryKey: ["preview-diagnosis", id], queryFn: () => diagnose({ data: { id } }), enabled: showHealth || repairOpen, staleTime: 30000, retry: false });
+  const health = useQuery({ queryKey: ["preview-diagnosis", id], queryFn: () => diagnose({ data: { id } }), enabled: drawer === "health" || repairOpen, staleTime: 30000, retry: false });
   async function fixPreview() {
     if (!p || !onSend || agentBusy || sendingRepair) return;
     setSendingRepair(true);
@@ -124,6 +129,16 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
     {health.data && <p className="text-muted-foreground">Checked {new Date(health.data.checkedAt).toLocaleTimeString()} · Read-only</p>}
   </div>;
 
+  // Address bar: the gateway sets a path-scoped cookie on first load, so same-origin sub-paths work without the token.
+  const base = (p?.base ?? "").replace(/\/$/, "");
+  function syncPath() {
+    try { const loc = frame.current?.contentWindow?.location; if (loc && base && loc.pathname.startsWith(base)) setPath((loc.pathname.slice(base.length) || "/") + loc.search.replace(/[?&]forge_t=[^&]*/, "").replace(/^&/, "?")); } catch { /* cross-origin page */ }
+  }
+  function go(target: string) {
+    const clean = "/" + target.trim().replace(/^\/+/, "");
+    try { if (frame.current?.contentWindow && base) { frame.current.contentWindow.location.href = base + clean; return; } } catch { /* fall through */ }
+    setReload((n) => n + 1);
+  }
   const absolute = src ? `${typeof window !== "undefined" ? window.location.origin : ""}${src}` : "";
   async function share() {
     try {
@@ -151,42 +166,57 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="flex flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
-        <span className="flex items-center gap-1 rounded-md border border-primary/40 bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary" title="Development preview — not production">
-          <ShieldCheck className="h-3 w-3" /> Preview
+      {/* Toolbar: status · back/forward/reload · address · devices · more */}
+      <div className="flex items-center gap-1 border-b bg-card/40 px-2 py-1.5">
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground" title={p?.framework && p.framework !== "unknown" ? `Development preview · ${p.framework}` : "Development preview — not production"}>
+          <span className={`h-1.5 w-1.5 rounded-full ${TONE[p?.status ?? "stopped"] ?? "bg-muted-foreground"}`} />
+          <span className="capitalize">{p ? (p.status === "ready" ? "Live" : p.status) : "Off"}</span>
         </span>
-        <span className={`h-2 w-2 rounded-full ${TONE[p?.status ?? "stopped"] ?? "bg-muted-foreground"}`} />
-        <span className="text-xs capitalize text-muted-foreground">{p ? p.status : "not started"}{p?.framework && p.framework !== "unknown" ? ` · ${p.framework}` : ""}</span>
-        {needsRepair && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button>}
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowHealth((v) => !v)} aria-pressed={showHealth}><ShieldCheck />Health</Button>
-        <VisualComparison id={id} onSend={onSend} agentBusy={agentBusy} />
-        <div className="ml-auto flex items-center gap-0.5">
+        {running && <>
+          <IconBtn label="Back" disabled={!src} onClick={() => { try { frame.current?.contentWindow?.history.back(); } catch { /* cross-origin */ } }}><ArrowLeft /></IconBtn>
+          <IconBtn label="Forward" disabled={!src} onClick={() => { try { frame.current?.contentWindow?.history.forward(); } catch { /* cross-origin */ } }}><ArrowRight /></IconBtn>
+          <IconBtn label="Reload" disabled={!src} onClick={() => setReload((n) => n + 1)}><RefreshCw /></IconBtn>
+          <form className="flex min-w-0 flex-1 items-center gap-1 rounded-full border bg-background px-2.5 py-0.5" onSubmit={(e) => { e.preventDefault(); go(path); }}>
+            <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <input aria-label="Page address" value={path} onChange={(e) => setPath(e.target.value)} spellCheck={false} className="h-6 min-w-0 flex-1 bg-transparent font-mono text-[11px] outline-none" placeholder="/" />
+          </form>
+        </>}
+        {!running && <div className="flex-1" />}
+        <div className="hidden items-center rounded-full bg-secondary p-0.5 sm:flex">
           {(Object.keys(DEVICES) as Device[]).map((d) => { const I = DEVICES[d].icon; return (
-            <button key={d} type="button" aria-label={DEVICES[d].label} aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded p-1.5 ${device === d ? "bg-accent text-primary" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" /></button>
+            <button key={d} type="button" aria-label={DEVICES[d].label} aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded-full p-1.5 ${device === d ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" /></button>
           ); })}
-          <button type="button" aria-label="Refresh" disabled={!src} onClick={() => setReload((n) => n + 1)} className="rounded p-1.5 text-muted-foreground disabled:opacity-40"><RefreshCw className="h-3.5 w-3.5" /></button>
-          <button type="button" aria-label="Logs" aria-pressed={showLogs} onClick={() => setShowLogs((s) => !s)} className={`rounded p-1.5 ${showLogs ? "text-primary" : "text-muted-foreground"}`}><ScrollText className="h-3.5 w-3.5" /></button>
-          <button type="button" aria-label={full ? "Exit fullscreen" : "Fullscreen"} onClick={() => setFull((f) => !f)} className="rounded p-1.5 text-muted-foreground">{full ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
         </div>
+        {device !== "desktop" && <IconBtn label="Rotate" onClick={() => setLandscape((v) => !v)}><RotateCw /></IconBtn>}
+        <IconBtn label={full ? "Exit fullscreen" : "Fullscreen"} onClick={() => setFull((f) => !f)}>{full ? <Minimize2 /> : <Maximize2 />}</IconBtn>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" aria-label="More preview options"><MoreHorizontal /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <div className="flex items-center justify-around px-1 py-1 sm:hidden">
+              {(Object.keys(DEVICES) as Device[]).map((d) => { const I = DEVICES[d].icon; return <button key={d} type="button" aria-label={DEVICES[d].label} onClick={() => setDevice(d)} className={`rounded-md p-2 ${device === d ? "bg-accent text-primary" : "text-muted-foreground"}`}><I className="h-4 w-4" /></button>; })}
+            </div>
+            <DropdownMenuSeparator className="sm:hidden" />
+            <DropdownMenuItem disabled={!absolute} onSelect={() => { void navigator.clipboard.writeText(absolute); toast.success("Private link copied (works for you, ~30 min)"); }}><Copy />Copy private link</DropdownMenuItem>
+            <DropdownMenuItem disabled={!absolute} onSelect={() => window.open(absolute, "_blank", "noopener")}><ExternalLink />Open in new tab</DropdownMenuItem>
+            <DropdownMenuItem disabled={!running} onSelect={() => void share()}><Link2 />Share for 60 minutes</DropdownMenuItem>
+            {p?.shareUntil && new Date(p.shareUntil) > new Date() && <DropdownMenuItem className="text-destructive" onSelect={async () => { await revoke({ data: { id } }); toast.success("All links revoked"); qc.invalidateQueries({ queryKey: ["preview", id] }); }}><Link2 />Revoke shared links</DropdownMenuItem>}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => { setDrawer("health"); }}><ShieldCheck />Health checks</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => { setDrawer("logs"); }}><ScrollText />Server logs</DropdownMenuItem>
+            <DropdownMenuCheckboxItem checked={autoRepair} disabled={!onSend} onCheckedChange={(value) => { setAutoRepair(!!value); setRepairAttempts(0); lastAutoFailure.current = null; }}>Auto-repair with AI {autoRepair ? `(${repairAttempts}/3)` : ""}</DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={!running || actM.isPending} onSelect={() => actM.mutate("restart")}><RotateCcw />Restart server</DropdownMenuItem>
+            <DropdownMenuItem disabled={!running || actM.isPending} className="text-destructive" onSelect={() => actM.mutate("stop")}><Square />Stop server</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs">
-        <Switch id={`auto-repair-${id}`} checked={autoRepair} disabled={!onSend} onCheckedChange={(value) => { setAutoRepair(value); setRepairAttempts(0); lastAutoFailure.current = null; }} />
-        <Label htmlFor={`auto-repair-${id}`} className="text-xs">Auto-repair with AI</Label>
-        <span className="text-muted-foreground">{autoRepair ? `${repairAttempts}/3 attempts · uses your AI credits · approvals stay in Chat` : "Off"}</span>
-      </div>
-      {showHealth && <div className="max-h-[35%] overflow-y-auto border-b bg-card px-3 py-2">{healthView}</div>}
-
-      {running && (
-        <div className="flex items-center gap-1.5 border-b px-2 py-1 text-xs">
-          <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{p?.base}</span>
-          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Copy private link" disabled={!absolute} onClick={() => { navigator.clipboard.writeText(absolute); toast.success("Private link copied (works for you, ~30 min)"); }}><Copy /></Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Open in new tab" disabled={!absolute} asChild={!!absolute}>{absolute ? <a href={absolute} target="_blank" rel="noreferrer"><ExternalLink /></a> : <span><ExternalLink /></span>}</Button>
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={share}><Link2 /> Share</Button>
-          {p?.shareUntil && new Date(p.shareUntil) > new Date() && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-destructive" onClick={async () => { await revoke({ data: { id } }); toast.success("All links revoked"); qc.invalidateQueries({ queryKey: ["preview", id] }); }}>Revoke</Button>}
-          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Restart server" disabled={actM.isPending} onClick={() => actM.mutate("restart")}><RotateCcw /></Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label="Stop server" disabled={actM.isPending} onClick={() => actM.mutate("stop")}><Square /></Button>
+      {(needsRepair || onSend) && running && (
+        <div className="flex items-center gap-2 border-b px-2 py-1 text-xs">
+          {needsRepair
+            ? <><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" /><span className="min-w-0 flex-1 truncate text-destructive">{errors.at(-1)?.m ?? (p?.status === "error" ? "The app is returning server errors" : "The preview has a problem")}</span><Button size="sm" className="h-6 rounded-full px-2.5 text-xs" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button></>
+            : <span className="flex-1 truncate text-muted-foreground">Viewing <span className="font-mono">{path || "/"}</span>{device !== "desktop" ? ` · ${DEVICES[device].label}${landscape ? " landscape" : ""}` : ""}</span>}
+          <VisualComparison id={id} onSend={onSend} agentBusy={agentBusy} />
         </div>
       )}
 
@@ -194,35 +224,48 @@ export function PreviewPanel({ id, onSend, agentBusy = false }: { id: string; on
         {!running ? (
           <div className="grid h-full place-items-center p-6 text-center">
             <div className="max-w-xs space-y-3">
-              <Globe className="mx-auto h-8 w-8 text-primary" />
-              <p className="text-sm font-medium">{p?.status === "crashed" ? "The dev server crashed" : p?.status === "expired" ? "Preview expired" : "Live preview"}</p>
-              <p className="text-xs text-muted-foreground">Runs this task's branch in its private cloud workspace. Only you can open it unless you share a link. Production is never touched.</p>
-              {p?.status === "crashed" && p.logTail && <pre className="max-h-40 overflow-auto rounded border bg-background p-2 text-left font-mono text-[10px] text-destructive">{p.logTail.slice(-1500)}</pre>}
-              <Button onClick={() => startM.mutate()} disabled={startM.isPending}>{startM.isPending ? <><Loader2 className="animate-spin" /> Starting…</> : <><Play /> Start preview</>}</Button>
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent"><Globe className="h-6 w-6 text-primary" /></div>
+              <p className="text-base font-semibold">{p?.status === "crashed" ? "The preview stopped working" : p?.status === "expired" ? "Preview went to sleep" : "See your app live"}</p>
+              <p className="text-xs text-muted-foreground">Runs this task's latest version privately. Only you can open it unless you share a link. Your live site is never touched.</p>
+              {p?.status === "crashed" && p.logTail && <pre className="max-h-40 overflow-auto rounded-lg border bg-background p-2 text-left font-mono text-[10px] text-destructive">{p.logTail.slice(-1500)}</pre>}
+              <div className="flex justify-center gap-2">
+                <Button className="rounded-full" onClick={() => startM.mutate()} disabled={startM.isPending}>{startM.isPending ? <><Loader2 className="animate-spin" /> Starting…</> : <><Play /> Start preview</>}</Button>
+                {p?.status === "crashed" && onSend && <Button variant="outline" className="rounded-full" onClick={() => setRepairOpen(true)}><Wrench />Fix with AI</Button>}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="mx-auto h-full transition-[width]" style={{ width: DEVICES[device].w, maxWidth: "100%" }}>
+          <div className={`mx-auto h-full transition-[width] ${device !== "desktop" ? "py-3" : ""}`} style={{ width: device === "desktop" ? "100%" : landscape ? DEVICES[device].h : DEVICES[device].w, maxWidth: "100%" }}>
             {p?.status !== "ready" && (
-              p?.status === "error" ? <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-destructive/15 py-2 text-xs text-destructive backdrop-blur"><AlertTriangle className="h-3.5 w-3.5" />The app is returning server errors — tap Logs to see why, or ask the agent to fix it.</div> :
-              <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 bg-background/90 py-2 text-xs text-muted-foreground backdrop-blur">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />{p?.status === "error" ? "The app is returning server errors — open Logs to see why" : p?.status === "unhealthy" ? "Server stopped answering — checking…" : "Installing & starting the dev server… first start can take 1–3 min"}
+              <div className={`absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 py-2 text-xs backdrop-blur ${p?.status === "error" ? "bg-destructive/15 text-destructive" : "bg-background/90 text-muted-foreground"}`}>
+                {p?.status === "error" ? <AlertTriangle className="h-3.5 w-3.5" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                {p?.status === "error" ? "The app is returning errors — open Logs or tap Fix with AI" : p?.status === "unhealthy" ? "Server stopped answering — checking…" : "Starting your app… the first start can take 1–3 min"}
               </div>
             )}
-            {src && <iframe key={`${src}-${reload}`} ref={frame} src={src} title="Live preview" className={`h-full w-full bg-background ${device !== "desktop" ? "border-x shadow-lg" : ""}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" />}
+            {src && <iframe key={`${src}-${reload}`} ref={frame} src={src} onLoad={syncPath} title="Live preview" className={`h-full w-full bg-background ${device !== "desktop" ? "rounded-2xl border shadow-lg" : ""}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" />}
           </div>
         )}
       </div>
 
-      {(errors.length > 0 || showLogs) && (
-        <div className="max-h-[40%] min-h-0 overflow-y-auto border-t bg-card/60 font-mono text-[11px]">
-          {errors.length > 0 && (
-            <div className="border-b p-2">
-              <p className="mb-1 flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" /> Browser errors ({errors.length}) — the agent can read these <button type="button" className="ml-auto text-muted-foreground" onClick={() => setErrors([])}>clear</button></p>
-              {errors.slice(-8).map((e, i) => <p key={i} className="truncate text-destructive/90" title={e.m}>{e.path ? `${e.path}: ` : ""}{e.m}</p>)}
+      {/* Bottom console: errors · logs · health with counts */}
+      {running && (
+        <div className="border-t bg-card/60">
+          <div className="flex items-center gap-1 px-2 py-1 text-xs">
+            {(["errors", "logs", "health"] as const).map((t) => (
+              <button key={t} type="button" aria-pressed={drawer === t} onClick={() => setDrawer((d) => (d === t ? null : t))} className={`rounded-full px-2.5 py-0.5 capitalize ${drawer === t ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {t === "errors" ? `Console${errors.length ? ` · ${errors.length}` : ""}` : t}
+              </button>
+            ))}
+            {drawer === "errors" && errors.length > 0 && <button type="button" className="ml-auto text-muted-foreground hover:text-foreground" onClick={() => setErrors([])}>Clear</button>}
+            {drawer && <button type="button" aria-label="Close console" className={`${drawer === "errors" && errors.length ? "" : "ml-auto"} rounded p-1 text-muted-foreground`} onClick={() => setDrawer(null)}><X className="h-3.5 w-3.5" /></button>}
+          </div>
+          {drawer && (
+            <div className="max-h-56 min-h-0 overflow-y-auto border-t px-2 py-2 font-mono text-[11px]">
+              {drawer === "errors" && (errors.length ? errors.slice(-20).map((e, i) => <p key={i} className="break-words py-0.5 text-destructive" title={e.m}>{e.path ? <span className="text-muted-foreground">{e.path} </span> : null}{e.m}</p>) : <p className="font-sans text-muted-foreground">No browser errors. The AI can read anything that shows up here.</p>)}
+              {drawer === "logs" && <pre className="whitespace-pre-wrap text-muted-foreground">{logs.data && "logs" in logs.data ? logs.data.logs || "(no output yet)" : "Loading logs…"}</pre>}
+              {drawer === "health" && <div className="font-sans">{healthView}</div>}
             </div>
           )}
-          {showLogs && <pre className="whitespace-pre-wrap p-2 text-muted-foreground">{logs.data && "logs" in logs.data ? logs.data.logs || "(no output yet)" : "Loading logs…"}</pre>}
         </div>
       )}
     </div>
