@@ -35,7 +35,7 @@ export function reviewBadges(latestVerdict: string | null, verification: { statu
   const out: Badge[] = [latestVerdict === "approved" ? "reviewed" : latestVerdict === "changes_requested" ? "changes_requested" : "unreviewed"];
   const latest = verification[0];
   if (latest?.status === "passed") out.push("checks_passed");
-  else if (latest && latest.status === "blocked") out.push("checks_blocked");
+  else if (latest && latest.status === "failed") out.push("checks_blocked");
   return out;
 }
 
