@@ -4,6 +4,8 @@ import type { GateStep } from "./engine/qa-gate";
 export const qaPolicySchema = z.object({
   version: z.literal(1),
   requiredChecks: z.array(z.enum(["lint", "typecheck", "test", "build", "e2e", "a11y", "lighthouse"])).min(1).max(7),
+  minQualityScore: z.union([z.number().min(0).max(100), z.record(z.string().min(1).max(200), z.number().min(0).max(100))]).optional(),
+  maxRunCostUsd: z.number().positive().max(10_000).optional(),
 }).strict();
 export type QaPolicy = z.infer<typeof qaPolicySchema>;
 export function parseQaPolicy(text: string): { policy?: QaPolicy; error?: string } {
