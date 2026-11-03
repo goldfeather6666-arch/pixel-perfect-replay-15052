@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, Loader2, XCircle, AlertTriangle, Trash2 } from "l
 import { deleteMemory, getRunEvents, getRunOverview, listMemories } from "@/lib/engine.functions";
 import { stageProgress, type Stage } from "@/lib/engine/lifecycle";
 import { Progress } from "@/components/ui/progress";
+import { OUTCOME_LABEL, type RunOutcome } from "@/lib/engine/evaluation";
 
 const FLOW: Stage[] = ["RECEIVED", "DISCOVERING", "PLANNING", "EXECUTING", "VERIFYING", "REPAIRING"];
 const LABEL: Record<string, string> = {
@@ -27,6 +28,7 @@ function describe(e: Ev): string | null {
     case "model.fallback": return `Switched to backup model ${p["to"]} (${p["category"]})`;
     case "repair.started": return `Repair round ${p["round"]}: ${p["blocker"]}`;
     case "memory.saved": return `Saved a ${p["category"]} memory`;
+    case "outcome.assessed": return `Result: ${OUTCOME_LABEL[p["state"] as keyof typeof OUTCOME_LABEL] ?? p["state"]}`;
     case "run.completed": return `Run ended after ${Math.round(Number(p["totalMs"] ?? 0) / 1000)}s`;
     default: return null;
   }
@@ -97,6 +99,12 @@ export function RunTimeline({ sessionId, repo, running }: { sessionId: string; r
             </li>;
           })}
         </ol>
+        {terminal && m["outcome"] ? (() => { const o = m["outcome"] as RunOutcome; const good = o.state === "VERIFIED_COMPLETE"; return (
+          <div className="space-y-1 rounded-md bg-muted/50 p-2 text-xs">
+            <span className={`inline-block rounded-full px-2 py-0.5 font-medium ${good ? "bg-primary/15 text-primary" : o.state === "FAILED" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{OUTCOME_LABEL[o.state]}</span>
+            {o.evidence.map((e) => <p key={e}>✓ {e}</p>)}
+            {o.gaps.map((g) => <p key={g} className="text-muted-foreground">• {g}</p>)}
+          </div>); })() : null}
         {terminal && overview.data!.transitions.at(-1)?.reason && <p className="text-xs text-muted-foreground">{overview.data!.transitions.at(-1)!.reason}</p>}
         <p className="break-all text-[11px] text-muted-foreground">Model {run.model} · level {run.autonomy} · trace {run.trace_id.slice(0, 12)}</p>
       </section>
