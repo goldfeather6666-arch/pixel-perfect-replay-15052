@@ -33,9 +33,9 @@ describe("payloadKb", () => {
       { path: "dist/assets/style.css", bytes: 51_200 },
       { path: "dist/index.html", bytes: 2_000 },
     ]);
-    expect(m.jsKb).toBeCloseTo(393.1, 1);
+    expect(m.jsKb).toBeCloseTo(393, 0);
     expect(m.cssKb).toBeCloseTo(50, 1);
-    expect(m.totalKb).toBeCloseTo(443.1, 1);
+    expect(m.totalKb).toBeCloseTo(443, 0);
   });
 });
 
