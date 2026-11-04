@@ -281,6 +281,18 @@ export const createSession = createServerFn({ method: "POST" })
     return row.id as string;
   });
 
+/** One-click consent: let the agent's sandbox commands use this task's saved GitHub/Vercel/database tokens. */
+export const setShareTokens = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid(), share: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    const { error, data: row } = await context.supabase.from("agent_sessions").update({ share_tokens: data.share }).eq("id", data.id).eq("user_id", context.userId).select("id").maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Task not found");
+    await audit(context, data.share ? "tokens.shared" : "tokens.unshared", "sandbox", {}, data.id);
+    return { share: data.share };
+  });
+
 export const updateSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
