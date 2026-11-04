@@ -17,7 +17,7 @@ import { RunTimeline } from "@/components/RunTimeline";
 import { StreamTimeline } from "@/components/StreamTimeline";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
-import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
+import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, setShareTokens, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";

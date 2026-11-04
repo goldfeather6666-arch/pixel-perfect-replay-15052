@@ -190,6 +190,7 @@ export const createRepo = createServerFn({ method: "POST" })
 
 // ---------- Sessions ----------
 export type SessionRow = {
+  share_tokens?: boolean;
   id: string;
   title: string;
   repo: string;
