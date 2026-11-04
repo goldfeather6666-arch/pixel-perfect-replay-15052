@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { getDeployments, syncDeployEnv } from "@/lib/integrations.functions";
 import { autoFix } from "@/lib/connect.functions";
 import { autoHealLabel } from "@/lib/preview-repair";
-import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
+import { KeyRound, FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
