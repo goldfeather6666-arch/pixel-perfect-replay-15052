@@ -1372,6 +1372,17 @@ export const Route = createFileRoute("/api/agent")({
             let stepsDone = 0;
             let runOutcome: { blocker: string | null; exhausted: boolean } = { blocker: null, exhausted: false };
             const logs = runLogs;
+            const liveChat: string[] = [];
+            // Long runs: snapshot conversation + staged changes every 4 minutes, even mid-step,
+            // so a dropped connection or crashed worker never loses earlier progress.
+            const autosave = setInterval(() => {
+              if (runAbort.signal.aborted) return;
+              void sb.from("agent_sessions").update({
+                messages: [...turns.base, ...(autoRecovery ? [] : [{ role: "user", content: message }]), ...liveChat.map((content) => ({ role: "user", content })), turns.assistant(text, logs)],
+                pending, updated_at: new Date().toISOString(),
+              }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId)
+                .then(({ error }) => { if (!error) rec.event("progress.autosaved", { pending: pending.length, steps: logs.length }); }, () => {});
+            }, 4 * 60_000);
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
             try {
               const { loadMcpTools } = await import("@/lib/mcp-client.server");
@@ -1387,7 +1398,7 @@ export const Route = createFileRoute("/api/agent")({
                const externalContext = `\nConnected MCP servers: ${JSON.stringify(external.servers)}. Connection issues: ${JSON.stringify(external.issues)}. To browse a server, call tool_search with server set to its exact name and query set to an empty string. Do not repeatedly search keywords when a server is unavailable; report the connection issue. Framer website MCP edits Framer-hosted projects, not GitHub source files; Framer Motion/Motion and Three.js are separate libraries. Do not claim Framer MCP was used when it was not.`;
                const { data: actions } = await sb.from("mcp_action_requests").select("tool_name, state, result").eq("user_id", u.user.id).eq("session_id", sessionId).order("created_at", { ascending: false }).limit(10);
               let usedSteps = 0;
-              const liveChat: string[] = [];
+              liveChat.length = 0;
               const parallelFirst = team.required && mustDispatch(message, { plan: !!plan }) && !!tools.delegate;
               const reasoning = reasoningOptions(cred.provider, s.model, profile);
               rec.event("discovery.classified", { taskClass, signals, profile, reasoning: reasoning.applied, team: team.reason, routing: routingSummary(routing) });
@@ -1578,6 +1589,7 @@ export const Route = createFileRoute("/api/agent")({
               }
             } finally {
               stopWatching();
+              clearInterval(autosave);
               clearInterval(beat);
               clearInterval(waitNotice);
               if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
