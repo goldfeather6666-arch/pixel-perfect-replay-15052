@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { getDeployments, syncDeployEnv } from "@/lib/integrations.functions";
 import { autoFix } from "@/lib/connect.functions";
 import { autoHealLabel } from "@/lib/preview-repair";
-import { FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
+import { KeyRound, FileText, ImagePlus, Check, ChevronRight, ListChecks, Coins, History, Pencil, Save, FileCode, GitPullRequest, Loader2, Send, Square, Trash2, Wrench, X, MessageSquare, Activity, FolderTree, TerminalSquare, Rocket, GitCompare, Network, BookOpen, PanelRightClose, Globe, MoreHorizontal } from "lucide-react";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -17,7 +17,7 @@ import { RunTimeline } from "@/components/RunTimeline";
 import { StreamTimeline } from "@/components/StreamTimeline";
 import { AUTONOMY, AUTONOMY_LABEL, asAutonomy, type Autonomy } from "@/lib/engine/autonomy";
 import { supabase } from "@/integrations/supabase/client";
-import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
+import { getRepoMemory, clearRepoMemory, stopSession, deleteSession, getDiff, getSession, getTree, openPullRequest, setShareTokens, readFile, resolvePending, restoreCheckpoint, saveFile, updateSession } from "@/lib/app.functions";
 import type { AgentEvent, ChatMessage, PendingChange, ToolLog } from "@/lib/providers";
 import { pageMeta } from "@/lib/page-meta";
 import { McpActionApprovals } from "@/components/McpActionApprovals";
@@ -99,6 +99,7 @@ function Workspace() {
   const update = useServerFn(updateSession);
   const remove = useServerFn(deleteSession);
   const openPr = useServerFn(openPullRequest);
+  const shareTokens = useServerFn(setShareTokens);
   const [openingPr, setOpeningPr] = useState(false);
   const stop = useServerFn(stopSession);
   const deployNow = useServerFn(syncDeployEnv);
@@ -534,6 +535,15 @@ function Workspace() {
       <AppHeader actions={s ? (
         <>
           <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
+          <Button type="button" size="sm" variant={s.share_tokens ? "default" : "outline"} className="h-8 gap-1.5 rounded-full px-2.5 text-xs" aria-pressed={!!s.share_tokens} aria-label={s.share_tokens ? "Agent can use your saved tokens — tap to stop sharing" : "Let the agent use your saved GitHub, Vercel and database tokens"} title={s.share_tokens ? "Agent has your GitHub, Vercel and database access. Tap to turn off." : "Give the agent your saved GitHub, Vercel and database access for this task"} onClick={async () => {
+            const next = !s.share_tokens;
+            if (next && !confirm("Let the agent use your saved GitHub, Vercel and database access in its private workspace for this task? You can turn this off anytime.")) return;
+            try {
+              await shareTokens({ data: { id, share: next } });
+              toast.success(next ? "Agent can now use your saved access" : "Access sharing turned off");
+              await qc.invalidateQueries({ queryKey: ["session", id] });
+            } catch (error) { toast.error("Could not update: " + (error as Error).message); }
+          }}><KeyRound className="h-3.5 w-3.5" /><span className="hidden sm:inline">{s.share_tokens ? "Shared" : "Access"}</span></Button>
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-full px-2.5 text-xs" aria-label="Open pull request" title="Open a pull request on GitHub" disabled={openingPr || running || bgRunning} onClick={async () => {
             setOpeningPr(true);
             try {
