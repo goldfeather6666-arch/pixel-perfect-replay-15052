@@ -532,6 +532,16 @@ function Workspace() {
       <AppHeader actions={s ? (
         <>
           <ModelSwitcher id={id} credentialId={s.credential_id} model={s.model} fallbackModel={s.fallback_model ?? null} profile={s.reasoning_profile ?? "auto"} codingModel={s.coding_model ?? null} reviewerModel={s.reviewer_model ?? null} codingCredentialId={s.coding_credential_id ?? null} reviewerCredentialId={s.reviewer_credential_id ?? null} disabled={running || bgRunning} />
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-full px-2.5 text-xs" aria-label="Open pull request" title="Open a pull request on GitHub" disabled={openingPr || running || bgRunning} onClick={async () => {
+            setOpeningPr(true);
+            try {
+              const url = await openPr({ data: { id } });
+              toast.success("Pull request opened");
+              window.open(url, "_blank", "noopener");
+            } catch (error) {
+              toast.error("Could not open pull request: " + (error as Error).message);
+            } finally { setOpeningPr(false); }
+          }}>{openingPr ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitPullRequest className="h-3.5 w-3.5" />}<span className="hidden sm:inline">PR</span></Button>
           <Button type="button" size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-xs" disabled={deploying} onClick={() => { void publishNow(); }}><Rocket className="h-3.5 w-3.5" /> {deploying ? "Deploying…" : "Publish"}</Button>
           <Button type="button" size="sm" variant="ghost" className="h-8 rounded-full px-2 text-xs" aria-label="Publish settings" onClick={() => setPublishOpen(true)}>Setup</Button>
         </>
