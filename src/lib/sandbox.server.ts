@@ -39,6 +39,26 @@ export async function pollJob(sandboxId: string, job: string, offset: number, ki
   return { out: i >= 0 ? raw.slice(0, i) : "", offset: next, exit_code: exit, done: exit !== null && next >= total };
 }
 
+/**
+ * Owner opted in (agent_sessions.share_tokens): the task's own pinned GitHub/Vercel/database tokens
+ * become env vars for agent shell commands only (gh, vercel, supabase CLIs). Never written to repo,
+ * logs or preview; resolved fresh per command so turning sharing off takes effect immediately.
+ */
+export async function sharedTokenEnv(sb: any, session: Session, ghToken: string): Promise<Record<string, string>> {
+  const { data } = await sb.from("agent_sessions").select("share_tokens, accounts").eq("id", session.id).eq("user_id", session.user_id).maybeSingle();
+  if (!data?.share_tokens) return {};
+  const { accountToken } = await import("./accounts.server");
+  const [vercel, supa] = await Promise.all([
+    accountToken(sb, session.user_id, "vercel", data.accounts).catch(() => null),
+    accountToken(sb, session.user_id, "supabase", data.accounts).catch(() => null),
+  ]);
+  const env: Record<string, string> = {};
+  if (ghToken) { env["GH_TOKEN"] = ghToken; env["GITHUB_TOKEN"] = ghToken; }
+  if (vercel) env["VERCEL_TOKEN"] = vercel;
+  if (supa) env["SUPABASE_ACCESS_TOKEN"] = supa;
+  return env;
+}
+
 export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }, signal?: AbortSignal, job?: string) {
   signal?.throwIfAborted();
   const { connectBox, createBox } = await import("./runner-box.server");
@@ -101,11 +121,16 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
     }
   }
   if (job === OPEN_ONLY) return { box } as never;
+  const tokens = await sharedTokenEnv(sb, session, ghToken).catch(() => ({} as Record<string, string>));
+  const cmdEnv = { ...RUN_ENV, ...tokens };
   if (job) {
     // Detached terminal job: output streams to a log file the client polls, so long commands
     // (installs, builds) never hit the request time limit.
     const dir = `/tmp/forge-jobs/${job}`;
-    await box.files.write(`${dir}/cmd.sh`, `[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env\n${command}`);
+    // Shared tokens go into a 600-mode file removed as soon as the job shell has read it (never on the command line).
+    const tokLines = Object.entries(tokens).map(([k, v]) => `export ${k}=${JSON.stringify(v)}`).join("\n");
+    if (tokLines) { await box.files.write(`${dir}/tok.env`, tokLines); await box.commands.run(`chmod 600 ${dir}/tok.env`, { timeoutMs: 10_000 }).catch(() => {}); }
+    await box.files.write(`${dir}/cmd.sh`, `[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env\n[ -f ${dir}/tok.env ] && . ${dir}/tok.env && rm -f ${dir}/tok.env\n${command}`);
     const envStr = Object.entries(RUN_ENV).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
     const h = await box.commands.run(
       `${envStr} bash ${dir}/cmd.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`,
@@ -123,7 +148,7 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   }
   const started = Date.now();
   // Agent commands see the same database settings as the preview, so login/data flows can be exercised.
-  const r = await box.commands.run(`[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env; ${command}`, { cwd: REPO_DIR, envs: RUN_ENV, timeoutMs: CMD_TIMEOUT_MS }).catch((e: any) => e);
+  const r = await box.commands.run(`[ -f /tmp/forge-task.env ] && . /tmp/forge-task.env; ${command}`, { cwd: REPO_DIR, envs: cmdEnv, timeoutMs: CMD_TIMEOUT_MS }).catch((e: any) => e);
   signal?.throwIfAborted();
   const timedOut = typeof r?.exitCode !== "number" && Date.now() - started >= CMD_TIMEOUT_MS - 2000;
   return {
