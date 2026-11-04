@@ -76,7 +76,7 @@ Communication: work silently. Do NOT narrate steps ("Let me look at…", "Now I'
 Finish with a concise summary of what changed and what was not verified.`;
 
 const PUBLISH_MODE = `\nPUBLISH: The user reviewed the preview and pressed Publish. Do not change features. Run deployment_preflight (check), fix only build-breaking errors, then call deploy_status to deploy the current commit and report the live URL.`;
-const PLAN_MODE = `\nPLAN MODE: Do NOT write, delete, or stage any files. Investigate with read-only tools, then reply with a numbered implementation plan (files to change, approach, risks, how you will verify). End by asking the user to approve the plan.`;
+const PLAN_MODE = `\nPLAN MODE (chosen by the user in the composer): file-writing, deleting and preview tools are intentionally switched off for this message only — this is NOT a missing capability or a broken session. Never tell the user tools are missing or that the session is BLOCKED; Build mode has every write and command tool. Do NOT write, delete, or stage any files. Investigate with read-only tools, then reply with a numbered implementation plan (files to change, approach, risks, how you will verify). End by asking the user to approve the plan.`;
 
 export const Route = createFileRoute("/api/agent")({
   server: {
@@ -1204,7 +1204,7 @@ export const Route = createFileRoute("/api/agent")({
         testerTools = () => ({ ...readOnly(), run_command: tools.run_command }) as import("ai").ToolSet;
         readOnly = () => ({ list_files: tools.list_files, read_file: tools.read_file, read_files: tools.read_files, search_files: tools.search_files }) as import("ai").ToolSet;
         if (!publish) { for (const k of ["deployment_preflight", "deploy_status", "review_vercel_issues"] as const) delete (tools as Record<string, unknown>)[k]; }
-        if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).write_files; delete (tools as Partial<typeof tools>).delete_file; }
+        if (plan) { for (const k of ["preview_start", "preview_restart", "preview_stop"] as const) delete (tools as Partial<typeof tools>)[k]; delete (tools as Partial<typeof tools>).write_file; delete (tools as Partial<typeof tools>).write_files; delete (tools as Partial<typeof tools>).delete_file; delete (tools as Partial<typeof tools>).edit_file; }
         // Chat mode: no container/coding tools at all — only conversation plus light repo reads via GitHub.
         if (chat) { for (const k of CHAT_REMOVED_TOOLS) delete (tools as Record<string, unknown>)[k]; }
 
