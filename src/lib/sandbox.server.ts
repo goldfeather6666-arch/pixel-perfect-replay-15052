@@ -59,6 +59,12 @@ export async function sharedTokenEnv(sb: any, session: Session, ghToken: string)
   return env;
 }
 
+export function redactTokens(text: string, tokens: Record<string, string>) {
+  let out = text;
+  for (const v of Object.values(tokens)) if (v && v.length >= 8) out = out.split(v).join("[redacted]");
+  return out;
+}
+
 export async function runInSandbox(sb: any, session: Session, ghToken: string, command: string, pending: PendingChange[] = [], preview?: { port: number }, signal?: AbortSignal, job?: string) {
   signal?.throwIfAborted();
   const { connectBox, createBox } = await import("./runner-box.server");
@@ -153,8 +159,8 @@ export async function runInSandbox(sb: any, session: Session, ghToken: string, c
   const timedOut = typeof r?.exitCode !== "number" && Date.now() - started >= CMD_TIMEOUT_MS - 2000;
   return {
     exit_code: typeof r?.exitCode === "number" ? r.exitCode : -1,
-    stdout: clip(String(r?.stdout ?? "")),
-    stderr: clip(String(r?.stderr ?? r?.message ?? "")),
+    stdout: clip(redactTokens(String(r?.stdout ?? ""), tokens)),
+    stderr: clip(redactTokens(String(r?.stderr ?? r?.message ?? ""), tokens)),
     ...(timedOut
       ? { note: `Command stopped after ${CMD_TIMEOUT_MS / 1000}s. For long jobs run it in the background (nohup … > /tmp/x.log 2>&1 &) and check the log with tail in a later command.` }
       : {}),
