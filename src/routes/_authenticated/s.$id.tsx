@@ -98,6 +98,8 @@ function Workspace() {
   const fetchSession = useServerFn(getSession);
   const update = useServerFn(updateSession);
   const remove = useServerFn(deleteSession);
+  const openPr = useServerFn(openPullRequest);
+  const [openingPr, setOpeningPr] = useState(false);
   const stop = useServerFn(stopSession);
   const deployNow = useServerFn(syncDeployEnv);
   const [deploying, setDeploying] = useState(false);
