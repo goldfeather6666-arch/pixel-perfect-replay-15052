@@ -1,0 +1,1 @@
+ALTER TABLE public.agent_sessions ADD COLUMN IF NOT EXISTS share_tokens boolean NOT NULL DEFAULT false;

@@ -222,6 +222,7 @@ export type Database = {
           reviewer_model: string | null
           running: boolean
           sandbox_id: string | null
+          share_tokens: boolean
           stop_requested: boolean
           summarized_count: number
           summary: string | null
@@ -255,6 +256,7 @@ export type Database = {
           reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null
+          share_tokens?: boolean
           stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
@@ -288,6 +290,7 @@ export type Database = {
           reviewer_model?: string | null
           running?: boolean
           sandbox_id?: string | null
+          share_tokens?: boolean
           stop_requested?: boolean
           summarized_count?: number
           summary?: string | null
