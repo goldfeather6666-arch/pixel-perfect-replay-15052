@@ -1372,6 +1372,16 @@ export const Route = createFileRoute("/api/agent")({
             let stepsDone = 0;
             let runOutcome: { blocker: string | null; exhausted: boolean } = { blocker: null, exhausted: false };
             const logs = runLogs;
+            // Long runs: snapshot conversation + staged changes every 4 minutes, even mid-step,
+            // so a dropped connection or crashed worker never loses earlier progress.
+            const autosave = setInterval(() => {
+              if (runAbort.signal.aborted) return;
+              void sb.from("agent_sessions").update({
+                messages: [...turns.base, ...(autoRecovery ? [] : [{ role: "user", content: message }]), ...liveChat.map((content) => ({ role: "user", content })), turns.assistant(text, logs)],
+                pending, updated_at: new Date().toISOString(),
+              }).eq("id", sessionId).eq("user_id", u.user.id).eq("execution_id", executionId)
+                .then(({ error }) => { if (!error) rec.event("progress.autosaved", { pending: pending.length, steps: logs.length }); }, () => {});
+            }, 4 * 60_000);
             let external: Awaited<ReturnType<typeof import("@/lib/mcp-client.server").loadMcpTools>> | undefined;
             try {
               const { loadMcpTools } = await import("@/lib/mcp-client.server");
@@ -1578,6 +1588,7 @@ export const Route = createFileRoute("/api/agent")({
               }
             } finally {
               stopWatching();
+              clearInterval(autosave);
               clearInterval(beat);
               clearInterval(waitNotice);
               if (runAbort.signal.aborted && !stalled && !text.includes("_(stopped)_")) text += "\n\n_(stopped)_";
